@@ -66,7 +66,7 @@ test("server-renders the Chinese Qianlin Travel homepage", async () => {
   assert.match(html, /如何提交旅行咨询？/);
   assert.match(html, /如何获得行程报价？/);
   assert.match(html, /智能规划贵州行程/);
-  assert.match(html, /生成参考行程/);
+  assert.match(html, /正在加载可规划的景点和城市/);
   assert.doesNotMatch(html, /Featured Guizhou Tours|Enquire About This Tour|Explore Tours|页面展示的参考线路|页面价格为参考起价|选择线路|Browse a reference route|Qingyan Ancient Town|Zhenyuan Ancient Town|青岩古镇|镇远古城|体验贵州|Experience Guizhou|贵州的六个片段|Guizhou in six frames|section-gallery|gallery-grid|tour-card|From ¥/i);
   assert.doesNotMatch(html, /<a[^>]+href="#tours"/i);
 });
@@ -77,7 +77,9 @@ test("keeps Chinese language, metadata and enquiry interaction as the default", 
   const pageSource = await readSource("app/page.tsx");
   const contactSource = await readSource("components/Contact.tsx");
   const destinationsSource = await readSource("components/Destinations.tsx");
-  const destinationsDataSource = await readSource("data/destinations.ts");
+  const plannerOptionsSource = await readSource("components/PlannerOptionsProvider.tsx");
+  const plannerRouteSource = await readSource("app/api/planner/options/route.ts");
+  const plannerMigrationSource = await readSource("drizzle/0001_romantic_roland_deschain.sql");
   const toursDataSource = await readSource("data/tours.ts");
   const formSource = await readSource("components/CustomizeForm.tsx");
   assert.match(languageSource, /useState<Language>\("zh"\)/);
@@ -90,8 +92,16 @@ test("keeps Chinese language, metadata and enquiry interaction as the default", 
   assert.match(contactSource, /onClick=\{onEnquire\}/);
   assert.match(destinationsSource, /<button type="button"/);
   assert.match(destinationsSource, /onSelectDestination\(name\)/);
-  assert.match(destinationsSource, /String\(destinations\.length\)\.padStart/);
-  assert.doesNotMatch(destinationsDataSource, /Qingyan Ancient Town|Zhenyuan Ancient Town|青岩古镇|镇远古城/);
+  assert.match(destinationsSource, /usePlannerOptions/);
+  assert.match(destinationsSource, /homepageDestinations\.length/);
+  assert.doesNotMatch(destinationsSource, /data\/destinations/);
+  assert.match(plannerOptionsSource, /fetch\("\/api\/planner\/options"/);
+  assert.match(plannerRouteSource, /PLANNER_TENANT_ID/);
+  assert.match(plannerRouteSource, /status, "published"/);
+  assert.match(plannerRouteSource, /Boolean\(destination\.availableForPlanning\)/);
+  assert.match(plannerMigrationSource, /CREATE TABLE .*planner_cities/);
+  assert.match(plannerMigrationSource, /CREATE TABLE .*planner_destinations/);
+  assert.match(plannerMigrationSource, /qianlin-travel/);
   assert.match(toursDataSource, /tours:\s*Tour\[\]\s*=\s*\[\]/);
   assert.match(pageSource, /inquiryPrefill/);
   assert.match(formSource, /initialPlaces/);
@@ -126,8 +136,13 @@ test("keeps itinerary planning provider-neutral and deterministic", async () => 
   const envExample = await readSource(".env.example");
   assert.match(plannerSource, /generateItinerary\(/);
   assert.doesNotMatch(plannerSource, /localItineraryProvider|OpenAI|DashScope|百炼/);
+  assert.doesNotMatch(plannerSource, /data\/destinations|planner\.cities/);
+  assert.match(plannerSource, /usePlannerOptions/);
+  assert.match(plannerSource, /availableForPlanning/);
+  assert.match(plannerSource, /startCity.*guiyang/s);
   assert.match(pageSource, /<ItineraryPlanner tenantId=\{company\.id\}/);
   assert.match(pageSource, /initialMessage=\{inquiryPrefill\.message\}/);
+  assert.match(pageSource, /PlannerOptionsProvider/);
   assert.match(entrySource, /ITINERARY_PROVIDER/);
   assert.match(entrySource, /return "local"/);
   assert.match(entrySource, /UNSUPPORTED_PROVIDER/);
@@ -141,22 +156,39 @@ test("keeps itinerary planning provider-neutral and deterministic", async () => 
   process.env.ITINERARY_PROVIDER = "local";
   try {
     const { module: itineraryModule } = await importTypescriptModule("lib/itinerary/generateItinerary.ts");
-    const input = { tenantId: "qianlin-travel", destinationIds: ["huangguoshu-waterfall", "xijiang-miao-village", "libo-xiaoqikong", "fanjing-mountain"], days: 2, travelers: "6+", startCity: "Guiyang", endCity: "Guiyang", language: "zh" };
-    const firstPlan = await itineraryModule.generateItinerary(input);
-    const secondPlan = await itineraryModule.generateItinerary(input);
+    const context = {
+      cities: [
+        { id: "guiyang", code: "guiyang", name: { zh: "贵阳", en: "Guiyang" }, availableAsStart: true, availableAsEnd: true, displayOrder: 1 },
+        { id: "anshun", code: "anshun", name: { zh: "安顺", en: "Anshun" }, availableAsStart: true, availableAsEnd: true, displayOrder: 2 },
+      ],
+      destinations: [
+        { id: "huangguoshu-waterfall", slug: "huangguoshu-waterfall", cityCode: "anshun", name: { zh: "黄果树瀑布", en: "Huangguoshu Waterfall" }, description: { zh: "", en: "" }, imageUrl: "/waterfall", cardSize: "large", region: { zh: "安顺", en: "Anshun" }, overnightSuggestion: { zh: "安顺", en: "Anshun" }, routeOrder: 1, recommendedVisitHours: 6, majorAttraction: true, availableForPlanning: true, showOnHomepage: true, displayOrder: 1 },
+        { id: "xijiang-miao-village", slug: "xijiang-miao-village", cityCode: "kaili", name: { zh: "西江千户苗寨", en: "Xijiang Miao Village" }, description: { zh: "", en: "" }, imageUrl: "/village", cardSize: "small", region: { zh: "黔东南", en: "Southeast Guizhou" }, overnightSuggestion: { zh: "西江", en: "Xijiang" }, routeOrder: 3, recommendedVisitHours: 5, majorAttraction: false, availableForPlanning: true, showOnHomepage: true, displayOrder: 2 },
+        { id: "hidden-place", slug: "hidden-place", name: { zh: "不可规划景点", en: "Unavailable place" }, description: { zh: "", en: "" }, imageUrl: "/hidden", cardSize: "small", region: { zh: "贵州", en: "Guizhou" }, routeOrder: 9, recommendedVisitHours: 3, majorAttraction: false, availableForPlanning: false, showOnHomepage: false, displayOrder: 3 },
+      ],
+    };
+    const input = { tenantId: "qianlin-travel", destinationIds: ["huangguoshu-waterfall", "xijiang-miao-village", "hidden-place"], days: 2, travelers: "6+", startCity: "guiyang", endCity: "anshun", language: "zh" };
+    const firstPlan = await itineraryModule.generateItinerary(input, context);
+    const secondPlan = await itineraryModule.generateItinerary(input, context);
     const stops = firstPlan.days.flatMap((day) => day.stops.map((stop) => stop.destinationId));
     assert.deepEqual(firstPlan, secondPlan);
     assert.equal(firstPlan.generatedBy, "local");
     assert.equal(firstPlan.days.length, 2);
     assert.equal(new Set(stops).size, stops.length);
-    assert.ok(firstPlan.unassignedDestinationIds.length > 0);
+    assert.deepEqual(firstPlan.unassignedDestinationIds, ["hidden-place"]);
 
     process.env.ITINERARY_PROVIDER = "unsupported";
-    await assert.rejects(() => itineraryModule.generateItinerary(input), (error) => error?.code === "UNSUPPORTED_PROVIDER");
+    await assert.rejects(() => itineraryModule.generateItinerary(input, context), (error) => error?.code === "UNSUPPORTED_PROVIDER");
   } finally {
     if (previousProvider === undefined) delete process.env.ITINERARY_PROVIDER;
     else process.env.ITINERARY_PROVIDER = previousProvider;
   }
+});
+
+test("returns a safe error when planner D1 is unavailable", async () => {
+  const response = await request("/api/planner/options");
+  assert.equal(response.status, 503);
+  assert.doesNotMatch(await response.text(), /SQL|D1|drizzle|stack|DB binding/i);
 });
 
 test("filters only published featured tours for the current tenant", () => {

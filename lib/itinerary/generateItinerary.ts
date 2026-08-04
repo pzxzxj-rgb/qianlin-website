@@ -1,18 +1,18 @@
 import { ItineraryGenerationError } from "./errors";
 import { localItineraryProvider } from "./providers/localItineraryProvider";
-import type { ItineraryPlan, ItineraryProviderName, ItineraryRequest } from "./types";
+import type { ItineraryGenerationContext, ItineraryPlan, ItineraryProviderName, ItineraryRequest } from "./types";
 
 export function getConfiguredItineraryProvider(): ItineraryProviderName | string {
   if (typeof process === "undefined") return "local";
   return process.env.ITINERARY_PROVIDER || "local";
 }
 
-export async function generateItinerary(input: ItineraryRequest): Promise<ItineraryPlan> {
+export async function generateItinerary(input: ItineraryRequest, context: ItineraryGenerationContext): Promise<ItineraryPlan> {
   const provider = getConfiguredItineraryProvider();
 
   switch (provider) {
     case "local":
-      return localItineraryProvider.generate(input);
+      return localItineraryProvider.generate(input, context);
     case "external":
       throw new ItineraryGenerationError("EXTERNAL_PROVIDER_NOT_CONFIGURED", input.language === "zh" ? "外部行程服务尚未配置，请稍后重试或直接咨询旅行顾问。" : "The external itinerary service is not configured yet. Please try again later or contact a travel consultant.");
     default:

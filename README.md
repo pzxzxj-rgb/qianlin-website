@@ -39,6 +39,7 @@ npm test
 ```text
 app/
   api/inquiries/route.ts   咨询 API 与服务端校验
+  api/planner/options/route.ts   行程规划公开选项 API
   privacy/page.tsx         隐私政策
   terms/page.tsx           用户服务条款
   refund/page.tsx          退款与取消政策
@@ -47,21 +48,21 @@ components/                首页模块、导航、Hero 轮播和咨询弹窗
 data/
   siteConfig.ts            公司信息、联系方式和 Hero 图片配置
   tours.ts                 当前固定线路配置，当前为空数组
-  destinations.ts          贵州目的地数据
   translations.ts          中英文界面文案
   faq.ts                   常见问题
   legal.ts                 法律页面内容
 types/tour.ts              未来线路数据类型
 lib/tours.ts               未来线路筛选与排序函数
 lib/itinerary/             供应商无关的行程规划类型、入口和本地 provider
-db/schema.ts               D1／Drizzle 咨询表结构
+lib/planner/               行程规划租户配置和动态选项类型
+db/schema.ts               D1／Drizzle 咨询表与规划选项结构
 drizzle/                   迁移文件与元数据
 public/images/hero/        本地 Hero WebP 图片
 tests/                     页面、线路筛选和 API 基础测试
 worker/index.ts            Worker 入口
 ```
 
-公司名称、地址、联系方式、介绍、图片和 Hero 轮播顺序集中在 `data/siteConfig.ts`；目的地集中在 `data/destinations.ts`。未来接入真实线路数据时，线路应带有 `tenantId`、`status`、`featured` 和 `displayOrder`，首页只读取当前旅行社的已发布精选线路。
+公司名称、地址、联系方式、介绍和 Hero 轮播顺序集中在 `data/siteConfig.ts`。旅游线路仍由 `data/tours.ts` 管理；智能规划城市和目的地已经迁移到 D1 的 `planner_cities`、`planner_destinations` 表，并通过 `/api/planner/options` 读取当前 `qianlin-travel` 商家的已发布数据。
 
 ## Hero 图片
 
@@ -71,11 +72,13 @@ Hero 当前使用 4 张 `public/images/hero/` 中的本地 WebP 图片，轮播�
 
 ## 智能行程规划与外部服务接入设计
 
-首页的“智能行程规划”当前使用本地规则生成器。游客选择景点、出行天数、人数、出发城市和结束城市后，系统会按景点区域和基础行程强度整理按天展示的参考行程，并标记暂未安排的景点。结果可以带入现有咨询表单提交给旅行顾问。
+首页的“智能行程规划”当前使用本地规则生成器。游客选择从 D1 加载的景点、出行天数、人数、出发城市和结束城市后，系统会按景点区域和基础行程强度整理按天展示的参考行程，并标记暂未安排的景点。结果可以带入现有咨询表单提交给旅行顾问。
+
+规划选项由 `app/api/planner/options/route.ts` 统一提供，服务端固定使用 `qianlin-travel` 租户，并只返回 `published` 数据；城市和目的地按 `displayOrder` 排序，目的地首页展示和是否可用于规划分别由 `showOnHomepage`、`availableForPlanning` 控制。`components/PlannerOptionsProvider.tsx` 在浏览器端只请求一次并共享给目的地卡片与规划器。初始数据只存在于 `drizzle/0001_romantic_roland_deschain.sql` 迁移种子中，当前没有后台管理页面。
 
 页面只依赖统一入口 `generateItinerary()`，不直接调用本地 provider，也不依赖任何供应商 SDK。当前 provider 为 `local`，本轮不调用真实外部 API、不创建 API Key、不填写外部地址，也不会产生外部 API 费用。
 
-行程核心类型位于 `lib/itinerary/types.ts`，统一入口位于 `lib/itinerary/generateItinerary.ts`，本地实现位于 `lib/itinerary/providers/localItineraryProvider.ts`。未来可增加外部 provider 或 adapter，用于对接大模型、地图路线服务、专业行程服务或自建后端；外部返回必须先校验并转换为内部 `ItineraryPlan`，不能把供应商原始字段直接交给前端。
+行程核心类型位于 `lib/itinerary/types.ts`，统一入口位于 `lib/itinerary/generateItinerary.ts`，本地实现位于 `lib/itinerary/providers/localItineraryProvider.ts`。本地 provider 接收动态规划上下文，不再导入固定目的地文件。未来可增加外部 provider 或 adapter，用于对接大模型、地图路线服务、专业行程服务或自建后端；外部返回必须先校验并转换为内部 `ItineraryPlan`，不能把供应商原始字段直接交给前端。
 
 未来接入外部服务时，必须由项目服务端调用，浏览器不能直接请求供应商接口。API Key 只能放在服务端环境变量中，不能使用 `NEXT_PUBLIC_` 前缀，也不能进入浏览器。更换供应商时应主要替换 provider、adapter 和服务端配置，不需要重写景点选择、结果展示或咨询表单。外部服务失败时未来可以配置本地 provider 作为回退，但本轮未实现复杂重试或自动回退。
 

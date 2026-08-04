@@ -1,4 +1,3 @@
-import { destinations } from "./destinations";
 import { tours } from "./tours";
 
 type LocalizedText = {
@@ -74,7 +73,6 @@ export const company = {
     } satisfies LocalizedText,
   },
   tours,
-  destinations,
 } as const;
 
 export type CompanyConfig = typeof company;

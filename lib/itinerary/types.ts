@@ -1,3 +1,5 @@
+import type { PlannerCityOption, PlannerDestinationOption } from "../planner/types";
+
 export type ItineraryLanguage = "zh" | "en";
 export type ItineraryTravelers = "1" | "2" | "3-5" | "6+";
 
@@ -14,6 +16,11 @@ export type ItineraryRequest = {
   startCity: string;
   endCity: string;
   language: ItineraryLanguage;
+};
+
+export type ItineraryGenerationContext = {
+  cities: PlannerCityOption[];
+  destinations: PlannerDestinationOption[];
 };
 
 export type ItineraryStop = {
@@ -40,7 +47,7 @@ export type ItineraryPlan = {
 };
 
 export interface ItineraryProvider {
-  generate(input: ItineraryRequest): Promise<ItineraryPlan>;
+  generate(input: ItineraryRequest, context: ItineraryGenerationContext): Promise<ItineraryPlan>;
 }
 
 export type ItineraryProviderName = "local" | "external";

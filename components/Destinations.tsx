@@ -1,18 +1,38 @@
-import type { Destination } from "../data/destinations";
+"use client";
+
 import { useLanguage } from "./LanguageContext";
+import { usePlannerOptions } from "./PlannerOptionsProvider";
 import { SectionHeading } from "./SectionHeading";
 
-type DestinationsProps = { destinations: Destination[]; onSelectDestination: (destinationName: string) => void };
+type DestinationsProps = { onSelectDestination: (destinationName: string) => void };
 
-export function Destinations({ destinations, onSelectDestination }: DestinationsProps) {
+export function Destinations({ onSelectDestination }: DestinationsProps) {
   const { language, t } = useLanguage();
-  const total = String(destinations.length).padStart(2, "0");
+  const { status, destinations, error, retry } = usePlannerOptions();
+  const homepageDestinations = destinations.filter((destination) => destination.showOnHomepage);
+
+  if (status === "idle" || status === "loading") {
+    return <section id="destinations" className="section section-destinations"><div className="container"><SectionHeading eyebrow={t.destinations.eyebrow} title={t.destinations.title} description={t.destinations.description} /><p className="planner-loading">{t.planner.loading}</p></div></section>;
+  }
+
+  if (status === "error") {
+    return <section id="destinations" className="section section-destinations"><div className="container"><SectionHeading eyebrow={t.destinations.eyebrow} title={t.destinations.title} description={t.destinations.description} /><div className="planner-load-state"><p role="alert">{error}</p><button type="button" className="text-link" onClick={retry}>{t.planner.retry}</button></div></div></section>;
+  }
+
+  if (homepageDestinations.length === 0) return null;
+
+  const total = String(homepageDestinations.length).padStart(2, "0");
   return (
     <section id="destinations" className="section section-destinations">
       <div className="container">
         <div className="section-row section-row-start"><SectionHeading eyebrow={t.destinations.eyebrow} title={t.destinations.title} description={t.destinations.description} /><span className="section-side-note">01 — {total}<br /><span>{t.destinations.selected}</span></span></div>
         <div className="destination-grid">
-          {destinations.map((destination, index) => { const name = language === "zh" ? destination.nameZh : destination.name; return <button type="button" className={`destination-card destination-card-${destination.size}`} key={destination.name} onClick={() => onSelectDestination(name)} aria-label={language === "zh" ? `咨询${name}` : `Enquire about ${name}`}><img src={destination.image} alt={name} loading={index > 1 ? "lazy" : "eager"} /><div className="destination-shade" /><div className="destination-copy"><span className="destination-index">0{index + 1}</span><h3>{name}</h3><p>{language === "zh" ? destination.descriptionZh : `${destination.chineseName} · ${destination.description}`}</p></div><span className="destination-arrow" aria-hidden="true">↗</span></button>; })}
+          {homepageDestinations.map((destination, index) => {
+            const name = destination.name[language];
+            const cardClass = "destination-card destination-card-" + destination.cardSize;
+            const ariaLabel = language === "zh" ? "咨询" + name : "Enquire about " + name;
+            return <button type="button" className={cardClass} key={destination.id} onClick={() => onSelectDestination(name)} aria-label={ariaLabel}><img src={destination.imageUrl} alt={name} loading={index > 1 ? "lazy" : "eager"} /><div className="destination-shade" /><div className="destination-copy"><span className="destination-index">0{index + 1}</span><h3>{name}</h3><p>{destination.description[language]}</p></div><span className="destination-arrow" aria-hidden="true">↗</span></button>;
+          })}
         </div>
       </div>
     </section>
