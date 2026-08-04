@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { company } from "../data/siteConfig";
 import { useLanguage } from "./LanguageContext";
 
@@ -8,11 +8,19 @@ type NavbarProps = { onBookNow: () => void };
 
 export function Navbar({ onBookNow }: NavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const { language, toggleLanguage, t } = useLanguage();
   const closeMenu = () => setMenuOpen(false);
 
+  useEffect(() => {
+    const updateScrollState = () => setScrolled(window.scrollY > 24);
+    updateScrollState();
+    window.addEventListener("scroll", updateScrollState, { passive: true });
+    return () => window.removeEventListener("scroll", updateScrollState);
+  }, []);
+
   return (
-    <header className="site-header">
+    <header className={`site-header${scrolled ? " site-header-scrolled" : ""}`}>
       <div className="header-inner">
         <a href="#home" className="brand" onClick={closeMenu} aria-label={company.logo.alt[language]}>
           <span className="brand-mark">{company.logo.mark}</span>
@@ -29,10 +37,8 @@ export function Navbar({ onBookNow }: NavbarProps) {
             <a href="#contact" onClick={closeMenu}>{t.nav.contact}</a>
           </nav>
           <div className="header-actions">
-            <button type="button" className="language-switch" onClick={toggleLanguage} aria-label={t.nav.aria}>
-              <span>{language === "en" ? "中文" : "EN"}</span>
-            </button>
-            <button type="button" className="button button-dark button-small" onClick={() => { closeMenu(); onBookNow(); }}>{t.nav.book} <span aria-hidden="true">↗</span></button>
+            <button type="button" className="language-switch" onClick={toggleLanguage} aria-label={t.nav.aria}><span>{language === "en" ? "中文" : "EN"}</span></button>
+            <button type="button" className="button button-dark button-small" onClick={() => { closeMenu(); onBookNow(); }}>{t.nav.book} <span aria-hidden="true">→</span></button>
           </div>
         </div>
       </div>

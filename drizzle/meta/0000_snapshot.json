@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9a6fcc63-4c5b-4741-bb4a-904ebed17b16",
+  "id": "6fa0eb86-3e4c-4bc6-83bd-1627548a0808",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "inquiries": {
@@ -21,22 +21,31 @@
           "notNull": true,
           "autoincrement": false
         },
-        "country": {
-          "name": "country",
+        "phone": {
+          "name": "phone",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "wechat": {
+          "name": "wechat",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "email": {
           "name": "email",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "''"
         },
-        "whatsapp": {
-          "name": "whatsapp",
+        "location": {
+          "name": "location",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -67,6 +76,14 @@
           "autoincrement": false,
           "default": "''"
         },
+        "tour_name": {
+          "name": "tour_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
         "places": {
           "name": "places",
           "type": "text",
@@ -82,6 +99,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "''"
+        },
+        "privacy_consent": {
+          "name": "privacy_consent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "status": {
           "name": "status",

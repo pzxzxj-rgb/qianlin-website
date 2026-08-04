@@ -18,5 +18,15 @@ import { company } from "../data/siteConfig";
 
 export default function Home() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
-  return <LanguageProvider><Navbar onBookNow={() => setCustomizeOpen(true)} /><main><Hero onCustomize={() => setCustomizeOpen(true)} /><Tours tours={company.tours} onBook={() => setCustomizeOpen(true)} /><Destinations destinations={company.destinations} /><Services /><HowItWorks /><CustomizeForm open={customizeOpen} onOpen={() => setCustomizeOpen(true)} onClose={() => setCustomizeOpen(false)} /><About /><Gallery /><FAQ /><Contact /></main><Footer /></LanguageProvider>;
+  const [selectedTour, setSelectedTour] = useState("");
+  const openCustomize = (tourName = "") => {
+    setSelectedTour(tourName);
+    setCustomizeOpen(true);
+  };
+  const closeCustomize = () => {
+    setCustomizeOpen(false);
+    setSelectedTour("");
+  };
+
+  return <LanguageProvider><Navbar onBookNow={() => openCustomize()} /><main><Hero onCustomize={() => openCustomize()} /><Tours tours={company.tours} onBook={openCustomize} /><Destinations destinations={company.destinations} /><Services /><HowItWorks /><CustomizeForm open={customizeOpen} initialTourName={selectedTour} onOpen={() => openCustomize()} onClose={closeCustomize} /><About /><Gallery /><FAQ /><Contact /></main><Footer /></LanguageProvider>;
 }
