@@ -7,6 +7,7 @@ type LocalizedText = {
 };
 
 type HeroSlide = {
+  id: string;
   src: string;
   alt: LocalizedText;
   desktopPosition: string;
@@ -32,8 +33,8 @@ export const company = {
   } satisfies LocalizedText,
   address: companyAddress,
   heroSlides: [
-    { src: "/images/hero/hero-01.webp", alt: { zh: "贵州山水主题旅行视觉图", en: "Guizhou landscape travel visual" } satisfies LocalizedText, desktopPosition: "center center", mobilePosition: "50% center" },
-    { src: "/images/hero/hero-03.webp", alt: { zh: "贵州自然风光主题视觉图", en: "Guizhou nature-inspired travel visual" } satisfies LocalizedText, desktopPosition: "68% center", mobilePosition: "62% center" },
+    { id: "hero-01", src: "/images/hero/hero-01.webp", alt: { zh: "贵州山水主题旅行视觉图", en: "Guizhou landscape travel visual" } satisfies LocalizedText, desktopPosition: "center center", mobilePosition: "50% center" },
+    { id: "hero-03", src: "/images/hero/hero-03.webp", alt: { zh: "贵州自然风光主题视觉图", en: "Guizhou nature-inspired travel visual" } satisfies LocalizedText, desktopPosition: "68% center", mobilePosition: "62% center" },
   ] satisfies readonly HeroSlide[],
   contact: {
     channels: [

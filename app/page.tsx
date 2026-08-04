@@ -14,10 +14,13 @@ import { Navbar } from "../components/Navbar";
 import { Services } from "../components/Services";
 import { Tours } from "../components/Tours";
 import { company } from "../data/siteConfig";
+import { getVisibleTours } from "../lib/tours";
 
 export default function Home() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [selectedTour, setSelectedTour] = useState("");
+  const visibleTours = getVisibleTours(company.tours, company.id);
+  const hasVisibleTours = visibleTours.length > 0;
   const openCustomize = (tourName = "") => {
     setSelectedTour(tourName);
     setCustomizeOpen(true);
@@ -27,5 +30,5 @@ export default function Home() {
     setSelectedTour("");
   };
 
-  return <LanguageProvider><Navbar onBookNow={() => openCustomize()} /><main><Hero onCustomize={() => openCustomize()} /><Tours tours={company.tours} onBook={openCustomize} /><Destinations destinations={company.destinations} /><Services /><HowItWorks /><CustomizeForm open={customizeOpen} initialTourName={selectedTour} onOpen={() => openCustomize()} onClose={closeCustomize} /><About /><FAQ /><Contact /></main><Footer /></LanguageProvider>;
+  return <LanguageProvider><Navbar showTours={hasVisibleTours} onBookNow={() => openCustomize()} /><main><Hero showTours={hasVisibleTours} onCustomize={() => openCustomize()} />{hasVisibleTours ? <Tours tours={visibleTours} onBook={openCustomize} /> : null}<Destinations destinations={company.destinations} /><Services /><HowItWorks /><CustomizeForm open={customizeOpen} initialTourName={selectedTour} onOpen={() => openCustomize()} onClose={closeCustomize} /><About /><FAQ /><Contact /></main><Footer showTours={hasVisibleTours} /></LanguageProvider>;
 }

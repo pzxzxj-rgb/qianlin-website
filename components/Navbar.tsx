@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { company } from "../data/siteConfig";
 import { useLanguage } from "./LanguageContext";
 
-type NavbarProps = { onBookNow: () => void };
+type NavbarProps = { showTours: boolean; onBookNow: () => void };
 
-export function Navbar({ onBookNow }: NavbarProps) {
+export function Navbar({ showTours, onBookNow }: NavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const { language, toggleLanguage, t } = useLanguage();
@@ -31,7 +31,7 @@ export function Navbar({ onBookNow }: NavbarProps) {
           <nav className="main-nav" aria-label={language === "zh" ? "主导航" : "Main navigation"}>
             <a href="#home" onClick={closeMenu}>{t.nav.home}</a>
             <a href="#destinations" onClick={closeMenu}>{t.nav.destinations}</a>
-            <a href="#tours" onClick={closeMenu}>{t.nav.tours}</a>
+            {showTours ? <a href="#tours" onClick={closeMenu}>{t.nav.tours}</a> : null}
             <a href="#customize" onClick={closeMenu}>{t.nav.customize}</a>
             <a href="#about" onClick={closeMenu}>{t.nav.about}</a>
             <a href="#contact" onClick={closeMenu}>{t.nav.contact}</a>

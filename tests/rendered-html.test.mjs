@@ -1,5 +1,15 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+import * as ts from "typescript";
+
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const toursSource = await fs.readFile(path.join(projectRoot, "lib/tours.ts"), "utf8");
+const toursModule = ts.transpileModule(toursSource, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+const { getVisibleTours } = await import(`data:text/javascript;base64,${Buffer.from(toursModule).toString("base64")}`);
+const toursComponentSource = await fs.readFile(path.join(projectRoot, "components/Tours.tsx"), "utf8");
 
 const workerUrl = new URL("../dist/server/index.js", import.meta.url);
 workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
@@ -23,13 +33,41 @@ test("server-renders the Qianlin Travel homepage", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /<title>Qianlin Travel \| Discover Guizhou, Your Way<\/title>/i);
-  assert.match(html, /Featured Guizhou Tours/);
-  assert.match(html, /Enquire About This Tour/);
   assert.match(html, /Create Your Private/);
   assert.match(html, /hero-carousel-controls/);
   assert.match(html, /\/images\/hero\/hero-01\.webp/);
   assert.match(html, /Frequently Asked Questions/);
-  assert.doesNotMatch(html, /Traveler Stories|Sample review|To be replaced|ICP filing placeholder|体验贵州|Experience Guizhou|贵州的六个片段|Guizhou in six frames|section-gallery|gallery-grid/i);
+  assert.doesNotMatch(html, /Featured Guizhou Tours|Enquire About This Tour|Explore Tours|旅游线路|体验贵州|Experience Guizhou|贵州的六个片段|Guizhou in six frames|section-gallery|gallery-grid|tour-card|From ¥/i);
+  assert.doesNotMatch(html, /<a[^>]+href="#tours"/i);
+});
+
+test("filters only published featured tours for the current tenant", () => {
+  const makeTour = (id, overrides = {}) => ({
+    id,
+    tenantId: "qianlin-travel",
+    slug: id,
+    title: { zh: id, en: id },
+    description: { zh: "描述", en: "Description" },
+    featured: true,
+    displayOrder: 10,
+    status: "published",
+    ...overrides,
+  });
+  const fixtures = [
+    makeTour("published-late", { displayOrder: 20 }),
+    makeTour("published-first", { displayOrder: 1 }),
+    makeTour("draft", { status: "draft", displayOrder: 0 }),
+    makeTour("archived", { status: "archived", displayOrder: 2 }),
+    makeTour("not-featured", { featured: false, displayOrder: 3 }),
+    makeTour("other-tenant", { tenantId: "other-travel", displayOrder: 0 }),
+  ];
+  assert.deepEqual(getVisibleTours(fixtures, "qianlin-travel").map((tour) => tour.id), ["published-first", "published-late"]);
+  assert.deepEqual(getVisibleTours([], "qianlin-travel"), []);
+});
+
+test("Tours keeps stable ids and consultation prefill wiring", () => {
+  assert.match(toursComponentSource, /key=\{tour\.id\}/);
+  assert.match(toursComponentSource, /onBook\(title\)/);
 });
 
 test("renders legal pages, sitemap and robots", async () => {
