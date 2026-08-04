@@ -11,7 +11,7 @@ export const translations = {
     gallery: { eyebrow: "See it for yourself", title: "Experience Guizhou", description: "A few of the textures, colors and quiet moments waiting along the way.", side: "Field notes", sideSub: "Guizhou in six frames", labels: ["Mountains", "Waterfalls", "Villages", "Culture", "Food", "Ancient towns"] },
     reviews: { eyebrow: "A space for stories", title: "Traveler Stories", description: "Thoughts from the people who will make Qianlin Travel their own.", quote: "Sample review — a placeholder for a future traveler story.", detail: "Traveler story / To be replaced" },
     faq: { eyebrow: "Good to know", title: "Frequently Asked Questions", description: "A few useful details before you start planning." },
-    contact: { eyebrow: "Let’s talk about your next view", title: "Start Your Guizhou Journey", description: "Share a few details and our local team will help you find the right way in.", button: "Send an enquiry", sample: "Sample contact · to be replaced" },
+    contact: { eyebrow: "Let’s talk about your next view", title: "Start Your Guizhou Journey", description: "Share a few details and our local team will help you find the right way in.", button: "Send an enquiry", addressLabel: "Address", copyEmail: "Copy email", copyWechat: "Copy WeChat ID", copied: "Copied" },
     footer: { copy: "Thoughtful journeys through", copyTwo: "the landscapes of Guizhou.", explore: "Explore", company: "Company", policies: "Policies", destinations: "Destinations", tours: "Tours", customize: "Customize Trip", about: "About Us", contact: "Contact", faq: "FAQ", privacy: "Privacy Policy", terms: "Terms", refund: "Refund Policy", icp: "ICP备案信息位置 · ICP filing placeholder", copyright: "Copyright © 2026 Qianlin Travel", top: "Back to top ↑" },
   },
   zh: {
@@ -26,7 +26,7 @@ export const translations = {
     gallery: { eyebrow: "亲自感受贵州", title: "体验贵州", description: "沿途等待着你的色彩、质感与安静时刻。", side: "旅途手记", sideSub: "贵州的六个片段", labels: ["山脉", "瀑布", "村寨", "文化", "美食", "古镇"] },
     reviews: { eyebrow: "为故事留一席之地", title: "旅行者故事", description: "期待未来每一位旅人，为黔林旅行写下属于自己的感受。", quote: "示例评价——这里将替换为真实旅行者故事。", detail: "旅行者故事 / 待替换" },
     faq: { eyebrow: "出发前了解更多", title: "常见问题", description: "开始规划之前，先看看这些实用信息。" },
-    contact: { eyebrow: "聊聊你的下一站风景", title: "开启你的贵州之旅", description: "告诉我们一些想法，本地团队会帮你找到适合自己的方式。", button: "发送咨询", sample: "示例联系方式 · 待替换" },
+    contact: { eyebrow: "聊聊你的下一站风景", title: "开启你的贵州之旅", description: "告诉我们一些想法，本地团队会帮你找到适合自己的方式。", button: "发送咨询", addressLabel: "公司地址", copyEmail: "复制邮箱", copyWechat: "复制微信号", copied: "已复制" },
     footer: { copy: "用心规划每一段", copyTwo: "穿行贵州山水的旅程。", explore: "探索", company: "关于黔林", policies: "服务条款", destinations: "目的地", tours: "旅游线路", customize: "私人定制", about: "关于我们", contact: "联系我们", faq: "常见问题", privacy: "隐私政策", terms: "服务条款", refund: "退款政策", icp: "ICP备案信息位置 · 待补充", copyright: "Copyright © 2026 黔林旅行社", top: "返回顶部 ↑" },
   },
 } as const;

@@ -6,6 +6,8 @@ type LocalizedText = {
   zh: string;
 };
 
+const companyAddress = "贵州省贵阳市云岩区毓秀街道飞山街祥源大厦A栋1单元7层2号";
+
 export const company = {
   id: "qianlin-travel",
   name: "Qianlin Travel",
@@ -21,6 +23,7 @@ export const company = {
     en: "Thoughtful private journeys and curated tours through Guizhou, China with a local travel team.",
     zh: "黔林旅行是一家专注于贵州旅游的本地旅行服务公司。",
   } satisfies LocalizedText,
+  address: companyAddress,
   contact: {
     channels: [
       {
@@ -38,7 +41,7 @@ export const company = {
       {
         key: "wechat",
         label: { en: "WeChat", zh: "微信" } satisfies LocalizedText,
-        value: "QianlinTravel",
+        value: "powwow58",
       },
     ],
   },
