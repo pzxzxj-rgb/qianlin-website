@@ -63,8 +63,11 @@ img { display: block; max-width: 100%; }
 .button-ghost:hover { border-color: var(--white); background: rgba(255,255,255,.08); }
 
 .hero-section { position: relative; min-height: 770px; overflow: hidden; color: var(--white); background: var(--ink-deep); }
-.hero-image { position: absolute; inset: 0; background-color: var(--ink-deep); background-position: center; background-size: cover; transform: scale(1.01); }
-.hero-overlay { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 28, 24, .86) 0%, rgba(9, 31, 27, .58) 41%, rgba(9, 31, 27, .06) 76%), linear-gradient(0deg, rgba(7, 24, 20, .6), transparent 35%); }
+.hero-slides { position: absolute; z-index: 0; inset: 0; background: var(--ink-deep); }
+.hero-slide { position: absolute; inset: 0; opacity: 0; transition: opacity .9s ease; }
+.hero-slide-active { opacity: 1; }
+.hero-slide img { width: 100%; height: 100%; object-fit: cover; object-position: var(--hero-desktop-position, center center); transform: scale(1.01); }
+.hero-overlay { position: absolute; z-index: 1; inset: 0; background: linear-gradient(90deg, rgba(8, 28, 24, .86) 0%, rgba(9, 31, 27, .58) 41%, rgba(9, 31, 27, .06) 76%), linear-gradient(0deg, rgba(7, 24, 20, .6), transparent 35%); }
 .hero-content { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: center; min-height: 770px; padding-top: 56px; }
 .hero-kicker { display: flex; align-items: center; gap: 12px; margin: 0 0 25px; color: rgba(255,255,255,.7); font-size: 11px; letter-spacing: .13em; text-transform: uppercase; }
 .hero-kicker span { width: 33px; height: 1px; background: var(--gold); }
@@ -76,6 +79,13 @@ img { display: block; max-width: 100%; }
 .hero-scroll-hint { position: absolute; z-index: 1; bottom: 34px; left: max(40px, calc((100% - 1180px) / 2)); display: flex; align-items: center; gap: 12px; color: rgba(255,255,255,.62); font-size: 10px; letter-spacing: .15em; text-transform: uppercase; }
 .hero-scroll-hint span { display: block; width: 40px; height: 1px; background: rgba(255,255,255,.62); }
 .hero-location { position: absolute; z-index: 1; right: max(40px, calc((100% - 1180px) / 2)); bottom: 34px; display: flex; gap: 18px; color: rgba(255,255,255,.52); font-size: 10px; letter-spacing: .16em; }
+.hero-carousel-controls { position: absolute; z-index: 3; right: max(40px, calc((100% - 1180px) / 2)); bottom: 72px; display: flex; align-items: center; gap: 10px; }
+.hero-carousel-arrow { display: grid; width: 42px; height: 42px; place-items: center; padding: 0; border: 1px solid rgba(255,255,255,.45); color: var(--white); background: rgba(17,43,38,.48); font-size: 18px; transition: border-color .2s ease, background .2s ease, color .2s ease; }
+.hero-carousel-arrow:hover { border-color: var(--gold); color: var(--gold); background: rgba(17,43,38,.75); }
+.hero-carousel-dots { display: flex; align-items: center; gap: 7px; }
+.hero-carousel-dot { width: 8px; height: 8px; padding: 0; border: 1px solid rgba(255,255,255,.72); border-radius: 50%; background: transparent; transition: width .2s ease, border-color .2s ease, background .2s ease; }
+.hero-carousel-dot:hover { border-color: var(--gold); }
+.hero-carousel-dot-active { width: 22px; border-color: var(--gold); border-radius: 5px; background: var(--gold); }
 
 .section { padding: 128px 0; }
 .section-row { display: flex; justify-content: space-between; gap: 60px; }
@@ -202,17 +212,6 @@ img { display: block; max-width: 100%; }
 .about-services { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 32px; }
 .about-services span { padding: 11px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; }
 
-.section-gallery { background: var(--paper); }
-.gallery-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: 220px 220px; gap: 12px; margin-top: 68px; }
-.gallery-item { position: relative; overflow: hidden; margin: 0; background: var(--sage); }
-.gallery-item-1 { grid-column: span 2; }
-.gallery-item-4 { grid-column: span 2; }
-.gallery-item img { width: 100%; height: 100%; object-fit: cover; transition: transform .5s ease; }
-.gallery-item:hover img { transform: scale(1.06); }
-.gallery-item::after { position: absolute; inset: 0; content: ""; background: linear-gradient(0deg, rgba(7,25,22,.65), transparent 57%); }
-.gallery-item figcaption { position: absolute; z-index: 1; right: 17px; bottom: 15px; left: 17px; display: flex; justify-content: space-between; color: var(--white); font-size: 11px; letter-spacing: .09em; text-transform: uppercase; }
-.gallery-item figcaption span { color: var(--gold); font-size: 18px; line-height: .5; }
-
 .section-faq { background: var(--sand); }
 .faq-layout { display: grid; grid-template-columns: .85fr 1.15fr; gap: 100px; }
 .faq-list { border-top: 1px solid var(--line); }
@@ -296,6 +295,7 @@ img { display: block; max-width: 100%; }
   .header-actions { gap: 18px; padding-top: 21px; border-top: 1px solid rgba(255,255,255,.15); }
   .header-actions .button { width: 100%; }
   .hero-section, .hero-content { min-height: 720px; }
+  .hero-slide img { object-position: var(--hero-mobile-position, center center); }
   .hero-content h1 { font-size: clamp(56px, 15vw, 92px); }
   .hero-description { max-width: 320px; font-size: 13px; }
   .hero-actions { flex-direction: column; align-items: flex-start; }
@@ -332,8 +332,8 @@ img { display: block; max-width: 100%; }
   .form-actions { align-items: flex-start; flex-direction: column; }
   .about-image-wrap { height: 430px; }
   .about-stamp { right: 15px; bottom: 15px; }
-  .gallery-grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 170px); margin-top: 46px; }
-  .gallery-item-1, .gallery-item-4 { grid-column: span 2; }
+  .hero-carousel-controls { right: 20px; bottom: 58px; gap: 8px; }
+  .hero-carousel-arrow { width: 44px; height: 44px; }
   .faq-layout { gap: 40px; }
   .faq-question { font-size: 17px; }
   .contact-layout { gap: 45px; }
@@ -354,6 +354,7 @@ img { display: block; max-width: 100%; }
 
 @media (max-width: 400px) {
   .container, .header-inner { width: calc(100% - 28px); }
+  .hero-carousel-controls { right: 14px; }
   .modal-backdrop { padding: 12px; }
   .customize-modal { max-height: calc(100vh - 24px); padding: 22px 16px; }
   .modal-header { gap: 12px; }

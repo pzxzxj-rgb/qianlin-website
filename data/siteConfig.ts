@@ -6,6 +6,13 @@ type LocalizedText = {
   zh: string;
 };
 
+type HeroSlide = {
+  src: string;
+  alt: LocalizedText;
+  desktopPosition: string;
+  mobilePosition: string;
+};
+
 const companyAddress = "贵州省贵阳市云岩区毓秀街道飞山街祥源大厦A栋1单元7层2号";
 
 export const company = {
@@ -24,6 +31,17 @@ export const company = {
     zh: "黔林旅行是一家专注于贵州旅游的本地旅行服务公司。",
   } satisfies LocalizedText,
   address: companyAddress,
+  heroSlides: [
+    { src: "/images/hero/hero-01.webp", alt: { zh: "贵州山水主题旅行视觉图", en: "Guizhou landscape travel visual" } satisfies LocalizedText, desktopPosition: "center center", mobilePosition: "50% center" },
+    { src: "/images/hero/hero-02.webp", alt: { zh: "贵州自然风光主题视觉图", en: "Guizhou nature-inspired travel visual" } satisfies LocalizedText, desktopPosition: "52% center", mobilePosition: "50% center" },
+    { src: "/images/hero/hero-03.webp", alt: { zh: "贵州自然风光主题视觉图", en: "Guizhou nature-inspired travel visual" } satisfies LocalizedText, desktopPosition: "68% center", mobilePosition: "62% center" },
+    { src: "/images/hero/hero-04.webp", alt: { zh: "贵州民族文化主题旅行视觉图", en: "Guizhou cultural travel visual" } satisfies LocalizedText, desktopPosition: "center center", mobilePosition: "56% center" },
+    { src: "/images/hero/hero-05.webp", alt: { zh: "贵州自然风光主题视觉图", en: "Guizhou nature-inspired travel visual" } satisfies LocalizedText, desktopPosition: "center center", mobilePosition: "50% center" },
+    { src: "/images/hero/hero-06.webp", alt: { zh: "贵州山水主题旅行视觉图", en: "Guizhou landscape travel visual" } satisfies LocalizedText, desktopPosition: "center center", mobilePosition: "50% center" },
+    { src: "/images/hero/hero-07.webp", alt: { zh: "贵州民族文化主题旅行视觉图", en: "Guizhou cultural travel visual" } satisfies LocalizedText, desktopPosition: "center 48%", mobilePosition: "52% 44%" },
+    { src: "/images/hero/hero-08.webp", alt: { zh: "贵州自然风光主题视觉图", en: "Guizhou nature-inspired travel visual" } satisfies LocalizedText, desktopPosition: "57% center", mobilePosition: "56% center" },
+    { src: "/images/hero/hero-09.webp", alt: { zh: "贵州自然风光主题视觉图", en: "Guizhou nature-inspired travel visual" } satisfies LocalizedText, desktopPosition: "center 48%", mobilePosition: "50% 42%" },
+  ] satisfies readonly HeroSlide[],
   contact: {
     channels: [
       {
@@ -46,17 +64,8 @@ export const company = {
     ],
   },
   images: {
-    hero: "https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=2200&q=90",
     about: "https://images.unsplash.com/photo-1528164344705-47542687000d?auto=format&fit=crop&w=1400&q=85",
     customize: "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1400&q=85",
-    gallery: [
-      "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1000&q=85",
-      "https://images.unsplash.com/photo-1433086966358-54859d0ed716?auto=format&fit=crop&w=1000&q=85",
-      "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=1000&q=85",
-      "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1000&q=85",
-      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1000&q=85",
-      "https://images.unsplash.com/photo-1504198453319-5ce911bafcde?auto=format&fit=crop&w=1000&q=85",
-    ],
   },
   imageAlt: {
     about: {

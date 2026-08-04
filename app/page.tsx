@@ -7,7 +7,6 @@ import { CustomizeForm } from "../components/CustomizeForm";
 import { Destinations } from "../components/Destinations";
 import { FAQ } from "../components/FAQ";
 import { Footer } from "../components/Footer";
-import { Gallery } from "../components/Gallery";
 import { Hero } from "../components/Hero";
 import { HowItWorks } from "../components/HowItWorks";
 import { LanguageProvider } from "../components/LanguageContext";
@@ -28,5 +27,5 @@ export default function Home() {
     setSelectedTour("");
   };
 
-  return <LanguageProvider><Navbar onBookNow={() => openCustomize()} /><main><Hero onCustomize={() => openCustomize()} /><Tours tours={company.tours} onBook={openCustomize} /><Destinations destinations={company.destinations} /><Services /><HowItWorks /><CustomizeForm open={customizeOpen} initialTourName={selectedTour} onOpen={() => openCustomize()} onClose={closeCustomize} /><About /><Gallery /><FAQ /><Contact /></main><Footer /></LanguageProvider>;
+  return <LanguageProvider><Navbar onBookNow={() => openCustomize()} /><main><Hero onCustomize={() => openCustomize()} /><Tours tours={company.tours} onBook={openCustomize} /><Destinations destinations={company.destinations} /><Services /><HowItWorks /><CustomizeForm open={customizeOpen} initialTourName={selectedTour} onOpen={() => openCustomize()} onClose={closeCustomize} /><About /><FAQ /><Contact /></main><Footer /></LanguageProvider>;
 }

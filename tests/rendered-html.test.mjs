@@ -26,8 +26,10 @@ test("server-renders the Qianlin Travel homepage", async () => {
   assert.match(html, /Featured Guizhou Tours/);
   assert.match(html, /Enquire About This Tour/);
   assert.match(html, /Create Your Private/);
+  assert.match(html, /hero-carousel-controls/);
+  assert.match(html, /\/images\/hero\/hero-01\.webp/);
   assert.match(html, /Frequently Asked Questions/);
-  assert.doesNotMatch(html, /Traveler Stories|Sample review|To be replaced|ICP filing placeholder/i);
+  assert.doesNotMatch(html, /Traveler Stories|Sample review|To be replaced|ICP filing placeholder|体验贵州|Experience Guizhou|贵州的六个片段|Guizhou in six frames|section-gallery|gallery-grid/i);
 });
 
 test("renders legal pages, sitemap and robots", async () => {
