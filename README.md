@@ -90,7 +90,7 @@ npm run db:generate
 复制 `.env.example` 后按本地环境填写：
 
 - `NEXT_PUBLIC_SITE_URL`：公开站点 URL；本地可使用 `http://localhost:3000`。
-- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`、`TURNSTILE_SECRET_KEY`：可选的 Turnstile 配置，本地没有 key 时仍可提交测试。当前接口预留字段但未强制接入验证。
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`、`TURNSTILE_SECRET_KEY`：当前版本尚未真正启用 Turnstile，仅保留环境变量和正式上线前的配置说明；本地没有 key 时仍可提交测试。
 
 正式上线前，如果没有可靠的边缘限流，应配置 Cloudflare Rate Limiting 或 Turnstile。当前项目没有伪造的内存限流实现。
 
