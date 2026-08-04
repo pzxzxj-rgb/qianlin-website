@@ -122,7 +122,7 @@ img { display: block; max-width: 100%; }
 
 .section-destinations { padding-top: 30px; background: var(--sand); }
 .destination-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 245px); gap: 12px; margin-top: 68px; }
-.destination-card { position: relative; overflow: hidden; color: var(--white); background: var(--forest); }
+.destination-card { position: relative; overflow: hidden; padding: 0; border: 0; color: var(--white); background: var(--forest); font: inherit; text-align: left; }
 .destination-card-large { grid-column: span 2; }
 .destination-card img { width: 100%; height: 100%; object-fit: cover; transition: transform .5s ease; }
 .destination-card:hover img { transform: scale(1.06); }
@@ -132,6 +132,47 @@ img { display: block; max-width: 100%; }
 .destination-copy h3 { max-width: 240px; margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 25px; font-weight: 400; line-height: 1.05; }
 .destination-copy p { margin: 8px 0 0; color: rgba(255,255,255,.62); font-size: 10px; line-height: 1.5; }
 .destination-arrow { position: absolute; top: 20px; right: 21px; color: rgba(255,255,255,.86); font-size: 22px; }
+
+.section-planner { background: var(--paper); }
+.planner-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(220px, .65fr); gap: 70px; margin-top: 68px; }
+.planner-panel { padding: 30px; background: var(--white); border: 1px solid var(--line); }
+.planner-field-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; color: var(--ink); font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+.planner-field-heading small { color: var(--muted); font-size: 10px; font-weight: 400; }
+.planner-place-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.planner-place { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 0 15px; border: 1px solid var(--line); color: var(--ink); background: var(--paper); font-size: 12px; text-align: left; transition: border-color .2s ease, background .2s ease, color .2s ease; }
+.planner-place:hover { border-color: var(--gold); }
+.planner-place-selected { border-color: var(--forest); color: var(--white); background: var(--forest); }
+.planner-place-selected span:last-child { color: var(--gold); }
+.planner-controls { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px 12px; margin-top: 28px; }
+.planner-controls label { display: grid; gap: 8px; color: var(--forest-soft); font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+.planner-controls select { width: 100%; min-height: 42px; padding: 0 12px; border: 1px solid var(--line); color: var(--ink); background: var(--paper); font-size: 12px; font-weight: 400; }
+.planner-error { margin: 18px 0 0; color: #a14e42; font-size: 11px; }
+.planner-actions { display: flex; align-items: center; gap: 22px; margin-top: 28px; }
+.planner-clear { font-size: 10px; }
+.planner-intro-note { align-self: end; padding: 24px 0 10px; border-top: 1px solid var(--line); }
+.planner-note-mark { display: block; margin-bottom: 22px; color: var(--gold); font-size: 25px; }
+.planner-intro-note p { margin: 0 0 16px; color: var(--muted); font-size: 12px; line-height: 1.8; }
+.planner-intro-note p:last-child { margin-bottom: 0; font-size: 11px; }
+.planner-result { margin-top: 62px; padding: 34px; color: var(--white); background: var(--forest); }
+.planner-result-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 30px; }
+.planner-result-heading .eyebrow { margin-bottom: 11px; color: var(--gold); }
+.planner-result-heading h3 { margin: 0; font-family: Georgia, serif; font-size: 34px; font-weight: 400; }
+.itinerary-days { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 32px; }
+.itinerary-day { min-width: 0; min-height: 255px; padding: 18px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.04); }
+.itinerary-day-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; color: var(--gold); font-size: 18px; font-family: Georgia, serif; }
+.itinerary-day-top small { max-width: 110px; color: rgba(255,255,255,.52); font-family: Arial, Helvetica, sans-serif; font-size: 9px; line-height: 1.4; text-align: right; }
+.itinerary-day h4 { min-height: 43px; margin: 28px 0 15px; color: var(--white); font-family: Georgia, serif; font-size: 18px; font-weight: 400; line-height: 1.15; }
+.itinerary-day ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.itinerary-day li { color: rgba(255,255,255,.86); font-size: 11px; line-height: 1.5; }
+.itinerary-day li::before { content: "•"; margin-right: 7px; color: var(--gold); }
+.itinerary-empty-day, .itinerary-note, .itinerary-overnight { color: rgba(255,255,255,.54); font-size: 10px; line-height: 1.6; }
+.itinerary-overnight { margin: 20px 0 0; }
+.itinerary-overnight strong { color: rgba(255,255,255,.78); font-weight: 400; }
+.itinerary-note { margin: 9px 0 0; }
+.planner-result-footer { display: grid; grid-template-columns: 1.4fr .6fr; gap: 35px; margin-top: 28px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,.18); }
+.planner-result-footer strong { color: var(--gold); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+.planner-result-footer p, .planner-submit-note { margin: 9px 0 0; color: rgba(255,255,255,.62); font-size: 11px; line-height: 1.7; }
+.planner-submit-note { margin-top: 24px; color: rgba(255,255,255,.46); }
 
 .section-services { background: var(--forest); color: var(--white); }
 .section-services .section-heading h2, .section-services .section-heading p { color: var(--white); }
@@ -311,6 +352,16 @@ img { display: block; max-width: 100%; }
   .destination-copy { right: 16px; bottom: 16px; left: 16px; }
   .destination-copy h3 { font-size: 20px; }
   .destination-copy p { font-size: 9px; }
+  .planner-layout { grid-template-columns: 1fr; gap: 42px; margin-top: 46px; }
+  .planner-panel { padding: 22px; }
+  .planner-place-grid { grid-template-columns: 1fr; }
+  .planner-controls { grid-template-columns: 1fr; gap: 14px; }
+  .planner-intro-note { padding-top: 0; }
+  .planner-result { margin-top: 46px; padding: 22px; }
+  .planner-result-heading { align-items: flex-start; flex-direction: column; }
+  .planner-result-heading .button { width: 100%; }
+  .itinerary-days { grid-template-columns: repeat(2, 1fr); }
+  .planner-result-footer { grid-template-columns: 1fr; gap: 20px; }
   .benefits-grid { grid-template-columns: repeat(2, 1fr); }
   .benefit-card { min-height: 230px; padding: 22px 18px 24px 0; }
   .benefit-card + .benefit-card { padding-left: 18px; }

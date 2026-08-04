@@ -45,7 +45,7 @@ export function Hero({ showTours, onCustomize }: HeroProps) {
   return (
     <section id="home" className="hero-section" onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
       <div className="hero-slides">
-        {slides.map((slide, index) => <div className={`hero-slide${activeIndex === index ? " hero-slide-active" : ""}`} key={slide.id} style={{ "--hero-desktop-position": slide.desktopPosition, "--hero-mobile-position": slide.mobilePosition } as CSSProperties}><img src={slide.src} alt={slide.alt[language]} aria-hidden={activeIndex !== index} loading={index === 0 ? "eager" : "lazy"} fetchPriority={index === 0 ? "high" : "low"} /></div>)}
+        {slides.map((slide, index) => <div className={`hero-slide${activeIndex === index ? " hero-slide-active" : ""}`} key={slide.id} style={{ "--hero-desktop-position": slide.desktopPosition, "--hero-mobile-position": slide.mobilePosition } as CSSProperties}><img src={slide.src} alt={activeIndex === index ? slide.alt[language] : ""} aria-hidden={activeIndex === index ? undefined : true} loading={index === 0 ? "eager" : "lazy"} fetchPriority={index === 0 ? "high" : "low"} /></div>)}
       </div>
       <div className="hero-overlay" aria-hidden="true" />
       <div className="container hero-content">
@@ -57,7 +57,7 @@ export function Hero({ showTours, onCustomize }: HeroProps) {
       </div>
       <div className="hero-scroll-hint" aria-hidden="true"><span /> {t.hero.scroll}</div>
       <div className="hero-location" aria-hidden="true"><span>26° 34′ N</span><span>106° 43′ E</span></div>
-      <div className="hero-carousel-controls" aria-label={language === "zh" ? "首页图片轮播控制" : "Hero image carousel controls"} onFocus={() => setIsControlFocused(true)} onBlur={(event) => { if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget as Node)) setIsControlFocused(false); }}>
+      <div className="hero-carousel-controls" role="group" aria-label={language === "zh" ? "首页图片轮播控制" : "Hero image carousel controls"} onFocus={() => setIsControlFocused(true)} onBlur={(event) => { if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget as Node)) setIsControlFocused(false); }}>
         <button type="button" className="hero-carousel-arrow" onClick={() => moveSlide(-1)} aria-label={t.hero.previous}><span aria-hidden="true">←</span></button>
         <div className="hero-carousel-dots">{slides.map((slide, index) => <button type="button" className={`hero-carousel-dot${activeIndex === index ? " hero-carousel-dot-active" : ""}`} key={slide.id} onClick={() => goToSlide(index)} aria-label={language === "zh" ? `${t.hero.slide}${index + 1}张首页图片` : `${t.hero.slide} ${index + 1}`} aria-current={activeIndex === index ? "true" : undefined} />)}</div>
         <button type="button" className="hero-carousel-arrow" onClick={() => moveSlide(1)} aria-label={t.hero.next}><span aria-hidden="true">→</span></button>

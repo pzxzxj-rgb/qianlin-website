@@ -10,9 +10,26 @@ type LanguageContextValue = {
 };
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
+export const LANGUAGE_STORAGE_KEY = "qianlin-language";
+
+function isLanguage(value: string | null): value is Language {
+  return value === "zh" || value === "en";
+}
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguage] = useState<Language>("en");
+  const [language, setLanguage] = useState<Language>("zh");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const storedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+        if (isLanguage(storedLanguage)) setLanguage(storedLanguage);
+      } catch {
+        // Keep the Chinese default when localStorage is unavailable.
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
@@ -20,7 +37,15 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo(() => ({
     language,
-    toggleLanguage: () => setLanguage((current) => current === "en" ? "zh" : "en"),
+    toggleLanguage: () => setLanguage((current) => {
+      const nextLanguage = current === "en" ? "zh" : "en";
+      try {
+        window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
+      } catch {
+        // Language switching still works when localStorage is unavailable.
+      }
+      return nextLanguage;
+    }),
     t: translations[language],
   }), [language]);
 

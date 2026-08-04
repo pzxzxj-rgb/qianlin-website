@@ -11,6 +11,31 @@ const toursModule = ts.transpileModule(toursSource, { compilerOptions: { module:
 const { getVisibleTours } = await import(`data:text/javascript;base64,${Buffer.from(toursModule).toString("base64")}`);
 const toursComponentSource = await fs.readFile(path.join(projectRoot, "components/Tours.tsx"), "utf8");
 
+async function readSource(relativePath) {
+  return fs.readFile(path.join(projectRoot, relativePath), "utf8");
+}
+
+async function importTypescriptModule(relativePath, cache = new Map()) {
+  const absolutePath = path.resolve(projectRoot, relativePath);
+  if (cache.has(absolutePath)) return cache.get(absolutePath);
+  const modulePromise = (async () => {
+    const source = await fs.readFile(absolutePath, "utf8");
+    let output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+    const imports = [...output.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g)];
+    for (const match of imports) {
+      const specifier = match[1];
+      const dependencyPath = path.resolve(path.dirname(absolutePath), specifier.endsWith(".ts") ? specifier : `${specifier}.ts`);
+      const dependencyRelativePath = path.relative(projectRoot, dependencyPath);
+      const dependencyModule = await importTypescriptModule(dependencyRelativePath, cache);
+      const dependencySource = `data:text/javascript;base64,${Buffer.from(await dependencyModule.source).toString("base64")}`;
+      output = output.replaceAll(`"${specifier}"`, `"${dependencySource}"`).replaceAll(`'${specifier}'`, `'${dependencySource}'`);
+    }
+    return { module: await import(`data:text/javascript;base64,${Buffer.from(output).toString("base64")}`), source: output };
+  })();
+  cache.set(absolutePath, modulePromise);
+  return modulePromise;
+}
+
 const workerUrl = new URL("../dist/server/index.js", import.meta.url);
 workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
 const { default: worker } = await import(workerUrl.href);
@@ -27,18 +52,111 @@ async function postInquiry(payload, options = {}) {
   return request("/api/inquiries", { method: "POST", headers: { "Content-Type": "application/json", ...options.headers }, body: options.body ?? JSON.stringify(payload) });
 }
 
-test("server-renders the Qianlin Travel homepage", async () => {
+test("server-renders the Chinese Qianlin Travel homepage", async () => {
   const response = await request("/", { headers: { accept: "text/html" } });
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
-  assert.match(html, /<title>Qianlin Travel \| Discover Guizhou, Your Way<\/title>/i);
-  assert.match(html, /Create Your Private/);
+  assert.match(html, /<html lang="zh-CN">/i);
+  assert.match(html, /<title>黔林旅行社｜贵州旅游咨询与定制行程<\/title>/i);
+  assert.match(html, /提交出行想法/);
   assert.match(html, /hero-carousel-controls/);
   assert.match(html, /\/images\/hero\/hero-01\.webp/);
-  assert.match(html, /Frequently Asked Questions/);
-  assert.doesNotMatch(html, /Featured Guizhou Tours|Enquire About This Tour|Explore Tours|旅游线路|体验贵州|Experience Guizhou|贵州的六个片段|Guizhou in six frames|section-gallery|gallery-grid|tour-card|From ¥/i);
+  assert.match(html, /\/images\/hero\/hero-02\.webp/);
+  assert.match(html, /如何提交旅行咨询？/);
+  assert.match(html, /如何获得行程报价？/);
+  assert.match(html, /智能规划贵州行程/);
+  assert.match(html, /生成参考行程/);
+  assert.doesNotMatch(html, /Featured Guizhou Tours|Enquire About This Tour|Explore Tours|页面展示的参考线路|页面价格为参考起价|选择线路|Browse a reference route|Qingyan Ancient Town|Zhenyuan Ancient Town|青岩古镇|镇远古城|体验贵州|Experience Guizhou|贵州的六个片段|Guizhou in six frames|section-gallery|gallery-grid|tour-card|From ¥/i);
   assert.doesNotMatch(html, /<a[^>]+href="#tours"/i);
+});
+
+test("keeps Chinese language, metadata and enquiry interaction as the default", async () => {
+  const languageSource = await readSource("components/LanguageContext.tsx");
+  const layoutSource = await readSource("app/layout.tsx");
+  const pageSource = await readSource("app/page.tsx");
+  const contactSource = await readSource("components/Contact.tsx");
+  const destinationsSource = await readSource("components/Destinations.tsx");
+  const destinationsDataSource = await readSource("data/destinations.ts");
+  const toursDataSource = await readSource("data/tours.ts");
+  const formSource = await readSource("components/CustomizeForm.tsx");
+  assert.match(languageSource, /useState<Language>\("zh"\)/);
+  assert.match(languageSource, /qianlin-language/);
+  assert.match(languageSource, /localStorage/);
+  assert.match(layoutSource, /lang="zh-CN"/);
+  assert.match(layoutSource, /黔林旅行社｜贵州旅游咨询与定制行程/);
+  assert.match(pageSource, /<Contact onEnquire=\{\(\) => openCustomize\(\)\} \/>/);
+  assert.match(contactSource, /<button type="button"/);
+  assert.match(contactSource, /onClick=\{onEnquire\}/);
+  assert.match(destinationsSource, /<button type="button"/);
+  assert.match(destinationsSource, /onSelectDestination\(name\)/);
+  assert.match(destinationsSource, /String\(destinations\.length\)\.padStart/);
+  assert.doesNotMatch(destinationsDataSource, /Qingyan Ancient Town|Zhenyuan Ancient Town|青岩古镇|镇远古城/);
+  assert.match(toursDataSource, /tours:\s*Tour\[\]\s*=\s*\[\]/);
+  assert.match(pageSource, /inquiryPrefill/);
+  assert.match(formSource, /initialPlaces/);
+  assert.match(formSource, /defaultValue=\{initialPlaces\}/);
+  assert.match(formSource, /initialMessage/);
+  assert.match(formSource, /defaultValue=\{initialMessage\}/);
+});
+
+test("keeps the hero carousel local, accessible and motion-aware", async () => {
+  const heroSource = await readSource("components/Hero.tsx");
+  const siteConfigSource = await readSource("data/siteConfig.ts");
+  const navbarSource = await readSource("components/Navbar.tsx");
+  assert.equal((siteConfigSource.match(/id: "hero-0[1-4]"/g) ?? []).length, 4);
+  assert.match(siteConfigSource, /hero-02\.webp/);
+  assert.match(siteConfigSource, /hero-04\.webp/);
+  assert.match(heroSource, /role="group"/);
+  assert.match(heroSource, /aria-current/);
+  assert.match(heroSource, /alt=\{activeIndex === index \? slide\.alt\[language\] : ""\}/);
+  assert.match(heroSource, /aria-hidden=\{activeIndex === index \? undefined : true\}/);
+  assert.match(heroSource, /AUTO_ADVANCE_MS = 6000/);
+  assert.match(navbarSource, /event\.key !== "Escape"/);
+  assert.match(navbarSource, /aria-controls="mobile-navigation"/);
+  assert.match(navbarSource, /关闭导航菜单/);
+});
+
+test("keeps itinerary planning provider-neutral and deterministic", async () => {
+  const plannerSource = await readSource("components/ItineraryPlanner.tsx");
+  const pageSource = await readSource("app/page.tsx");
+  const entrySource = await readSource("lib/itinerary/generateItinerary.ts");
+  const providerSource = await readSource("lib/itinerary/providers/localItineraryProvider.ts");
+  const typesSource = await readSource("lib/itinerary/types.ts");
+  const envExample = await readSource(".env.example");
+  assert.match(plannerSource, /generateItinerary\(/);
+  assert.doesNotMatch(plannerSource, /localItineraryProvider|OpenAI|DashScope|百炼/);
+  assert.match(pageSource, /<ItineraryPlanner tenantId=\{company\.id\}/);
+  assert.match(pageSource, /initialMessage=\{inquiryPrefill\.message\}/);
+  assert.match(entrySource, /ITINERARY_PROVIDER/);
+  assert.match(entrySource, /return "local"/);
+  assert.match(entrySource, /UNSUPPORTED_PROVIDER/);
+  assert.doesNotMatch(providerSource, /\bfetch\s*\(/);
+  assert.doesNotMatch(typesSource, /messages|choices|completion/);
+  assert.match(envExample, /ITINERARY_PROVIDER=local/);
+  assert.doesNotMatch(envExample, /NEXT_PUBLIC_ITINERARY/);
+  assert.doesNotMatch(envExample, /ITINERARY_API_KEY=.+/);
+
+  const previousProvider = process.env.ITINERARY_PROVIDER;
+  process.env.ITINERARY_PROVIDER = "local";
+  try {
+    const { module: itineraryModule } = await importTypescriptModule("lib/itinerary/generateItinerary.ts");
+    const input = { tenantId: "qianlin-travel", destinationIds: ["huangguoshu-waterfall", "xijiang-miao-village", "libo-xiaoqikong", "fanjing-mountain"], days: 2, travelers: "6+", startCity: "Guiyang", endCity: "Guiyang", language: "zh" };
+    const firstPlan = await itineraryModule.generateItinerary(input);
+    const secondPlan = await itineraryModule.generateItinerary(input);
+    const stops = firstPlan.days.flatMap((day) => day.stops.map((stop) => stop.destinationId));
+    assert.deepEqual(firstPlan, secondPlan);
+    assert.equal(firstPlan.generatedBy, "local");
+    assert.equal(firstPlan.days.length, 2);
+    assert.equal(new Set(stops).size, stops.length);
+    assert.ok(firstPlan.unassignedDestinationIds.length > 0);
+
+    process.env.ITINERARY_PROVIDER = "unsupported";
+    await assert.rejects(() => itineraryModule.generateItinerary(input), (error) => error?.code === "UNSUPPORTED_PROVIDER");
+  } finally {
+    if (previousProvider === undefined) delete process.env.ITINERARY_PROVIDER;
+    else process.env.ITINERARY_PROVIDER = previousProvider;
+  }
 });
 
 test("filters only published featured tours for the current tenant", () => {

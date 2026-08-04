@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { company } from "../data/siteConfig";
 import { useLanguage } from "./LanguageContext";
 
@@ -9,6 +9,7 @@ type NavbarProps = { showTours: boolean; onBookNow: () => void };
 export function Navbar({ showTours, onBookNow }: NavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const { language, toggleLanguage, t } = useLanguage();
   const closeMenu = () => setMenuOpen(false);
 
@@ -19,6 +20,18 @@ export function Navbar({ showTours, onBookNow }: NavbarProps) {
     return () => window.removeEventListener("scroll", updateScrollState);
   }, []);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setMenuOpen(false);
+      window.requestAnimationFrame(() => menuButtonRef.current?.focus());
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [menuOpen]);
+
   return (
     <header className={`site-header${scrolled ? " site-header-scrolled" : ""}`}>
       <div className="header-inner">
@@ -26,8 +39,8 @@ export function Navbar({ showTours, onBookNow }: NavbarProps) {
           <span className="brand-mark">{company.logo.mark}</span>
           <span className="brand-copy"><strong>{company.name}</strong><small>{company.nameZh}</small></span>
         </a>
-        <button type="button" className="mobile-menu-button" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-label={language === "zh" ? "打开导航菜单" : "Toggle navigation"}><span /><span /></button>
-        <div className={`nav-panel ${menuOpen ? "nav-panel-open" : ""}`}>
+        <button type="button" ref={menuButtonRef} className="mobile-menu-button" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-controls="mobile-navigation" aria-label={menuOpen ? (language === "zh" ? "关闭导航菜单" : "Close navigation menu") : (language === "zh" ? "打开导航菜单" : "Open navigation menu")}><span /><span /></button>
+        <div id="mobile-navigation" className={`nav-panel ${menuOpen ? "nav-panel-open" : ""}`}>
           <nav className="main-nav" aria-label={language === "zh" ? "主导航" : "Main navigation"}>
             <a href="#home" onClick={closeMenu}>{t.nav.home}</a>
             <a href="#destinations" onClick={closeMenu}>{t.nav.destinations}</a>

@@ -8,17 +8,17 @@ const email = company.contact.channels.find((channel) => channel.key === "email"
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: `${company.name} | Discover Guizhou, Your Way`,
-  description: company.description.en,
+  title: "黔林旅行社｜贵州旅游咨询与定制行程",
+  description: "黔林旅行社提供贵州旅游咨询、私人行程规划和本地旅行服务，帮助游客根据时间、人数和兴趣定制贵州旅程。",
   alternates: { canonical: "/" },
   openGraph: {
-    title: `${company.name} | Discover Guizhou, Your Way`,
-    description: "Explore breathtaking landscapes, unique cultures and thoughtful journeys with a local Guizhou travel team.",
+    title: "黔林旅行社｜贵州旅游咨询与定制行程",
+    description: "黔林旅行社提供贵州旅游咨询、私人行程规划和本地旅行服务，帮助游客根据时间、人数和兴趣定制贵州旅程。",
     type: "website",
     url: siteUrl,
-    images: [{ url: "/og.png", width: 1792, height: 944, alt: `Discover Guizhou, Your Way — ${company.name}` }],
+    images: [{ url: "/og.png", width: 1792, height: 944, alt: "黔林旅行社贵州旅游主题视觉图" }],
   },
-  twitter: { card: "summary_large_image", title: `${company.name} | Discover Guizhou, Your Way`, description: "Thoughtful journeys through the landscapes of Guizhou.", images: ["/og.png"] },
+  twitter: { card: "summary_large_image", title: "黔林旅行社｜贵州旅游咨询与定制行程", description: "黔林旅行社提供贵州旅游咨询、私人行程规划和本地旅行服务。", images: ["/og.png"] },
   icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
 };
 
@@ -27,6 +27,7 @@ const structuredData = {
   "@type": "TravelAgency",
   name: company.nameZh,
   alternateName: company.name,
+  description: "黔林旅行社提供贵州旅游咨询、私人行程规划和本地旅行服务，帮助游客根据时间、人数和兴趣定制贵州旅程。",
   url: siteUrl,
   telephone: phone ? `+86${phone}` : undefined,
   email,
@@ -34,5 +35,5 @@ const structuredData = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />{children}</body></html>;
+  return <html lang="zh-CN"><body><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />{children}</body></html>;
 }
