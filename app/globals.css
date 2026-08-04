@@ -205,7 +205,7 @@ img { display: block; max-width: 100%; }
 .section-about { background: var(--sand); }
 .about-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 105px; align-items: center; }
 .about-image-wrap { position: relative; height: 570px; }
-.about-image-wrap img { width: 100%; height: 100%; object-fit: cover; }
+.about-image-wrap img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 42%; }
 .about-stamp { position: absolute; right: -26px; bottom: 28px; display: grid; width: 102px; height: 102px; place-content: center; border: 1px solid rgba(255,255,255,.62); border-radius: 50%; color: var(--white); background: rgba(17,43,38,.76); font-family: Georgia, serif; font-size: 33px; font-style: italic; text-align: center; }
 .about-stamp small { display: block; margin-top: 3px; font-family: Arial, sans-serif; font-size: 6px; font-style: normal; letter-spacing: .13em; }
 .about-lead { margin: 33px 0 27px; color: var(--ink); font-family: Georgia, serif; font-size: 21px; line-height: 1.45; }
@@ -331,6 +331,7 @@ img { display: block; max-width: 100%; }
   .form-full { grid-column: auto; }
   .form-actions { align-items: flex-start; flex-direction: column; }
   .about-image-wrap { height: 430px; }
+  .about-image-wrap img { object-position: 50% 40%; }
   .about-stamp { right: 15px; bottom: 15px; }
   .hero-carousel-controls { right: 20px; bottom: 58px; gap: 8px; }
   .hero-carousel-arrow { width: 44px; height: 44px; }

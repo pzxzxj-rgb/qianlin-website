@@ -23,7 +23,7 @@ export const tours: Tour[] = [
     tag: "Best seller",
     tagZh: "热门推荐",
     image:
-      "https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1200&q=85",
+      "/images/hero/hero-01.webp",
   },
   {
     title: "Huangguoshu Waterfall Tour",
@@ -36,7 +36,7 @@ export const tours: Tour[] = [
     tag: "Nature",
     tagZh: "自然",
     image:
-      "https://images.unsplash.com/photo-1433086966358-54859d0ed716?auto=format&fit=crop&w=1200&q=85",
+      "/images/hero/hero-03.webp",
   },
   {
     title: "Xijiang Miao Village Experience",
@@ -49,7 +49,7 @@ export const tours: Tour[] = [
     tag: "Culture",
     tagZh: "人文",
     image:
-      "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=1200&q=85",
+      "/images/hero/hero-04.webp",
   },
   {
     title: "Libo Xiaoqikong Nature Tour",
@@ -62,7 +62,7 @@ export const tours: Tour[] = [
     tag: "Slow travel",
     tagZh: "慢旅行",
     image:
-      "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1200&q=85",
+      "/images/hero/hero-05.webp",
   },
   {
     title: "Fanjing Mountain Adventure",
@@ -75,7 +75,7 @@ export const tours: Tour[] = [
     tag: "Adventure",
     tagZh: "探险",
     image:
-      "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=85",
+      "/images/hero/hero-02.webp",
   },
   {
     title: "Guizhou Deep Exploration",
@@ -88,6 +88,6 @@ export const tours: Tour[] = [
     tag: "Signature",
     tagZh: "深度体验",
     image:
-      "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1200&q=85",
+      "/images/hero/hero-05.webp",
   },
 ];

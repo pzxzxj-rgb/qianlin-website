@@ -33,14 +33,7 @@ export const company = {
   address: companyAddress,
   heroSlides: [
     { src: "/images/hero/hero-01.webp", alt: { zh: "贵州山水主题旅行视觉图", en: "Guizhou landscape travel visual" } satisfies LocalizedText, desktopPosition: "center center", mobilePosition: "50% center" },
-    { src: "/images/hero/hero-02.webp", alt: { zh: "贵州自然风光主题视觉图", en: "Guizhou nature-inspired travel visual" } satisfies LocalizedText, desktopPosition: "52% center", mobilePosition: "50% center" },
     { src: "/images/hero/hero-03.webp", alt: { zh: "贵州自然风光主题视觉图", en: "Guizhou nature-inspired travel visual" } satisfies LocalizedText, desktopPosition: "68% center", mobilePosition: "62% center" },
-    { src: "/images/hero/hero-04.webp", alt: { zh: "贵州民族文化主题旅行视觉图", en: "Guizhou cultural travel visual" } satisfies LocalizedText, desktopPosition: "center center", mobilePosition: "56% center" },
-    { src: "/images/hero/hero-05.webp", alt: { zh: "贵州自然风光主题视觉图", en: "Guizhou nature-inspired travel visual" } satisfies LocalizedText, desktopPosition: "center center", mobilePosition: "50% center" },
-    { src: "/images/hero/hero-06.webp", alt: { zh: "贵州山水主题旅行视觉图", en: "Guizhou landscape travel visual" } satisfies LocalizedText, desktopPosition: "center center", mobilePosition: "50% center" },
-    { src: "/images/hero/hero-07.webp", alt: { zh: "贵州民族文化主题旅行视觉图", en: "Guizhou cultural travel visual" } satisfies LocalizedText, desktopPosition: "center 48%", mobilePosition: "52% 44%" },
-    { src: "/images/hero/hero-08.webp", alt: { zh: "贵州自然风光主题视觉图", en: "Guizhou nature-inspired travel visual" } satisfies LocalizedText, desktopPosition: "57% center", mobilePosition: "56% center" },
-    { src: "/images/hero/hero-09.webp", alt: { zh: "贵州自然风光主题视觉图", en: "Guizhou nature-inspired travel visual" } satisfies LocalizedText, desktopPosition: "center 48%", mobilePosition: "50% 42%" },
   ] satisfies readonly HeroSlide[],
   contact: {
     channels: [
@@ -64,13 +57,13 @@ export const company = {
     ],
   },
   images: {
-    about: "https://images.unsplash.com/photo-1528164344705-47542687000d?auto=format&fit=crop&w=1400&q=85",
+    about: "/images/hero/hero-07.webp",
     customize: "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1400&q=85",
   },
   imageAlt: {
     about: {
-      en: "Quiet stone path through a mountain village",
-      zh: "穿过山间村落的石板路",
+      en: "Guizhou mountain village travel visual",
+      zh: "贵州山间村寨主题视觉图",
     } satisfies LocalizedText,
     customize: {
       en: "Layered mountain landscape in soft morning light",
