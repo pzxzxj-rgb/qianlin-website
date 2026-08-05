@@ -1,6 +1,6 @@
 import { asc, and, eq } from "drizzle-orm";
 import { getDb } from "../../../../db";
-import { plannerCities, plannerDestinations } from "../../../../db/schema";
+import { plannerCities, plannerDestinations, plannerProvinces } from "../../../../db/schema";
 import { PLANNER_TENANT_ID } from "../../../../lib/planner/config";
 import type { PlannerOptionsResponse } from "../../../../lib/planner/types";
 
@@ -11,9 +11,17 @@ function errorResponse() {
 export async function GET() {
   try {
     const db = await getDb();
-    const [cityRows, destinationRows] = await Promise.all([
+    const [provinceRows, cityRows, destinationRows] = await Promise.all([
+      db.select({
+        id: plannerProvinces.id,
+        code: plannerProvinces.code,
+        nameZh: plannerProvinces.nameZh,
+        nameEn: plannerProvinces.nameEn,
+        displayOrder: plannerProvinces.displayOrder,
+      }).from(plannerProvinces).where(eq(plannerProvinces.status, "published")).orderBy(asc(plannerProvinces.displayOrder), asc(plannerProvinces.id)),
       db.select({
         id: plannerCities.id,
+        provinceCode: plannerCities.provinceCode,
         code: plannerCities.code,
         nameZh: plannerCities.nameZh,
         nameEn: plannerCities.nameEn,
@@ -23,6 +31,7 @@ export async function GET() {
       }).from(plannerCities).where(and(eq(plannerCities.tenantId, PLANNER_TENANT_ID), eq(plannerCities.status, "published"))).orderBy(asc(plannerCities.displayOrder), asc(plannerCities.id)),
       db.select({
         id: plannerDestinations.id,
+        provinceCode: plannerDestinations.provinceCode,
         slug: plannerDestinations.slug,
         cityCode: plannerDestinations.cityCode,
         nameZh: plannerDestinations.nameZh,
@@ -46,8 +55,15 @@ export async function GET() {
 
     const response: PlannerOptionsResponse = {
       tenantId: PLANNER_TENANT_ID,
+      provinces: provinceRows.map((province) => ({
+        id: province.id,
+        code: province.code,
+        name: { zh: province.nameZh, en: province.nameEn },
+        displayOrder: province.displayOrder,
+      })),
       cities: cityRows.map((city) => ({
         id: city.id,
+        provinceCode: city.provinceCode,
         code: city.code,
         name: { zh: city.nameZh, en: city.nameEn },
         availableAsStart: Boolean(city.availableAsStart),
@@ -56,6 +72,7 @@ export async function GET() {
       })),
       destinations: destinationRows.map((destination) => ({
         id: destination.id,
+        provinceCode: destination.provinceCode,
         slug: destination.slug,
         ...(destination.cityCode ? { cityCode: destination.cityCode } : {}),
         name: { zh: destination.nameZh, en: destination.nameEn },

@@ -9,7 +9,7 @@ type DestinationsProps = { onSelectDestination: (destinationName: string) => voi
 export function Destinations({ onSelectDestination }: DestinationsProps) {
   const { language, t } = useLanguage();
   const { status, destinations, error, retry } = usePlannerOptions();
-  const homepageDestinations = destinations.filter((destination) => destination.showOnHomepage);
+  const homepageDestinations = destinations.filter((destination) => destination.showOnHomepage && destination.imageUrl.trim().length > 0);
 
   if (status === "idle" || status === "loading") {
     return <section id="destinations" className="section section-destinations"><div className="container"><SectionHeading eyebrow={t.destinations.eyebrow} title={t.destinations.title} description={t.destinations.description} /><p className="planner-loading">{t.planner.loading}</p></div></section>;

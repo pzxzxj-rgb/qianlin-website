@@ -19,9 +19,24 @@ export const inquiries = sqliteTable("inquiries", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const plannerProvinces = sqliteTable("planner_provinces", {
+  id: text("id").primaryKey(),
+  code: text("code").notNull(),
+  nameZh: text("name_zh").notNull(),
+  nameEn: text("name_en").notNull(),
+  displayOrder: integer("display_order").notNull().default(0),
+  status: text("status").notNull().default("published"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  codeUnique: uniqueIndex("uq_planner_provinces_code").on(table.code),
+  statusOrderIndex: index("idx_planner_provinces_status_order").on(table.status, table.displayOrder),
+}));
+
 export const plannerCities = sqliteTable("planner_cities", {
   id: text("id").primaryKey(),
   tenantId: text("tenant_id").notNull(),
+  provinceCode: text("province_code").notNull().default("guizhou"),
   code: text("code").notNull(),
   nameZh: text("name_zh").notNull(),
   nameEn: text("name_en").notNull(),
@@ -39,6 +54,7 @@ export const plannerCities = sqliteTable("planner_cities", {
 export const plannerDestinations = sqliteTable("planner_destinations", {
   id: text("id").primaryKey(),
   tenantId: text("tenant_id").notNull(),
+  provinceCode: text("province_code").notNull().default("guizhou"),
   slug: text("slug").notNull(),
   cityCode: text("city_code"),
   nameZh: text("name_zh").notNull(),
@@ -69,6 +85,8 @@ export const plannerDestinations = sqliteTable("planner_destinations", {
 
 export type Inquiry = typeof inquiries.$inferSelect;
 export type NewInquiry = typeof inquiries.$inferInsert;
+export type PlannerProvince = typeof plannerProvinces.$inferSelect;
+export type NewPlannerProvince = typeof plannerProvinces.$inferInsert;
 export type PlannerCity = typeof plannerCities.$inferSelect;
 export type NewPlannerCity = typeof plannerCities.$inferInsert;
 export type PlannerDestination = typeof plannerDestinations.$inferSelect;

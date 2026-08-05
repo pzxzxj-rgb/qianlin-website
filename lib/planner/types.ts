@@ -1,7 +1,15 @@
 export type PlannerStatus = "draft" | "published" | "archived";
 
+export type PlannerProvinceOption = {
+  id: string;
+  code: string;
+  name: { zh: string; en: string };
+  displayOrder: number;
+};
+
 export type PlannerCityOption = {
   id: string;
+  provinceCode: string;
   code: string;
   name: { zh: string; en: string };
   availableAsStart: boolean;
@@ -11,6 +19,7 @@ export type PlannerCityOption = {
 
 export type PlannerDestinationOption = {
   id: string;
+  provinceCode: string;
   slug: string;
   cityCode?: string;
   name: { zh: string; en: string };
@@ -29,6 +38,7 @@ export type PlannerDestinationOption = {
 
 export type PlannerOptionsResponse = {
   tenantId: string;
+  provinces: PlannerProvinceOption[];
   cities: PlannerCityOption[];
   destinations: PlannerDestinationOption[];
 };

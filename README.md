@@ -14,7 +14,7 @@
 
 - Next.js／React／TypeScript
 - Cloudflare Workers／Vinext
-- Drizzle ORM／Cloudflare D1 接口预留
+- Drizzle ORM／Cloudflare D1
 - Node.js `>=22.13.0`
 
 ## 本地运行
@@ -24,6 +24,16 @@ npm install
 npm run dev
 ```
 
+本地 D1 初始化与检查：
+
+```bash
+npm run db:migrate:local
+npm run db:check:local
+npm run db:reset:local
+```
+
+`db:reset:local` 仅限本地开发，禁止用于线上数据库；本轮没有默认远程 migration 命令。
+
 生产构建和测试：
 
 ```bash
@@ -32,7 +42,7 @@ npm run build
 npm test
 ```
 
-测试会覆盖首页服务端输出、中文默认状态、Hero 基本无障碍属性、法律页面、sitemap、robots、咨询接口校验，以及未来线路筛选函数。
+测试会覆盖首页服务端输出、中文默认状态、Hero 基本无障碍属性、法律页面、sitemap、robots、咨询接口校验、动态规划数据结构，以及未来线路筛选函数。
 
 ## 项目结构
 
@@ -60,9 +70,12 @@ drizzle/                   迁移文件与元数据
 public/images/hero/        本地 Hero WebP 图片
 tests/                     页面、线路筛选和 API 基础测试
 worker/index.ts            Worker 入口
+scripts/check-local-d1.mjs 本地 D1 表与数量检查
+scripts/reset-local-d1.mjs 本地 D1 重置并重新迁移
+wrangler.local.jsonc       本地 DB 绑定与 migration 配置
 ```
 
-公司名称、地址、联系方式、介绍和 Hero 轮播顺序集中在 `data/siteConfig.ts`。旅游线路仍由 `data/tours.ts` 管理；智能规划城市和目的地已经迁移到 D1 的 `planner_cities`、`planner_destinations` 表，并通过 `/api/planner/options` 读取当前 `qianlin-travel` 商家的已发布数据。
+公司名称、地址、联系方式、介绍和 Hero 轮播顺序集中在 `data/siteConfig.ts`。旅游线路仍由 `data/tours.ts` 管理；智能规划的省份、城市/地区和目的地保存在 D1 的 `planner_provinces`、`planner_cities`、`planner_destinations` 表，并通过 `/api/planner/options` 读取当前 `qianlin-travel` 商家的已发布数据。
 
 ## Hero 图片
 
@@ -72,9 +85,11 @@ Hero 当前使用 4 张 `public/images/hero/` 中的本地 WebP 图片，轮播�
 
 ## 智能行程规划与外部服务接入设计
 
-首页的“智能行程规划”当前使用本地规则生成器。游客选择从 D1 加载的景点、出行天数、人数、出发城市和结束城市后，系统会按景点区域和基础行程强度整理按天展示的参考行程，并标记暂未安排的景点。结果可以带入现有咨询表单提交给旅行顾问。
+首页的“智能行程规划”当前使用本地规则生成器。游客选择从 D1 加载的景点、出行天数、人数、出发城市/地区和结束城市/地区后，系统会按景点区域和基础行程强度整理按天展示的参考行程，并标记暂未安排的景点。结果可以带入现有咨询表单提交给旅行顾问。
 
-规划选项由 `app/api/planner/options/route.ts` 统一提供，服务端固定使用 `qianlin-travel` 租户，并只返回 `published` 数据；城市和目的地按 `displayOrder` 排序，目的地首页展示和是否可用于规划分别由 `showOnHomepage`、`availableForPlanning` 控制。`components/PlannerOptionsProvider.tsx` 在浏览器端只请求一次并共享给目的地卡片与规划器。初始数据只存在于 `drizzle/0001_romantic_roland_deschain.sql` 迁移种子中，当前没有后台管理页面。
+规划选项由 `app/api/planner/options/route.ts` 统一提供，服务端固定使用 `qianlin-travel` 租户，并只返回 `published` 数据；城市和目的地按 `displayOrder` 排序，目的地首页展示和是否可用于规划分别由 `showOnHomepage`、`availableForPlanning` 控制。`components/PlannerOptionsProvider.tsx` 在浏览器端只请求一次并共享给目的地卡片与规划器。贵州省、9 个城市/地区和 16 个景点的扩展数据位于 `drizzle/0002_tranquil_polaris.sql`；当前没有后台管理页面。
+
+本地 D1 使用 `wrangler.local.jsonc` 固定到项目内 `.wrangler/state`，应用 migration 时明确使用 `--local`，不会连接远程数据库。`npm run db:check:local` 只输出表存在性和省份、已发布城市/地区、已发布景点数量，不输出密钥或咨询内容。
 
 页面只依赖统一入口 `generateItinerary()`，不直接调用本地 provider，也不依赖任何供应商 SDK。当前 provider 为 `local`，本轮不调用真实外部 API、不创建 API Key、不填写外部地址，也不会产生外部 API 费用。
 
@@ -88,7 +103,7 @@ Hero 当前使用 4 张 `public/images/hero/` 中的本地 WebP 图片，轮播�
 
 游客可以通过 Hero、定制咨询区、联系方式或目的地卡片打开咨询表单。表单提交到 `/api/inquiries`，服务端会校验字段、隐私同意和蜜罐字段。
 
-`db/schema.ts` 和迁移文件已为 `inquiries` 咨询表准备好结构，但当前开发环境没有创建线上 D1 资源，也没有部署网站。正式上线前需要创建 D1、绑定 `DB`、执行 migration，并完成线上真实提交测试和运营人员接收咨询的配置。
+`db/schema.ts` 和 migration 已包含 `inquiries` 咨询表以及规划数据表。本地 D1 已应用全部 migration；本轮没有创建线上 D1、执行远程 migration 或部署网站。正式上线前仍需在受控环境创建线上 D1、绑定 `DB`、执行线上 migration，并完成真实提交测试和运营人员接收咨询的配置。
 
 `.env.example` 只包含本地站点地址以及 Turnstile 配置占位符。当前版本尚未真正启用 Cloudflare Turnstile 或 Cloudflare Rate Limiting；正式公开上线前需要完成其中适用的防护配置和服务端校验，未配置时不代表生产环境已经安全。不要把真实密钥提交到仓库。
 

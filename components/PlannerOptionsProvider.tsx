@@ -2,10 +2,11 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useLanguage } from "./LanguageContext";
-import type { PlannerCityOption, PlannerDestinationOption, PlannerOptionsLoadState, PlannerOptionsResponse } from "../lib/planner/types";
+import type { PlannerCityOption, PlannerDestinationOption, PlannerOptionsLoadState, PlannerOptionsResponse, PlannerProvinceOption } from "../lib/planner/types";
 
 type PlannerOptionsContextValue = {
   status: PlannerOptionsLoadState;
+  provinces: PlannerProvinceOption[];
   cities: PlannerCityOption[];
   destinations: PlannerDestinationOption[];
   error: string;
@@ -16,12 +17,12 @@ type PlannerOptionsState = Omit<PlannerOptionsContextValue, "error" | "retry"> &
 
 const PlannerOptionsContext = createContext<PlannerOptionsContextValue | null>(null);
 
-const initialState: PlannerOptionsState = { status: "idle", cities: [], destinations: [], errorZh: "", errorEn: "" };
+const initialState: PlannerOptionsState = { status: "idle", provinces: [], cities: [], destinations: [], errorZh: "", errorEn: "" };
 
 function isPlannerOptionsResponse(value: unknown): value is PlannerOptionsResponse {
   if (!value || typeof value !== "object") return false;
   const response = value as Partial<PlannerOptionsResponse>;
-  return typeof response.tenantId === "string" && Array.isArray(response.cities) && Array.isArray(response.destinations);
+  return typeof response.tenantId === "string" && Array.isArray(response.provinces) && Array.isArray(response.cities) && Array.isArray(response.destinations);
 }
 
 export function PlannerOptionsProvider({ children }: { children: React.ReactNode }) {
@@ -29,7 +30,7 @@ export function PlannerOptionsProvider({ children }: { children: React.ReactNode
   const [state, setState] = useState<PlannerOptionsState>(initialState);
 
   const loadOptions = useCallback(async () => {
-    setState((current) => ({ ...current, status: "loading", cities: [], destinations: [], errorZh: "", errorEn: "" }));
+    setState((current) => ({ ...current, status: "loading", provinces: [], cities: [], destinations: [], errorZh: "", errorEn: "" }));
     try {
       const response = await fetch("/api/planner/options", { headers: { Accept: "application/json" } });
       const payload: unknown = await response.json().catch(() => null);
@@ -37,9 +38,9 @@ export function PlannerOptionsProvider({ children }: { children: React.ReactNode
         const errorPayload = payload as { errorZh?: unknown; errorEn?: unknown } | null;
         throw new Error(typeof errorPayload?.errorZh === "string" ? errorPayload.errorZh : "Planning options are temporarily unavailable.");
       }
-      setState({ status: "success", cities: payload.cities, destinations: payload.destinations, errorZh: "", errorEn: "" });
+      setState({ status: "success", provinces: payload.provinces, cities: payload.cities, destinations: payload.destinations, errorZh: "", errorEn: "" });
     } catch {
-      setState({ status: "error", cities: [], destinations: [], errorZh: "规划选项暂时无法加载，请稍后重试。", errorEn: "Planning options are temporarily unavailable. Please try again later." });
+      setState({ status: "error", provinces: [], cities: [], destinations: [], errorZh: "规划选项暂时无法加载，请稍后重试。", errorEn: "Planning options are temporarily unavailable. Please try again later." });
     }
   }, []);
 
@@ -52,6 +53,7 @@ export function PlannerOptionsProvider({ children }: { children: React.ReactNode
 
   const value = useMemo<PlannerOptionsContextValue>(() => ({
     status: state.status,
+    provinces: state.provinces,
     cities: state.cities,
     destinations: state.destinations,
     error: language === "zh" ? state.errorZh : state.errorEn,
