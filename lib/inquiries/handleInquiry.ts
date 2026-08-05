@@ -1,11 +1,24 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import { inquiries } from "../../db/schema";
 import { verifyTurnstileToken } from "../security/turnstile";
-import { normalizeMainlandPhone } from "./validateMainlandPhone";
+import { isValidMainlandPhone, normalizeMainlandPhone } from "./validateMainlandPhone";
 import type { ResolvedTenant } from "../tenancy/types";
 
 type InquiryPayload = Record<string, unknown>;
+
+type NormalizedInquiryValues = {
+  name: string;
+  wechat: string;
+  email: string;
+  location: string;
+  travelDate: string;
+  travelers: string;
+  duration: string;
+  tourName: string;
+  places: string;
+  message: string;
+};
 
 const MAX_BODY_BYTES = 32 * 1024;
 const travelerValues = new Set(["1", "2", "3-5", "6+"]);
@@ -63,8 +76,9 @@ async function readJsonBody(request: Request): Promise<unknown> {
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 
-function sameInquiry(row: typeof inquiries.$inferSelect, values: Record<string, string>) {
-  return row.wechat === values.wechat
+function sameInquiry(row: typeof inquiries.$inferSelect, values: NormalizedInquiryValues) {
+  return row.name === values.name
+    && row.wechat === values.wechat
     && row.email === values.email
     && row.location === values.location
     && row.travelDate === values.travelDate
@@ -75,12 +89,13 @@ function sameInquiry(row: typeof inquiries.$inferSelect, values: Record<string, 
     && row.message === values.message;
 }
 
-async function hasRecentDuplicate(db: Awaited<ReturnType<typeof getDb>>, tenantId: string, phone: string, values: Record<string, string>) {
+async function hasRecentDuplicate(db: Awaited<ReturnType<typeof getDb>>, tenantId: string, phone: string, values: NormalizedInquiryValues) {
+  // This ten-minute check is an initial duplicate guard. Concurrent requests can still race; stronger coordination belongs to a later infrastructure decision.
   const recentRows = await db.select().from(inquiries).where(and(
     eq(inquiries.tenantId, tenantId),
     eq(inquiries.phone, phone),
     sql`${inquiries.createdAt} >= datetime('now', '-10 minutes')`,
-  )).limit(20);
+  )).orderBy(desc(inquiries.createdAt), desc(inquiries.id)).limit(20);
   return recentRows.some((row) => sameInquiry(row, values));
 }
 
@@ -118,7 +133,7 @@ export async function handleInquiry(request: Request, tenant: ResolvedTenant | n
   if (!rawPhone) return responseError("请填写手机号码。", "Please provide your phone number.", 400);
 
   const phone = normalizeMainlandPhone(rawPhone);
-  if (!/^1[3-9]\d{9}$/.test(phone)) return responseError("请填写有效的中国大陆手机号码。", "Please provide a valid mainland China mobile number.", 400);
+  if (!isValidMainlandPhone(phone)) return responseError("请填写有效的中国大陆手机号码。", "Please provide a valid mainland China mobile number.", 400);
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return responseError("请填写有效的邮箱地址。", "Please provide a valid email address.", 400);
   if (!travelers || !travelerValues.has(travelers)) return responseError("请选择出行人数。", "Please choose the number of travelers.", 400);
   if (!durationValues.has(duration ?? "") || !isValidTravelDate(travelDate ?? "")) return responseError("出行日期或旅行时长不正确。", "Please check the travel date and duration.", 400);
@@ -133,6 +148,7 @@ export async function handleInquiry(request: Request, tenant: ResolvedTenant | n
   }
 
   const normalizedValues = {
+    name,
     wechat: wechat ?? "",
     email: email?.toLowerCase() ?? "",
     location: location ?? "",
@@ -147,7 +163,7 @@ export async function handleInquiry(request: Request, tenant: ResolvedTenant | n
   try {
     const db = await getDb();
     if (await hasRecentDuplicate(db, tenant.id, phone, normalizedValues)) return responseError("相同咨询刚刚已经提交，请稍后再试。", "The same enquiry was submitted recently. Please wait before trying again.", 409);
-    const [inquiry] = await db.insert(inquiries).values({ tenantId: tenant.id, name, phone, ...normalizedValues, privacyConsent: true }).returning({ id: inquiries.id, createdAt: inquiries.createdAt });
+    const [inquiry] = await db.insert(inquiries).values({ tenantId: tenant.id, phone, ...normalizedValues, privacyConsent: true }).returning({ id: inquiries.id, createdAt: inquiries.createdAt });
     return Response.json({ inquiry }, { status: 201 });
   } catch (error) {
     console.error("Failed to save inquiry", error instanceof Error ? error.name : "UnknownError");

@@ -112,7 +112,10 @@ test("keeps phone validation, Turnstile, duplicate protection, and safe local in
   const script = await read("scripts/list-inquiries-local.mjs");
   assert.match(phone, /\^1\[3-9\]\\d\{9\}\$/);
   assert.match(handler, /normalizeMainlandPhone/);
+  assert.match(handler, /isValidMainlandPhone/);
+  assert.match(handler, /row\.name === values\.name/);
   assert.match(handler, /datetime\('now', '-10 minutes'\)/);
+  assert.match(handler, /orderBy\(desc\(inquiries\.createdAt\)/);
   assert.match(handler, /相同咨询刚刚已经提交/);
   assert.match(form, /name="turnstileToken"/);
   assert.match(form, /TurnstileWidget/);

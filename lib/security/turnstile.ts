@@ -1,6 +1,6 @@
 type TurnstileVerification = {
   ok: boolean;
-  code: "disabled" | "invalid" | "not_configured";
+  code: "disabled" | "verified" | "invalid" | "not_configured";
 };
 
 export async function verifyTurnstileToken(token: string, request: Request): Promise<TurnstileVerification> {
@@ -11,7 +11,8 @@ export async function verifyTurnstileToken(token: string, request: Request): Pro
   if (!siteKey && !secretKey) {
     return production ? { ok: false, code: "not_configured" } : { ok: true, code: "disabled" };
   }
-  if (!siteKey || !secretKey || !token) return { ok: false, code: "not_configured" };
+  if (!siteKey || !secretKey) return { ok: false, code: "not_configured" };
+  if (!token) return { ok: false, code: "invalid" };
 
   try {
     const body = new FormData();
@@ -22,7 +23,7 @@ export async function verifyTurnstileToken(token: string, request: Request): Pro
     const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body });
     if (!response.ok) return { ok: false, code: "invalid" };
     const result = await response.json() as { success?: boolean };
-    return result.success === true ? { ok: true, code: "invalid" } : { ok: false, code: "invalid" };
+    return result.success === true ? { ok: true, code: "verified" } : { ok: false, code: "invalid" };
   } catch {
     return { ok: false, code: "invalid" };
   }

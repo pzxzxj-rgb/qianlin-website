@@ -126,6 +126,8 @@ try {
   assert.equal(accepted.response.status, 201);
   const duplicate = await request("/api/t/qianlin-travel/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(validPayload) });
   assert.equal(duplicate.response.status, 409);
+  const differentName = await request("/api/t/qianlin-travel/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...validPayload, name: "Different name" }) });
+  assert.equal(differentName.response.status, 201);
   const stored = query("SELECT tenant_id, phone, message FROM inquiries ORDER BY id DESC LIMIT 1")[0];
   assert.equal(stored.tenant_id, "qianlin-travel");
   assert.equal(stored.phone, "18985127882");

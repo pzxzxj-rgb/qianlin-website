@@ -11,6 +11,7 @@ type TurnstileRenderOptions = {
 
 type TurnstileApi = {
   render: (element: HTMLElement, options: TurnstileRenderOptions) => string;
+  reset: (widgetId: string) => void;
   remove?: (widgetId: string) => void;
 };
 
@@ -20,7 +21,13 @@ declare global {
   }
 }
 
-export function TurnstileWidget({ siteKey, onToken }: { siteKey: string; onToken: (token: string) => void }) {
+type TurnstileWidgetProps = {
+  siteKey: string;
+  onToken: (token: string) => void;
+  resetKey: number;
+};
+
+export function TurnstileWidget({ siteKey, onToken, resetKey }: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
 
@@ -56,6 +63,12 @@ export function TurnstileWidget({ siteKey, onToken }: { siteKey: string; onToken
       widgetIdRef.current = null;
     };
   }, [onToken, siteKey]);
+
+  useEffect(() => {
+    if (!siteKey || resetKey === 0 || !widgetIdRef.current || !window.turnstile) return;
+    window.turnstile.reset(widgetIdRef.current);
+    onToken("");
+  }, [onToken, resetKey, siteKey]);
 
   return siteKey ? <div ref={containerRef} aria-label="Cloudflare Turnstile" /> : null;
 }

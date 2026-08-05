@@ -27,6 +27,7 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const { language, t } = useLanguage();
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "";
   const modalRef = useRef<HTMLDivElement>(null);
@@ -41,14 +42,19 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
     submittingRef.current = submitting;
   }, [onClose, submitting]);
 
+  const resetTurnstile = useCallback(() => {
+    setTurnstileToken("");
+    setTurnstileResetKey((current) => current + 1);
+  }, []);
+
   const handleClose = useCallback(() => {
     if (submittingRef.current) return;
     setSubmitted(false);
     setSubmitError("");
-    setTurnstileToken("");
+    resetTurnstile();
     onCloseRef.current();
     window.requestAnimationFrame(() => previousFocusRef.current?.focus());
-  }, []);
+  }, [resetTurnstile]);
 
   useEffect(() => {
     document.body.classList.toggle("modal-open", open);
@@ -95,6 +101,7 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
     const travelDate = typeof payload.travelDate === "string" ? payload.travelDate : "";
     if (!isValidMainlandPhone(phone) || (travelDate && travelDate < getChinaDate())) {
       setSubmitError(t.customize.submitError);
+      resetTurnstile();
       setSubmitting(false);
       return;
     }
@@ -111,9 +118,10 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
         throw new Error(typeof serverMessage === "string" ? serverMessage : t.customize.submitError);
       }
       setSubmitted(true);
-      setTurnstileToken("");
+      resetTurnstile();
       form.reset();
     } catch (error) {
+      resetTurnstile();
       setSubmitError(error instanceof Error && error.message ? error.message : t.customize.submitError);
     } finally {
       setSubmitting(false);
@@ -157,10 +165,10 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
             <label className="form-full" htmlFor="inquiry-message">{t.customize.fields.message}<textarea id="inquiry-message" name="message" defaultValue={initialMessage} rows={4} placeholder={t.customize.placeholders.message} maxLength={2000} /></label>
           </div>
           <div className="honeypot-field" aria-hidden="true"><label htmlFor="inquiry-website">{t.customize.honeypotLabel}<input id="inquiry-website" name="website" tabIndex={-1} autoComplete="off" /></label></div>
-          <TurnstileWidget siteKey={turnstileSiteKey} onToken={handleTurnstileToken} />
+          <TurnstileWidget siteKey={turnstileSiteKey} onToken={handleTurnstileToken} resetKey={turnstileResetKey} />
           <input type="hidden" name="turnstileToken" value={turnstileToken} readOnly />
           <label className="privacy-consent" htmlFor="privacy-consent"><input id="privacy-consent" type="checkbox" name="privacyConsent" value="true" required /><span>{t.customize.privacyBefore}<a href="/privacy" target="_blank" rel="noreferrer">{t.customize.privacyLink}</a>{t.customize.privacyAfter}</span></label>
-          <div className="form-actions">{submitError ? <p className="form-error" role="alert">{submitError}</p> : <p>{t.customize.note}</p>}<button type="submit" className="button button-dark" disabled={submitting}>{submitting ? t.customize.submitting : t.customize.submit} <span aria-hidden="true">→</span></button></div>
+          <div className="form-actions">{turnstileSiteKey && !turnstileToken ? <p className="form-error" role="status">{language === "zh" ? "请先完成人机验证" : "Please complete the human verification first."}</p> : submitError ? <p className="form-error" role="alert">{submitError}</p> : <p>{t.customize.note}</p>}<button type="submit" className="button button-dark" disabled={submitting || (Boolean(turnstileSiteKey) && !turnstileToken)}>{submitting ? t.customize.submitting : t.customize.submit} <span aria-hidden="true">→</span></button></div>
         </form>}
       </div>
     </div> : null}
