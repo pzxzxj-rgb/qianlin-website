@@ -19,7 +19,7 @@ export function Tours({ tours, onBook, region }: ToursProps) {
             const title = tour.title[language];
             return <article className="tour-card" key={tour.id}>
               <div className="tour-image-wrap">
-                {tour.image ? <img src={tour.image} alt={tour.imageAlt?.[language] ?? title} className="tour-image" loading={index > 1 ? "lazy" : "eager"} /> : null}
+                {tour.image ? <img src={tour.image} alt={tour.imageAlt?.[language] ?? title} className="tour-image" loading={index > 1 ? "lazy" : "eager"} onError={(event) => { event.currentTarget.hidden = true; }} /> : null}
                 {tour.tag ? <span className="tour-tag">{tour.tag[language]}</span> : null}
                 <span className="tour-number">0{index + 1}</span>
               </div>

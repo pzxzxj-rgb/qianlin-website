@@ -1,5 +1,8 @@
+import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import { inquiries } from "../../db/schema";
+import { verifyTurnstileToken } from "../security/turnstile";
+import { normalizeMainlandPhone } from "./validateMainlandPhone";
 import type { ResolvedTenant } from "../tenancy/types";
 
 type InquiryPayload = Record<string, unknown>;
@@ -53,8 +56,32 @@ async function readJsonBody(request: Request): Promise<unknown> {
   }
   const bytes = new Uint8Array(total);
   let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
   return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+function sameInquiry(row: typeof inquiries.$inferSelect, values: Record<string, string>) {
+  return row.wechat === values.wechat
+    && row.email === values.email
+    && row.location === values.location
+    && row.travelDate === values.travelDate
+    && row.travelers === values.travelers
+    && row.duration === values.duration
+    && row.tourName === values.tourName
+    && row.places === values.places
+    && row.message === values.message;
+}
+
+async function hasRecentDuplicate(db: Awaited<ReturnType<typeof getDb>>, tenantId: string, phone: string, values: Record<string, string>) {
+  const recentRows = await db.select().from(inquiries).where(and(
+    eq(inquiries.tenantId, tenantId),
+    eq(inquiries.phone, phone),
+    sql`${inquiries.createdAt} >= datetime('now', '-10 minutes')`,
+  )).limit(20);
+  return recentRows.some((row) => sameInquiry(row, values));
 }
 
 export async function handleInquiry(request: Request, tenant: ResolvedTenant | null) {
@@ -83,24 +110,44 @@ export async function handleInquiry(request: Request, tenant: ResolvedTenant | n
   const places = readText(payload, "places", 500);
   const message = readText(payload, "message", 2000);
   const website = readText(payload, "website", 200);
+  const turnstileToken = readText(payload, "turnstileToken", 4096);
 
-  if ([name, rawPhone, wechat, email, location, travelDate, travelers, duration, tourName, places, message, website].some((value) => value === null)) return responseError("部分内容格式不正确，请检查后重试。", "Some fields are invalid or too long.", 400);
+  if ([name, rawPhone, wechat, email, location, travelDate, travelers, duration, tourName, places, message, website, turnstileToken].some((value) => value === null)) return responseError("部分内容格式不正确，请检查后重试。", "Some fields are invalid or too long.", 400);
   if (website) return responseError("请求内容不正确，请检查后重试。", "Invalid request body.", 400);
   if (!name) return responseError("请填写姓名。", "Please provide your name.", 400);
   if (!rawPhone) return responseError("请填写手机号码。", "Please provide your phone number.", 400);
 
-  const phone = rawPhone.replace(/[\s\-－—−]/g, "");
-  if (!/^1[3-9]\d{9}$/.test(phone)) return responseError("请填写有效的大陆手机号码。", "Please provide a valid mainland China mobile number.", 400);
+  const phone = normalizeMainlandPhone(rawPhone);
+  if (!/^1[3-9]\d{9}$/.test(phone)) return responseError("请填写有效的中国大陆手机号码。", "Please provide a valid mainland China mobile number.", 400);
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return responseError("请填写有效的邮箱地址。", "Please provide a valid email address.", 400);
   if (!travelers || !travelerValues.has(travelers)) return responseError("请选择出行人数。", "Please choose the number of travelers.", 400);
   if (!durationValues.has(duration ?? "") || !isValidTravelDate(travelDate ?? "")) return responseError("出行日期或旅行时长不正确。", "Please check the travel date and duration.", 400);
-  const privacyConsent = payload.privacyConsent === true || payload.privacyConsent === "true";
-  if (!privacyConsent) return responseError("请阅读并同意隐私政策后提交。", "Please agree to the Privacy Policy before submitting.", 400);
+  if (!(payload.privacyConsent === true || payload.privacyConsent === "true")) return responseError("请阅读并同意隐私政策后提交。", "Please agree to the Privacy Policy before submitting.", 400);
   if (!tenant) return unavailableResponse();
+
+  const turnstile = await verifyTurnstileToken(turnstileToken ?? "", request);
+  if (!turnstile.ok) {
+    return turnstile.code === "not_configured"
+      ? responseError("咨询安全校验尚未完成配置，请联系网站管理员。", "Inquiry security verification is not configured.", 503)
+      : responseError("安全校验未通过，请刷新后重试。", "Security verification failed. Please try again.", 400);
+  }
+
+  const normalizedValues = {
+    wechat: wechat ?? "",
+    email: email?.toLowerCase() ?? "",
+    location: location ?? "",
+    travelDate: travelDate ?? "",
+    travelers: travelers ?? "",
+    duration: duration ?? "",
+    tourName: tourName ?? "",
+    places: places ?? "",
+    message: message ?? "",
+  };
 
   try {
     const db = await getDb();
-    const [inquiry] = await db.insert(inquiries).values({ tenantId: tenant.id, name, phone, wechat, email: email?.toLowerCase() ?? "", location, travelDate, travelers, duration, tourName, places, message, privacyConsent }).returning({ id: inquiries.id, createdAt: inquiries.createdAt });
+    if (await hasRecentDuplicate(db, tenant.id, phone, normalizedValues)) return responseError("相同咨询刚刚已经提交，请稍后再试。", "The same enquiry was submitted recently. Please wait before trying again.", 409);
+    const [inquiry] = await db.insert(inquiries).values({ tenantId: tenant.id, name, phone, ...normalizedValues, privacyConsent: true }).returning({ id: inquiries.id, createdAt: inquiries.createdAt });
     return Response.json({ inquiry }, { status: 201 });
   } catch (error) {
     console.error("Failed to save inquiry", error instanceof Error ? error.name : "UnknownError");

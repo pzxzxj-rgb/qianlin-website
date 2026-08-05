@@ -6,6 +6,7 @@ import type { TenantSiteConfig } from "../lib/tenancy/types";
 type TenantSiteState = {
   status: "loading" | "success" | "error";
   config: TenantSiteConfig | null;
+  isRefreshing: boolean;
   retry: () => void;
 };
 
@@ -25,7 +26,7 @@ function isTenantSiteConfig(value: unknown, tenantSlug: string): value is Tenant
 
 export function TenantSiteProvider({ tenantSlug, initialConfig, children }: { tenantSlug: string; initialConfig: TenantSiteConfig | null; children: React.ReactNode }) {
   const usableInitialConfig = initialConfig?.tenant.slug === tenantSlug ? initialConfig : null;
-  const [state, setState] = useState<{ status: TenantSiteState["status"]; config: TenantSiteConfig | null }>({ status: usableInitialConfig ? "success" : "loading", config: usableInitialConfig });
+  const [state, setState] = useState<{ status: TenantSiteState["status"]; config: TenantSiteConfig | null; isRefreshing: boolean }>({ status: usableInitialConfig ? "success" : "loading", config: usableInitialConfig, isRefreshing: false });
   const requestIdRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -34,17 +35,17 @@ export function TenantSiteProvider({ tenantSlug, initialConfig, children }: { te
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    setState({ status: "loading", config: null });
+    setState((current) => ({ status: current.config ? "success" : "loading", config: current.config, isRefreshing: Boolean(current.config) }));
 
     try {
       const response = await fetch(`/api/t/${encodeURIComponent(tenantSlug)}/site-config`, { headers: { Accept: "application/json" }, signal: controller.signal });
       const payload: unknown = await response.json().catch(() => null);
       if (!response.ok || !isTenantSiteConfig(payload, tenantSlug)) throw new Error("SITE_CONFIG_UNAVAILABLE");
       if (requestId !== requestIdRef.current || controller.signal.aborted) return;
-      setState({ status: "success", config: payload });
+      setState({ status: "success", config: payload, isRefreshing: false });
     } catch {
       if (controller.signal.aborted || requestId !== requestIdRef.current) return;
-      setState({ status: "error", config: null });
+      setState((current) => ({ status: current.config ? "success" : "error", config: current.config, isRefreshing: false }));
     }
   }, [tenantSlug]);
 

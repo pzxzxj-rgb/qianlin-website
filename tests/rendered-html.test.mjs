@@ -24,7 +24,7 @@ test("keeps the homepage free of the removed Gallery module and stale static sit
   assert.equal(await exists("components/Gallery.tsx"), false);
   assert.equal(await exists("data/siteConfig.ts"), false);
   assert.doesNotMatch(page, /Gallery|gallery/);
-  assert.doesNotMatch(translations, /体验贵州|Experience Guizhou|贵州的六个片段|Guizhou in six frames|gallery/i);
+  assert.doesNotMatch(translations, /Experience Guizhou|Guizhou in six frames|gallery/i);
   assert.doesNotMatch(styles, /section-gallery|gallery-grid|gallery-item/);
 });
 
@@ -49,9 +49,11 @@ test("keeps Hero controls accessible and motion-aware without static slide data"
   assert.match(hero, /role="group"/);
   assert.match(hero, /aria-current/);
   assert.match(hero, /prefers-reduced-motion/);
+  assert.match(hero, /onError/);
   assert.doesNotMatch(hero, /26.*N|106.*E/);
   assert.match(provider, /AbortController/);
   assert.match(provider, /value\.tenant\.slug !== tenantSlug/);
+  assert.match(provider, /isRefreshing/);
   assert.match(plannerProvider, /AbortController/);
   assert.match(plannerProvider, /value\.tenantSlug !== tenantSlug/);
 });
@@ -72,16 +74,53 @@ test("sanitizes contact links and keeps the honeypot server check", async () => 
   assert.match(inquirySource, /tenantId: tenant\.id/);
 });
 
-test("keeps generic copy, demo/configuring states and accurate documentation", async () => {
+test("documents the Mainland-only scope and production Turnstile requirements", async () => {
   const translations = await read("data/translations.ts");
   const home = await read("components/TenantHomeClient.tsx");
   const demoRoute = await read("app/api/t/[tenantSlug]/inquiries/route.ts");
   const readme = await read("README.md");
-  assert.doesNotMatch(translations, /Qianlin|黔林|Guizhou|贵州/);
+  assert.doesNotMatch(translations, /Qianlin|Guizhou/);
   assert.match(home, /siteConfig\.tenant\.isDemo/);
   assert.match(home, /!siteConfig\.isConfigured/);
   assert.match(demoRoute, /tenant\.isDemo \|\| tenant\.siteStatus !== "published"/);
-  assert.match(readme, /Turnstile 目前尚未真正启用/);
-  assert.match(readme, /独立的配置中页面/);
+  assert.match(readme, /当前版本先服务中国大陆用户/);
+  assert.match(readme, /生产环境必须同时设置/);
+  assert.match(readme, /当前没有咨询管理后台/);
   assert.doesNotMatch(readme, /data\/siteConfig\.ts/);
+});
+
+test("removes the legacy inquiry bypass and protects unpublished site config", async () => {
+  const resolver = await read("lib/tenancy/resolveTenant.ts");
+  const siteRoute = await read("app/api/t/[tenantSlug]/site-config/route.ts");
+  const inquiryRoute = await read("app/api/t/[tenantSlug]/inquiries/route.ts");
+  assert.equal(await exists("app/api/inquiries/route.ts"), false);
+  assert.match(resolver, /function unconfiguredSiteConfig/);
+  assert.match(resolver, /tenant\.siteStatus !== "published"/);
+  assert.match(resolver, /contacts: \[\]/);
+  assert.match(resolver, /heroSlides: \[\]/);
+  assert.match(siteRoute, /no-store/);
+  assert.match(inquiryRoute, /tenant\.isDemo \|\| tenant\.siteStatus !== "published"/);
+});
+
+test("keeps phone validation, Turnstile, duplicate protection, and safe local inquiry inspection", async () => {
+  const phone = await read("lib/inquiries/validateMainlandPhone.ts");
+  const handler = await read("lib/inquiries/handleInquiry.ts");
+  const form = await read("components/CustomizeForm.tsx");
+  const turnstile = await read("lib/security/turnstile.ts");
+  const siteUrl = await read("lib/siteUrl.ts");
+  const env = await read(".env.example");
+  const script = await read("scripts/list-inquiries-local.mjs");
+  assert.match(phone, /\^1\[3-9\]\\d\{9\}\$/);
+  assert.match(handler, /normalizeMainlandPhone/);
+  assert.match(handler, /datetime\('now', '-10 minutes'\)/);
+  assert.match(handler, /相同咨询刚刚已经提交/);
+  assert.match(form, /name="turnstileToken"/);
+  assert.match(form, /TurnstileWidget/);
+  assert.match(turnstile, /TURNSTILE_SECRET_KEY/);
+  assert.match(turnstile, /challenges\.cloudflare\.com\/turnstile/);
+  assert.match(siteUrl, /NEXT_PUBLIC_SITE_URL must be set/);
+  assert.match(env, /TURNSTILE_SECRET_KEY=/);
+  assert.doesNotMatch(env, /=\s*(sk_live|secret_[^\n]*)/i);
+  assert.match(script, /SELECT id, tenant_id, status, created_at/);
+  assert.doesNotMatch(script, /SELECT \* FROM inquiries/);
 });

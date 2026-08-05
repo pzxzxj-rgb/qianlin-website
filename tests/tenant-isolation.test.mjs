@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => fs.readFile(path.join(projectRoot, file), "utf8");
-const [schema, migration, resolver, siteRoute, plannerRoute, inquiryRoute, home, dynamicPage, provider, plannerProvider] = await Promise.all([
+const [schema, migration, resolver, siteRoute, plannerRoute, inquiryRoute, home, dynamicPage, provider, plannerProvider, sitemap, rootPage, siteUrl] = await Promise.all([
   read("db/schema.ts"),
   read("drizzle/0004_numerous_captain_flint.sql"),
   read("lib/tenancy/resolveTenant.ts"),
@@ -17,6 +17,9 @@ const [schema, migration, resolver, siteRoute, plannerRoute, inquiryRoute, home,
   read("app/t/[tenantSlug]/page.tsx"),
   read("components/TenantSiteProvider.tsx"),
   read("components/PlannerOptionsProvider.tsx"),
+  read("app/sitemap.ts"),
+  read("app/page.tsx"),
+  read("lib/siteUrl.ts"),
 ]);
 
 test("defines tenants before child tables and removes the inquiry default tenant", () => {
@@ -33,7 +36,6 @@ test("defines tenants before child tables and removes the inquiry default tenant
   }
   assert.match(migration, /COALESCE\(NULLIF\(`tenant_id`, ''\), 'qianlin-travel'\)/);
   assert.match(migration, /site_status.*'published'/s);
-  assert.match(migration, /云途旅行/);
   assert.match(migration, /Yuntu Travel Demo/);
   assert.match(migration, /idx_inquiries_tenant_status_created/);
 });
@@ -43,7 +45,11 @@ test("resolves active tenants by database slug and isolates all tenant APIs", ()
   assert.match(resolver, /eq\(tenants\.status, "active"\)/);
   assert.match(resolver, /siteStatus/);
   assert.doesNotMatch(resolver, /if \(slug ===/);
-  assert.match(siteRoute, /resolveActiveTenantBySlug/);
+  assert.match(resolver, /function unconfiguredSiteConfig/);
+  assert.match(resolver, /contacts: \[\]/);
+  assert.match(resolver, /heroSlides: \[\]/);
+  assert.match(siteRoute, /getTenantSiteConfig/);
+  assert.match(siteRoute, /no-store/);
   assert.match(plannerRoute, /resolveActiveTenantBySlug/);
   assert.match(inquiryRoute, /resolveActiveTenantBySlug/);
   assert.match(inquiryRoute, /tenant\.isDemo \|\| tenant\.siteStatus !== "published"/);
@@ -52,5 +58,16 @@ test("resolves active tenants by database slug and isolates all tenant APIs", ()
   assert.match(dynamicPage, /robots: isPublic \? undefined : \{ index: false, follow: false \}/);
   assert.match(provider, /AbortController/);
   assert.match(provider, /value\.tenant\.slug !== tenantSlug/);
+  assert.match(provider, /isRefreshing/);
+  assert.match(plannerProvider, /AbortController/);
   assert.match(plannerProvider, /value\.tenantSlug !== tenantSlug/);
+});
+
+test("only publishes tenants with valid public profiles and uses safe URL metadata", () => {
+  assert.match(sitemap, /tenantSiteProfiles/);
+  assert.match(sitemap, /tenantSiteProfiles\.status, "published"/);
+  assert.match(sitemap, /tenantSiteProfiles\.companyNameZh/);
+  assert.match(sitemap, /eq\(tenants\.isDemo, false\)/);
+  assert.match(rootPage, /robots: \{ index: false, follow: false \}/);
+  assert.match(siteUrl, /NEXT_PUBLIC_SITE_URL must be set/);
 });

@@ -37,14 +37,7 @@ export async function getDefaultTenant() {
   return resolveActiveTenantBySlug(DEFAULT_TENANT_SLUG);
 }
 
-export async function getTenantSiteConfig(tenant: ResolvedTenant): Promise<TenantSiteConfig> {
-  const db = await getDb();
-  const [profileRows, contactRows, heroRows] = await Promise.all([
-    db.select().from(tenantSiteProfiles).where(and(eq(tenantSiteProfiles.tenantId, tenant.id), eq(tenantSiteProfiles.status, "published"))).limit(1),
-    db.select().from(tenantContactChannels).where(and(eq(tenantContactChannels.tenantId, tenant.id), eq(tenantContactChannels.status, "published"))).orderBy(asc(tenantContactChannels.displayOrder), asc(tenantContactChannels.id)),
-    db.select().from(tenantHeroSlides).where(and(eq(tenantHeroSlides.tenantId, tenant.id), eq(tenantHeroSlides.status, "published"))).orderBy(asc(tenantHeroSlides.displayOrder), asc(tenantHeroSlides.id)).limit(2),
-  ]);
-  const profile = profileRows[0];
+function unconfiguredSiteConfig(tenant: ResolvedTenant): TenantSiteConfig {
   return {
     tenant: {
       id: tenant.id,
@@ -54,7 +47,46 @@ export async function getTenantSiteConfig(tenant: ResolvedTenant): Promise<Tenan
       defaultLanguage: tenant.defaultLanguage,
       isDemo: tenant.isDemo,
     },
-    isConfigured: tenant.siteStatus === "published" && Boolean(profile),
+    isConfigured: false,
+    profile: {
+      companyName: tenant.name,
+      description: { zh: "", en: "" },
+      primaryRegion: { zh: "", en: "" },
+      address: { zh: "", en: "" },
+      logo: { mark: "", imageUrl: "" },
+      images: {
+        about: { src: "", alt: { zh: "", en: "" } },
+        customize: { src: "", alt: { zh: "", en: "" } },
+      },
+    },
+    contacts: [],
+    heroSlides: [],
+  };
+}
+
+export async function getTenantSiteConfig(tenant: ResolvedTenant): Promise<TenantSiteConfig> {
+  const db = await getDb();
+  if (tenant.siteStatus !== "published") return unconfiguredSiteConfig(tenant);
+
+  const profileRows = await db.select().from(tenantSiteProfiles).where(and(eq(tenantSiteProfiles.tenantId, tenant.id), eq(tenantSiteProfiles.status, "published"))).limit(1);
+  const profile = profileRows[0];
+  if (!profile) return unconfiguredSiteConfig(tenant);
+
+  const [contactRows, heroRows] = await Promise.all([
+    db.select().from(tenantContactChannels).where(and(eq(tenantContactChannels.tenantId, tenant.id), eq(tenantContactChannels.status, "published"))).orderBy(asc(tenantContactChannels.displayOrder), asc(tenantContactChannels.id)),
+    db.select().from(tenantHeroSlides).where(and(eq(tenantHeroSlides.tenantId, tenant.id), eq(tenantHeroSlides.status, "published"))).orderBy(asc(tenantHeroSlides.displayOrder), asc(tenantHeroSlides.id)).limit(2),
+  ]);
+
+  return {
+    tenant: {
+      id: tenant.id,
+      slug: tenant.slug,
+      name: tenant.name,
+      siteStatus: tenant.siteStatus,
+      defaultLanguage: tenant.defaultLanguage,
+      isDemo: tenant.isDemo,
+    },
+    isConfigured: true,
     profile: {
       companyName: { zh: profile?.companyNameZh || tenant.name.zh, en: profile?.companyNameEn || tenant.name.en },
       description: { zh: profile?.descriptionZh ?? "", en: profile?.descriptionEn ?? "" },

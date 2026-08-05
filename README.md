@@ -1,69 +1,67 @@
-# 黔林旅行社官网
+# 黔林旅行社官网第二版
 
-这是一个以黔林旅行社为正式租户的旅行咨询网站第一版。当前版本提供首页、目的地展示、智能行程规划、咨询表单、联系方式和法律页面；不包含后台管理、订单、支付或报价系统。
+当前版本先服务中国大陆用户。默认语言为中文，咨询表单只接受中国大陆 11 位手机号码，联系方式保留微信、电话和邮箱。项目已完成最小多租户基础，正式租户为 `qianlin-travel`，演示租户为 `yunnan-demo`。
 
-首页主要视觉是 AI 主题图片轮播。图片用于营造旅行主题氛围，不声明为具体贵州景点的真实实拍，也不声明为旅行社带团记录。
+## 当前能力
 
-## 技术栈
-
-- Next.js、React、TypeScript
-- Vinext / Cloudflare Workers
-- Drizzle ORM / Cloudflare D1
-- Node.js `>=22.13.0`
+* D1 保存租户资料、公开联系方式、Hero 图片、贵州目的地、行程规划选项和咨询记录。
+* 每个租户通过自己的 slug 读取公开资料。服务端以路由租户为准，不信任客户端提交的 `tenantId`。
+* 正式租户可以展示网站和接收咨询。演示租户与 configuring 租户不接收真实咨询。
+* 首页保留 Hero、线路、目的地、行程规划、定制咨询、关于我们和联系方式等现有模块，没有新增后台、订单或支付系统。
+* Hero 使用 D1 中最多两张本地图片。图片只作为旅行主题视觉使用，页面不把 AI 图片描述成具体景点实拍或带团记录。
+* 行程规划当前使用本地规则 provider，没有调用地图、模型或外部路线 API。
 
 ## 本地运行
 
 ```bash
-npm install
+npm ci
+npm run db:reset:local
 npm run dev
 ```
 
-本地 D1 只使用项目内的 Wrangler 配置和 `.wrangler/state`：
+本地 D1 使用 `wrangler.local.jsonc` 和 `.wrangler/state`。本地重置命令只操作项目工作区内的本地数据库，不连接远程 D1。
 
 ```bash
-npm run db:reset:local
 npm run db:check:local
+npm run db:inquiries:local
 ```
 
-`db:reset:local` 会重建本地数据库并应用全部迁移。不要使用这些命令连接线上 D1；本阶段不创建线上资源、不执行远程迁移、不部署网站。
+咨询记录保存在 `inquiries` 表。默认查看脚本只显示 `id`、`tenant_id`、`status` 和 `created_at`，不会输出手机、微信、邮箱或完整留言。查询脚本不会写入测试数据。
 
-## 多租户基础
+正式环境可在完成 Cloudflare 登录和权限确认后使用 Wrangler 的远程查询流程，例如：
 
-当前已完成未来 SaaS 改造所需的最小租户基础，但没有实现后台或管理员功能：
-
-- `qianlin-travel` 是正式租户，根路径 `/` 使用 D1 中的站点资料、联系方式和 Hero 配置。
-- `yunnan-demo` 是演示租户，路径为 `/t/yunnan-demo`。它使用“云途旅行（演示）”资料，不含正式租户的联系方式、Hero、目的地或规划数据，也不接受咨询，设置为 `noindex,nofollow`。
-- 其他新租户默认处于 `configuring` 状态。没有已发布站点资料时，只显示独立的配置中页面，不显示正式租户内容或咨询入口。
-- 租户站点配置、规划选项和咨询接口分别使用 `/api/t/:tenantSlug/site-config`、`/api/t/:tenantSlug/planner/options` 和 `/api/t/:tenantSlug/inquiries`。
-- 数据库中的站点资料、联系方式、Hero、咨询和规划城市/目的地均按 `tenant_id` 隔离；`0004` 迁移补充了外键、状态约束、索引和无默认租户的咨询表。
-
-正式租户的贵州城市和目的地数据仍保存在 D1 迁移中，这是该租户的业务数据，不是其他租户的默认回退数据。公开公司资料统一来自 D1，不会使用静态文件作为其他租户的回退内容。
-
-## 图片和页面结构
-
-Hero 配置由 D1 的 `tenant_hero_slides` 提供，当前正式租户最多展示两张本地 Hero 图片，轮播间隔约 6 秒。支持上一张、下一张、圆点、键盘操作、悬停暂停、控制区聚焦暂停、页面不可见时暂停，以及 `prefers-reduced-motion`。
-
-首页保留的图片区域为 Hero、线路卡片、目的地卡片、定制咨询图和关于我们图。不会加入图集、视频、带团照片或游客合照模块。
-
-## 智能行程规划
-
-规划器使用 D1 返回的当前租户数据，通过统一的 `generateItinerary()` 接口调用本地规则 provider。当前不会请求外部地图、模型或路线 API，也不会产生外部 API 费用。未来接入外部服务时，应由服务端 provider/adapter 完成密钥保护、响应校验和内部类型转换。
-
-规划结果仅供前期参考，不代表实时最优路线、实际车程或最终服务确认。当前没有在线支付、订单和退款办理功能。
-
-## 环境变量
-
-`.env.example` 不包含真实密钥。Turnstile 目前尚未真正启用，只保留变量和正式上线前的配置位置；不能据此认为网站已经接入 Turnstile。
-
-行程规划当前使用本地 provider：
-
-```env
-ITINERARY_PROVIDER=local
+```bash
+npx wrangler d1 execute <D1_DATABASE_NAME> --remote --command "SELECT id, tenant_id, status, created_at FROM inquiries ORDER BY id DESC LIMIT 50"
 ```
 
-正式上线前请在受控环境完成 D1、域名、咨询接收和安全配置，并进行真实提交测试。
+远程查询前必须确认数据库名称、环境和权限。不要把生产咨询数据复制进测试数据库，也不要在普通日志中打印完整个人信息。当前没有咨询管理后台，后续如需邮件通知或后台处理，需要单独设计权限、审计和脱敏方案。
 
-## 检查与测试
+## 租户边界
+
+公开租户资料使用以下接口：
+
+* `/api/t/:tenantSlug/site-config`
+* `/api/t/:tenantSlug/planner/options`
+* `/api/t/:tenantSlug/inquiries`
+
+只有 active 且 published 的正式租户才能正常展示完整资料和提交咨询。configuring 租户的公开配置接口只返回 slug、租户名称、状态、默认语言和空白资料。演示租户不接收真实咨询，也不会进入 sitemap。
+
+## Turnstile 与环境变量
+
+`.env.example` 不含真实密钥。表单包含蜜罐和 Turnstile token，服务端负责最终校验。
+
+* 本地开发在两个 Turnstile 变量都为空时明确关闭校验。
+* 生产环境必须同时设置 `NEXT_PUBLIC_TURNSTILE_SITE_KEY` 和服务端专用的 `TURNSTILE_SECRET_KEY`。缺少配置时咨询提交会被拒绝。
+* Secret Key 只能放在服务端环境变量中，不能使用 `NEXT_PUBLIC_` 前缀，也不能提交到 GitHub。
+* 正式上线前还应在 Cloudflare 控制台配置访问频率限制。当前没有新增 KV、Durable Object 或 Rate Limiting 资源。
+
+生产环境必须设置真实的 `NEXT_PUBLIC_SITE_URL`，例如 `https://www.example.com`。开发和测试环境可以回退到 `http://localhost:3000`。生产环境缺少该变量时，URL 工具会抛出明确配置错误，canonical、sitemap、robots 和 Open Graph 不会默默使用 localhost。
+
+## 数据库迁移
+
+迁移文件位于 `drizzle/`。最新数据迁移会把正式租户的定制咨询图片切换为项目内的贵州主题图片。不要直接修改 `.wrangler/state`，不要在本地提交数据库文件，也不要执行远程 migration。
+
+## 检查命令
 
 ```bash
 npm run lint
@@ -72,8 +70,8 @@ npm test
 npm run test:integration:local
 ```
 
-`npm test` 覆盖构建后的基础页面/源代码约束、租户隔离、规划数据和咨询接口边界。`npm run test:integration:local` 会使用独立的 `.wrangler/test-state`，从全部迁移开始执行真实本地 D1 SQL 检查，结束后自动清理，不影响日常 `.wrangler/state`。
+`npm test` 包含构建后源代码约束测试。`npm run test:integration:local` 使用独立的 `.wrangler/test-state` 应用全部迁移并检查本地 D1 的租户约束、资料隔离和咨询表外键，不影响日常本地数据库。
 
 ## 当前明确不包含
 
-本阶段不包含管理员登录、后台管理、租户创建平台、子域名解析、订单中心、在线支付、微信/支付宝收款、退款办理、报价系统、地图或外部 API 接入、模型 API 接入、线上 D1 资源和网站部署。
+当前版本不包含国际手机号、WhatsApp、LINE、东南亚语言、独立英文 URL、在线支付、订单系统、完整管理后台、商家注册、子域名租户、外部地图 API、模型 API、正式线上 D1 资源和网站部署。上述能力留到后续版本评估。
