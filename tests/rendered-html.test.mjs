@@ -127,3 +127,33 @@ test("keeps phone validation, Turnstile, duplicate protection, and safe local in
   assert.match(script, /SELECT id, tenant_id, status, created_at/);
   assert.doesNotMatch(script, /SELECT \* FROM inquiries/);
 });
+
+test("keeps the 3A admin shell read-only and fixed to qianlin-travel", async () => {
+  const [adminPage, loginPage, loginRoute, logoutRoute, auth, dashboard, env] = await Promise.all([
+    read("app/admin/page.tsx"),
+    read("app/admin/login/page.tsx"),
+    read("app/api/admin/login/route.ts"),
+    read("app/api/admin/logout/route.ts"),
+    read("lib/admin/auth.ts"),
+    read("lib/admin/getAdminDashboard.ts"),
+    read(".env.example"),
+  ]);
+  assert.match(adminPage, /getAdminSessionFromCookie/);
+  assert.match(adminPage, /redirect\("\/admin\/login"\)/);
+  assert.match(loginPage, /AdminLoginForm/);
+  assert.match(loginRoute, /verifyAdminCredentials/);
+  assert.doesNotMatch(loginRoute, /tenantId/);
+  assert.match(logoutRoute, /clearAdminCookie/);
+  assert.match(auth, /ADMIN_TENANT_ID = "qianlin-travel"/);
+  assert.match(auth, /HttpOnly/);
+  assert.match(auth, /SameSite=Lax/);
+  assert.match(auth, /process\.env\.NODE_ENV === "production"/);
+  assert.match(dashboard, /ADMIN_TENANT_ID/);
+  assert.match(dashboard, /eq\(inquiries\.tenantId, ADMIN_TENANT_ID\)/);
+  assert.match(dashboard, /tenantSiteProfiles\.tenantId, ADMIN_TENANT_ID/);
+  assert.doesNotMatch(dashboard, /yunnan-demo|message|phone\.from/);
+  assert.match(env, /ADMIN_USERNAME=/);
+  assert.match(env, /ADMIN_PASSWORD_HASH=/);
+  assert.match(env, /ADMIN_SESSION_SECRET=/);
+  assert.doesNotMatch(env, /TestPassword|qianlin-admin-test/);
+});
