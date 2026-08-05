@@ -116,6 +116,7 @@ try {
   const login = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: adminTestUsername, password: adminTestPassword, tenantId: "yunnan-demo" }) });
   assert.equal(login.response.status, 200);
   assert.deepEqual(login.body, { ok: true });
+  assert.match(login.response.headers.get("cache-control") ?? "", /no-store/i);
   const setCookie = login.response.headers.get("set-cookie") ?? "";
   assert.match(setCookie, /HttpOnly/i);
   assert.match(setCookie, /SameSite=Lax/i);
@@ -132,11 +133,13 @@ try {
   const adminLoginPage = await request("/admin/login");
   assert.equal(adminLoginPage.response.status, 200);
   assert.match(adminLoginPage.response.headers.get("cache-control") ?? "", /no-store/i);
+  assert.match(String(adminLoginPage.body), /<title>黔林旅行社后台登录<\/title>/);
   assert.match(String(adminLoginPage.body), /<meta[^>]+name="robots"[^>]+noindex/i);
   assert.doesNotMatch(String(adminLoginPage.body), /rel="canonical"|property="og:/i);
   const adminPage = await request("/admin", { headers: { cookie: sessionCookie } });
   assert.equal(adminPage.response.status, 200);
   assert.match(adminPage.response.headers.get("cache-control") ?? "", /no-store/i);
+  assert.match(String(adminPage.body), /<title>黔林旅行社管理后台<\/title>/);
   assert.match(String(adminPage.body), /qianlin-travel/);
   assert.match(String(adminPage.body), /<meta[^>]+name="robots"[^>]+noindex/i);
   assert.doesNotMatch(String(adminPage.body), /rel="canonical"|property="og:/i);
@@ -145,6 +148,7 @@ try {
   assert.doesNotMatch(String(adminPage.body), /Local D1 functional test/);
   const logout = await request("/api/admin/logout", { method: "POST", headers: { cookie: sessionCookie } });
   assert.equal(logout.response.status, 200);
+  assert.match(logout.response.headers.get("cache-control") ?? "", /no-store/i);
   assert.match(logout.response.headers.get("set-cookie") ?? "", /Max-Age=0/);
   const afterLogout = await request("/admin", { redirect: "manual" });
   assert.ok([302, 303, 307, 308].includes(afterLogout.response.status));

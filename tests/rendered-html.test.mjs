@@ -147,12 +147,17 @@ test("keeps the 3A admin shell read-only, private, and fixed to qianlin-travel",
   assert.match(adminPage, /AdminReloadButton/);
   assert.match(adminPage, /AdminLogoutButton/);
   assert.match(adminPage, /fetchCache = "force-no-store"/);
+  assert.match(adminPage, /title: "黔林旅行社管理后台"/);
+  assert.match(adminPage, /robots: \{ index: false, follow: false \}/);
   assert.match(adminLayout, /robots: \{ index: false, follow: false \}/);
   assert.match(adminLayout, /alternates: null/);
   assert.match(adminLayout, /openGraph: null/);
   assert.match(adminLayout, /twitter: null/);
   assert.match(loginPage, /AdminLoginForm/);
   assert.match(loginPage, /fetchCache = "force-no-store"/);
+  assert.match(loginPage, /title: "黔林旅行社后台登录"/);
+  assert.match(loginPage, /<h1>后台登录<\/h1>/);
+  assert.match(loginPage, /robots: \{ index: false, follow: false \}/);
   assert.match(loginRoute, /verifyAdminCredentials/);
   assert.match(loginRoute, /content-type/);
   assert.match(loginRoute, /ADMIN_LOGIN_BODY_MAX_BYTES/);

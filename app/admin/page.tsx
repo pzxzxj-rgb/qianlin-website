@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AdminDashboard, AdminLogoutButton, AdminReloadButton } from "../../components/AdminDashboard";
@@ -7,6 +8,13 @@ import { getAdminDashboard } from "../../lib/admin/getAdminDashboard";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
+export const metadata: Metadata = {
+  title: "黔林旅行社管理后台",
+  robots: { index: false, follow: false },
+  alternates: null,
+  openGraph: null,
+  twitter: null,
+};
 
 export default async function AdminPage() {
   const requestHeaders = await headers();
