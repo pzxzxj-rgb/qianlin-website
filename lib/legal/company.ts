@@ -1,10 +1,11 @@
 import { DEFAULT_LEGAL_COMPANY, type LegalCompanyProfile } from "../../data/legal";
+import { ADMIN_TENANT_ID } from "../admin/auth";
 import { DEFAULT_TENANT_SLUG, getDefaultTenant, getTenantSiteConfig } from "../tenancy/resolveTenant";
 
 export async function getCurrentLegalCompany(): Promise<LegalCompanyProfile> {
   try {
     const tenant = await getDefaultTenant();
-    if (!tenant || tenant.id !== DEFAULT_TENANT_SLUG || tenant.slug !== DEFAULT_TENANT_SLUG || tenant.isDemo || tenant.siteStatus !== "published") {
+    if (!tenant || tenant.id !== ADMIN_TENANT_ID || tenant.slug !== DEFAULT_TENANT_SLUG || tenant.isDemo || tenant.siteStatus !== "published") {
       return DEFAULT_LEGAL_COMPANY;
     }
 
@@ -17,7 +18,7 @@ export async function getCurrentLegalCompany(): Promise<LegalCompanyProfile> {
       companyNameZh: siteConfig.profile.companyName.zh.trim() || DEFAULT_LEGAL_COMPANY.companyNameZh,
       companyNameEn: siteConfig.profile.companyName.en.trim() || DEFAULT_LEGAL_COMPANY.companyNameEn,
       addressZh: siteConfig.profile.address.zh.trim() || DEFAULT_LEGAL_COMPANY.addressZh,
-      email: siteConfig.contacts.find((channel) => channel.type === "email")?.value ?? "",
+      email: (siteConfig.contacts.find((channel) => channel.type === "email")?.value ?? "").trim(),
       logoMark: siteConfig.profile.logo.mark.trim(),
     };
   } catch {

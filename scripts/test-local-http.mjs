@@ -214,7 +214,8 @@ try {
   assert.equal(storedProfile.logo_mark, normalizedProfile.logoMark);
   const afterMaliciousYunnanProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' LIMIT 1")[0] ?? null;
   assert.deepEqual(afterMaliciousYunnanProfile, originalYunnanProfile);
-  const qianlinEmail = query("SELECT value FROM tenant_contact_channels WHERE tenant_id = 'qianlin-travel' AND type = 'email' AND status = 'published' LIMIT 1")[0]?.value ?? "";
+  execute("UPDATE tenant_contact_channels SET value = '  qianlin-test@example.com  ' WHERE tenant_id = 'qianlin-travel' AND type = 'email' AND status = 'published'");
+  const qianlinEmail = "qianlin-test@example.com";
   for (const legalPath of ["/privacy", "/terms", "/refund"]) {
     const legalPage = await request(legalPath);
     assert.equal(legalPage.response.status, 200);
@@ -223,7 +224,9 @@ try {
   }
   const privacyPage = await request("/privacy");
   assert.match(String(privacyPage.body), /贵州省贵阳市测试地址/);
-  if (qianlinEmail) assert.ok(String(privacyPage.body).includes(qianlinEmail));
+  assert.ok(String(privacyPage.body).includes(qianlinEmail));
+  assert.match(String(privacyPage.body), new RegExp(`mailto:${qianlinEmail.replace(".", "\\.")}`));
+  assert.doesNotMatch(String(privacyPage.body), /mailto:\s/);
   const updatedProfilePage = await request("/admin/profile", { headers: { cookie: sessionCookie } });
   assert.match(String(updatedProfilePage.body), /黔林旅行社/);
   const updatedAdminPage = await request("/admin", { headers: { cookie: sessionCookie } });

@@ -223,9 +223,10 @@ test("rejects tampered, expired, and cross-tenant admin sessions", async () => {
 });
 
 test("keeps 3B company profile editing protected and limited", async () => {
-  const [profilePage, profileForm, profileRoute, profileService, requestSecurity, dashboard, siteConfigRoute, legal, legalPage, legalCompany, readme] = await Promise.all([
+  const [profilePage, profileForm, profileEditor, profileRoute, profileService, requestSecurity, dashboard, siteConfigRoute, legal, legalPage, legalCompany, readme] = await Promise.all([
     read("app/admin/profile/page.tsx"),
     read("components/AdminProfileForm.tsx"),
+    read("components/AdminProfileEditor.tsx"),
     read("app/api/admin/profile/route.ts"),
     read("lib/admin/profile.ts"),
     read("lib/admin/requestSecurity.ts"),
@@ -250,6 +251,7 @@ test("keeps 3B company profile editing protected and limited", async () => {
   assert.match(profileForm, /aria-invalid/);
   assert.match(profileForm, /disabled=\{pending \|\| !isDirty\}/);
   assert.match(profileForm, /window\.confirm/);
+  assert.match(profileForm, /confirmAdminProfileNavigation/);
   assert.match(profileForm, /router\.push\("\/admin"\)/);
   assert.match(profileForm, /router\.refresh\(\)/);
   assert.doesNotMatch(profileForm, /dangerouslySetInnerHTML|tenantId|tenantSlug|siteStatus|profileId/);
@@ -277,7 +279,13 @@ test("keeps 3B company profile editing protected and limited", async () => {
   assert.match(legal, /companyNameZh/);
   assert.match(legalPage, /company\.companyNameZh/);
   assert.match(legalCompany, /DEFAULT_TENANT_SLUG/);
+  assert.match(legalCompany, /tenant\.slug !== DEFAULT_TENANT_SLUG/);
+  assert.match(legalCompany, /tenant\.id !== ADMIN_TENANT_ID/);
+  assert.match(legalCompany, /email: .*\.trim\(\)/);
+  assert.doesNotMatch(legalCompany, /tenant\.id !== DEFAULT_TENANT_SLUG/);
   assert.doesNotMatch(legalCompany, /yunnan-demo/);
+  assert.match(profileEditor, /onClick=\{handleReturn\}/g);
+  assert.match(profileEditor, /confirmAdminProfileNavigation\(isDirty\)/);
 });
 
 test("generates legal documents from the current company profile", async () => {

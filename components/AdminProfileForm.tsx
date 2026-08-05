@@ -12,6 +12,10 @@ type AdminProfileResponse = {
   fieldErrors?: AdminProfileFieldErrors;
 };
 
+export function confirmAdminProfileNavigation(isDirty: boolean) {
+  return !isDirty || window.confirm("有未保存的修改，确定返回后台吗？");
+}
+
 type FieldDefinition = {
   label: string;
   maxLength: number;
@@ -45,7 +49,7 @@ function isAdminProfileValues(value: unknown): value is AdminProfileValues {
   return FIELD_ORDER.every((field) => typeof record[field] === "string");
 }
 
-export function AdminProfileForm({ initialValues }: { initialValues: AdminProfileValues }) {
+export function AdminProfileForm({ initialValues, onDirtyChange }: { initialValues: AdminProfileValues; onDirtyChange?: (isDirty: boolean) => void }) {
   const router = useRouter();
   const [values, setValues] = useState<AdminProfileValues>(initialValues);
   const [baseline, setBaseline] = useState<AdminProfileValues>(initialValues);
@@ -55,6 +59,10 @@ export function AdminProfileForm({ initialValues }: { initialValues: AdminProfil
   const [pending, setPending] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const isDirty = JSON.stringify(values) !== JSON.stringify(baseline);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -152,7 +160,7 @@ export function AdminProfileForm({ initialValues }: { initialValues: AdminProfil
     <div className="admin-profile-actions">
       <button className="button button-dark" type="submit" disabled={pending || !isDirty}>{pending ? "保存中……" : "保存资料"}</button>
       <button className="button button-light" type="button" disabled={pending} onClick={() => {
-        if (!isDirty || window.confirm("有未保存的修改，确定取消吗？")) router.push("/admin");
+        if (confirmAdminProfileNavigation(isDirty)) router.push("/admin");
       }}>取消</button>
     </div>
   </form>;
