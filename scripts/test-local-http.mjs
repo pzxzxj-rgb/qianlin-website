@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { pbkdf2Sync } from "node:crypto";
+import { createHmac, pbkdf2Sync } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,7 +16,15 @@ const adminTestUsername = "admin-test";
 const adminTestPassword = "TestPassword!123";
 const adminIterations = 600_000;
 const adminSalt = Buffer.from("qianlin-admin-test-salt");
+const adminSessionSecret = "local-admin-session-secret-for-tests-only";
 const adminPasswordHash = `pbkdf2-sha256$${adminIterations}$${adminSalt.toString("base64url")}$${pbkdf2Sync(adminTestPassword, adminSalt, adminIterations, 32, "sha256").toString("base64url")}`;
+
+function signedAdminCookie({ tenantId, expiresAt }) {
+  const payload = JSON.stringify({ tenantId, expiresAt });
+  const encodedPayload = Buffer.from(payload, "utf8").toString("base64url");
+  const signature = createHmac("sha256", adminSessionSecret).update(payload).digest("base64url");
+  return `qianlin_admin_session=${encodedPayload}.${signature}`;
+}
 
 function runWrangler(args) {
   return execFileSync(process.execPath, [wrangler, ...args], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -88,7 +96,7 @@ try {
 
   server = spawn(process.execPath, [path.join(root, "node_modules", "vinext", "dist", "cli.js"), "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
     cwd: root,
-    env: { ...process.env, NODE_ENV: "test", NEXT_PUBLIC_SITE_URL: baseUrl, ADMIN_USERNAME: adminTestUsername, ADMIN_PASSWORD_HASH: adminPasswordHash, ADMIN_SESSION_SECRET: "local-admin-session-secret-for-tests-only", CLOUDFLARE_PERSIST_STATE_PATH: ".wrangler/http-test-state", WRANGLER_WRITE_LOGS: "false", WRANGLER_LOG_PATH: ".wrangler/http-test-logs", MINIFLARE_REGISTRY_PATH: ".wrangler/http-test-registry" },
+    env: { ...process.env, NODE_ENV: "test", NEXT_PUBLIC_SITE_URL: baseUrl, ADMIN_USERNAME: adminTestUsername, ADMIN_PASSWORD_HASH: adminPasswordHash, ADMIN_SESSION_SECRET: adminSessionSecret, CLOUDFLARE_PERSIST_STATE_PATH: ".wrangler/http-test-state", WRANGLER_WRITE_LOGS: "false", WRANGLER_LOG_PATH: ".wrangler/http-test-logs", MINIFLARE_REGISTRY_PATH: ".wrangler/http-test-registry" },
     stdio: "ignore",
   });
   await waitForServer();
@@ -98,6 +106,13 @@ try {
   assert.match(anonymousAdmin.response.headers.get("location") ?? "", /\/admin\/login/);
   const wrongLogin = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: adminTestUsername, password: "wrong-password" }) });
   assert.equal(wrongLogin.response.status, 401);
+  const wrongUsername = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: "wrong-user", password: adminTestPassword }) });
+  assert.equal(wrongUsername.response.status, 401);
+  assert.deepEqual(wrongUsername.body, wrongLogin.body);
+  const nonJsonLogin = await request("/api/admin/login", { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify({ username: adminTestUsername, password: adminTestPassword }) });
+  assert.equal(nonJsonLogin.response.status, 415);
+  const tooLargeLogin = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: adminTestUsername, password: "x".repeat(9_000) }) });
+  assert.equal(tooLargeLogin.response.status, 413);
   const login = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: adminTestUsername, password: adminTestPassword, tenantId: "yunnan-demo" }) });
   assert.equal(login.response.status, 200);
   assert.deepEqual(login.body, { ok: true });
@@ -107,9 +122,24 @@ try {
   assert.doesNotMatch(JSON.stringify(login.body), /session|token/i);
   const sessionCookie = setCookie.split(";", 1)[0];
   assert.match(sessionCookie, /^qianlin_admin_session=.+/);
+  const tamperedCookie = `${sessionCookie.slice(0, -1)}${sessionCookie.endsWith("A") ? "B" : "A"}`;
+  const tamperedSession = await request("/admin", { headers: { cookie: tamperedCookie }, redirect: "manual" });
+  assert.ok([302, 303, 307, 308].includes(tamperedSession.response.status));
+  const expiredSession = await request("/admin", { headers: { cookie: signedAdminCookie({ tenantId: "qianlin-travel", expiresAt: Math.floor(Date.now() / 1000) - 1 }) }, redirect: "manual" });
+  assert.ok([302, 303, 307, 308].includes(expiredSession.response.status));
+  const wrongTenantSession = await request("/admin", { headers: { cookie: signedAdminCookie({ tenantId: "yunnan-demo", expiresAt: Math.floor(Date.now() / 1000) + 3600 }) }, redirect: "manual" });
+  assert.ok([302, 303, 307, 308].includes(wrongTenantSession.response.status));
+  const adminLoginPage = await request("/admin/login");
+  assert.equal(adminLoginPage.response.status, 200);
+  assert.match(adminLoginPage.response.headers.get("cache-control") ?? "", /no-store/i);
+  assert.match(String(adminLoginPage.body), /<meta[^>]+name="robots"[^>]+noindex/i);
+  assert.doesNotMatch(String(adminLoginPage.body), /rel="canonical"|property="og:/i);
   const adminPage = await request("/admin", { headers: { cookie: sessionCookie } });
   assert.equal(adminPage.response.status, 200);
+  assert.match(adminPage.response.headers.get("cache-control") ?? "", /no-store/i);
   assert.match(String(adminPage.body), /qianlin-travel/);
+  assert.match(String(adminPage.body), /<meta[^>]+name="robots"[^>]+noindex/i);
+  assert.doesNotMatch(String(adminPage.body), /rel="canonical"|property="og:/i);
   assert.match(String(adminPage.body), /黔林旅行社/);
   assert.doesNotMatch(String(adminPage.body), /yunnan-demo|云南旅行社演示站/);
   assert.doesNotMatch(String(adminPage.body), /Local D1 functional test/);

@@ -2,6 +2,7 @@ const ADMIN_TENANT_ID = "qianlin-travel";
 const ADMIN_SESSION_COOKIE = "qianlin_admin_session";
 const ADMIN_SESSION_TTL_SECONDS = 8 * 60 * 60;
 const PBKDF2_ALGORITHM = "pbkdf2-sha256";
+const MIN_ADMIN_SESSION_SECRET_LENGTH = 32;
 
 export type AdminSession = {
   tenantId: typeof ADMIN_TENANT_ID;
@@ -63,7 +64,7 @@ async function getAdminConfig() {
 
 export async function isAdminConfigured() {
   const config = await getAdminConfig();
-  return Boolean(config.username && config.passwordHash && config.sessionSecret);
+  return Boolean(config.username && config.passwordHash && config.sessionSecret.length >= MIN_ADMIN_SESSION_SECRET_LENGTH);
 }
 
 export async function verifyAdminCredentials(username: string, password: string) {
@@ -87,8 +88,9 @@ export async function verifyAdminCredentials(username: string, password: string)
 }
 
 export async function createAdminSession() {
-  const secret = (await getAdminConfig()).sessionSecret;
-  if (!secret) return null;
+  const config = await getAdminConfig();
+  if (!config.username || !config.passwordHash || config.sessionSecret.length < MIN_ADMIN_SESSION_SECRET_LENGTH) return null;
+  const secret = config.sessionSecret;
   const expiresAt = Math.floor(Date.now() / 1000) + ADMIN_SESSION_TTL_SECONDS;
   const payload = JSON.stringify({ tenantId: ADMIN_TENANT_ID, expiresAt });
   return `${encodeBase64Url(new TextEncoder().encode(payload))}.${await sign(payload, secret)}`;
@@ -98,7 +100,7 @@ export async function getAdminSessionFromCookie(cookieHeader: string | null | un
   const cookie = cookieHeader?.split(";").map((item) => item.trim()).find((item) => item.startsWith(`${ADMIN_SESSION_COOKIE}=`));
   const token = cookie?.slice(ADMIN_SESSION_COOKIE.length + 1);
   const secret = (await getAdminConfig()).sessionSecret;
-  if (!token || !secret) return null;
+  if (!token || secret.length < MIN_ADMIN_SESSION_SECRET_LENGTH) return null;
 
   try {
     const separator = token.lastIndexOf(".");

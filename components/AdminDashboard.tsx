@@ -1,15 +1,32 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import type { AdminDashboardData } from "../lib/admin/getAdminDashboard";
 
-function AdminLogoutButton() {
+export function AdminLogoutButton() {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+
   async function handleLogout() {
-    await fetch("/api/admin/logout", { method: "POST" });
-    window.location.assign("/admin/login");
+    if (pending) return;
+    setPending(true);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/logout", { method: "POST", cache: "no-store" });
+      if (!response.ok) throw new Error("退出登录失败，请稍后重试。");
+      window.location.replace("/admin/login");
+    } catch (requestError) {
+      setPending(false);
+      setError(requestError instanceof Error && requestError.message ? requestError.message : "退出登录失败，请稍后重试。");
+    }
   }
 
-  return <button type="button" className="admin-logout" onClick={handleLogout}>退出登录</button>;
+  return <span className="admin-logout-control"><button type="button" className="admin-logout" onClick={handleLogout} disabled={pending}>{pending ? "退出中…" : "退出登录"}</button>{error ? <span className="admin-action-error" role="alert">{error}</span> : null}</span>;
+}
+
+export function AdminReloadButton() {
+  return <button type="button" className="button button-dark" onClick={() => window.location.reload()}>重新加载</button>;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {

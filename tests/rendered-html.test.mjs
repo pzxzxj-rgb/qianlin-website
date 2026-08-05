@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
@@ -128,27 +129,46 @@ test("keeps phone validation, Turnstile, duplicate protection, and safe local in
   assert.doesNotMatch(script, /SELECT \* FROM inquiries/);
 });
 
-test("keeps the 3A admin shell read-only and fixed to qianlin-travel", async () => {
-  const [adminPage, loginPage, loginRoute, logoutRoute, auth, dashboard, env] = await Promise.all([
+test("keeps the 3A admin shell read-only, private, and fixed to qianlin-travel", async () => {
+  const [adminPage, adminLayout, loginPage, loginRoute, logoutRoute, auth, dashboard, dashboardComponent, env] = await Promise.all([
     read("app/admin/page.tsx"),
+    read("app/admin/layout.tsx"),
     read("app/admin/login/page.tsx"),
     read("app/api/admin/login/route.ts"),
     read("app/api/admin/logout/route.ts"),
     read("lib/admin/auth.ts"),
     read("lib/admin/getAdminDashboard.ts"),
+    read("components/AdminDashboard.tsx"),
     read(".env.example"),
   ]);
   assert.match(adminPage, /getAdminSessionFromCookie/);
   assert.match(adminPage, /redirect\("\/admin\/login"\)/);
+  assert.doesNotMatch(adminPage, /Link[^\n]+\/admin\/login/);
+  assert.match(adminPage, /AdminReloadButton/);
+  assert.match(adminPage, /AdminLogoutButton/);
+  assert.match(adminPage, /fetchCache = "force-no-store"/);
+  assert.match(adminLayout, /robots: \{ index: false, follow: false \}/);
+  assert.match(adminLayout, /alternates: null/);
+  assert.match(adminLayout, /openGraph: null/);
+  assert.match(adminLayout, /twitter: null/);
   assert.match(loginPage, /AdminLoginForm/);
+  assert.match(loginPage, /fetchCache = "force-no-store"/);
   assert.match(loginRoute, /verifyAdminCredentials/);
+  assert.match(loginRoute, /content-type/);
+  assert.match(loginRoute, /ADMIN_LOGIN_BODY_MAX_BYTES/);
+  assert.match(loginRoute, /getReader/);
   assert.doesNotMatch(loginRoute, /tenantId/);
   assert.match(logoutRoute, /clearAdminCookie/);
   assert.match(auth, /ADMIN_TENANT_ID = "qianlin-travel"/);
+  assert.match(auth, /MIN_ADMIN_SESSION_SECRET_LENGTH = 32/);
+  assert.match(auth, /sessionSecret\.length >= MIN_ADMIN_SESSION_SECRET_LENGTH/);
   assert.match(auth, /HttpOnly/);
   assert.match(auth, /SameSite=Lax/);
   assert.match(auth, /process\.env\.NODE_ENV === "production"/);
   assert.match(dashboard, /ADMIN_TENANT_ID/);
+  assert.match(dashboardComponent, /response\.ok/);
+  assert.match(dashboardComponent, /window\.location\.replace\("\/admin\/login"\)/);
+  assert.doesNotMatch(dashboardComponent, /window\.location\.assign\("\/admin\/login"\)/);
   assert.match(dashboard, /eq\(inquiries\.tenantId, ADMIN_TENANT_ID\)/);
   assert.match(dashboard, /tenantSiteProfiles\.tenantId, ADMIN_TENANT_ID/);
   assert.doesNotMatch(dashboard, /yunnan-demo|message|phone\.from/);
@@ -156,4 +176,42 @@ test("keeps the 3A admin shell read-only and fixed to qianlin-travel", async () 
   assert.match(env, /ADMIN_PASSWORD_HASH=/);
   assert.match(env, /ADMIN_SESSION_SECRET=/);
   assert.doesNotMatch(env, /TestPassword|qianlin-admin-test/);
+});
+
+test("rejects tampered, expired, and cross-tenant admin sessions", async () => {
+  const source = await read("lib/admin/auth.ts");
+  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const auth = await import(`data:text/javascript;base64,${Buffer.from(output).toString("base64")}`);
+  const envNames = ["ADMIN_USERNAME", "ADMIN_PASSWORD_HASH", "ADMIN_SESSION_SECRET"];
+  const previous = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
+  const sessionSecret = "admin-session-secret-for-auth-tests-32-chars";
+
+  const signedCookie = (tenantId, expiresAt) => {
+    const payload = JSON.stringify({ tenantId, expiresAt });
+    const encodedPayload = Buffer.from(payload, "utf8").toString("base64url");
+    const signature = createHmac("sha256", sessionSecret).update(payload).digest("base64url");
+    return `qianlin_admin_session=${encodedPayload}.${signature}`;
+  };
+
+  try {
+    process.env.ADMIN_USERNAME = "auth-test";
+    process.env.ADMIN_PASSWORD_HASH = "configured-test-hash";
+    process.env.ADMIN_SESSION_SECRET = sessionSecret;
+    assert.equal(await auth.isAdminConfigured(), true);
+
+    const validToken = await auth.createAdminSession();
+    assert.ok(validToken);
+    const tamperedToken = `${validToken.slice(0, -1)}${validToken.endsWith("A") ? "B" : "A"}`;
+    assert.equal(await auth.getAdminSessionFromCookie(`qianlin_admin_session=${tamperedToken}`), null);
+    assert.equal(await auth.getAdminSessionFromCookie(signedCookie("qianlin-travel", Math.floor(Date.now() / 1000) - 1)), null);
+    assert.equal(await auth.getAdminSessionFromCookie(signedCookie("yunnan-demo", Math.floor(Date.now() / 1000) + 3600)), null);
+
+    process.env.ADMIN_SESSION_SECRET = "too-short";
+    assert.equal(await auth.isAdminConfigured(), false);
+  } finally {
+    for (const name of envNames) {
+      if (previous[name] === undefined) delete process.env[name];
+      else process.env[name] = previous[name];
+    }
+  }
 });

@@ -477,7 +477,11 @@ img { display: block; max-width: 100%; }
 .admin-back-link { display: block; margin-top: 28px; color: var(--forest-soft); font-size: 11px; text-align: center; }
 .admin-back-link:hover { color: var(--ink); }
 .admin-error-card { width: min(560px, calc(100% - 48px)); margin: 0 auto; padding: 52px; border: 1px solid var(--line); background: var(--paper); }
-.admin-error-card .button { margin-top: 28px; }
+.admin-error-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 22px; margin-top: 28px; }
+.admin-error-actions .button { margin-top: 0; }
+.admin-logout-control { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.admin-logout:disabled { cursor: wait; opacity: .6; }
+.admin-action-error { color: #9a4b3e; font-size: 11px; line-height: 1.5; }
 
 @media (max-width: 760px) {
   .admin-topbar { min-height: 72px; padding: 0 20px; }

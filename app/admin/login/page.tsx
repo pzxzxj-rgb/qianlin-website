@@ -5,6 +5,8 @@ import { AdminLoginForm } from "../../../components/AdminLoginForm";
 import { getAdminSessionFromCookie } from "../../../lib/admin/auth";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 export default async function AdminLoginPage() {
   const requestHeaders = await headers();
