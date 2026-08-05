@@ -223,7 +223,7 @@ test("rejects tampered, expired, and cross-tenant admin sessions", async () => {
 });
 
 test("keeps 3B company profile editing protected and limited", async () => {
-  const [profilePage, profileForm, profileRoute, profileService, requestSecurity, dashboard, siteConfigRoute, readme] = await Promise.all([
+  const [profilePage, profileForm, profileRoute, profileService, requestSecurity, dashboard, siteConfigRoute, legal, legalPage, legalCompany, readme] = await Promise.all([
     read("app/admin/profile/page.tsx"),
     read("components/AdminProfileForm.tsx"),
     read("app/api/admin/profile/route.ts"),
@@ -231,6 +231,9 @@ test("keeps 3B company profile editing protected and limited", async () => {
     read("lib/admin/requestSecurity.ts"),
     read("components/AdminDashboard.tsx"),
     read("app/api/t/[tenantSlug]/site-config/route.ts"),
+    read("data/legal.ts"),
+    read("components/LegalPage.tsx"),
+    read("lib/legal/company.ts"),
     read("README.md"),
   ]);
   assert.match(profilePage, /getAdminSessionFromCookie/);
@@ -245,6 +248,8 @@ test("keeps 3B company profile editing protected and limited", async () => {
   assert.match(profileForm, /addressEn/);
   assert.match(profileForm, /logoMark/);
   assert.match(profileForm, /aria-invalid/);
+  assert.match(profileForm, /disabled=\{pending \|\| !isDirty\}/);
+  assert.match(profileForm, /window\.confirm/);
   assert.match(profileForm, /router\.push\("\/admin"\)/);
   assert.match(profileForm, /router\.refresh\(\)/);
   assert.doesNotMatch(profileForm, /dangerouslySetInnerHTML|tenantId|tenantSlug|siteStatus|profileId/);
@@ -258,6 +263,8 @@ test("keeps 3B company profile editing protected and limited", async () => {
   assert.doesNotMatch(profileRoute, /tenantId.*body|tenantSlug|siteStatus|isDemo|profileId/);
   assert.match(profileService, /eq\(tenantSiteProfiles\.tenantId, ADMIN_TENANT_ID\)/);
   assert.match(profileService, /eq\(tenantSiteProfiles\.status, "published"\)/);
+  assert.match(profileService, /updatedAt: sql`CURRENT_TIMESTAMP`/);
+  assert.match(profileService, /value\.trim\(\)/);
   assert.match(profileService, /companyNameZh/);
   assert.match(profileService, /logoMark/);
   assert.match(requestSecurity, /new URL\(origin\)\.origin === new URL\(request\.url\)\.origin/);
@@ -266,4 +273,21 @@ test("keeps 3B company profile editing protected and limited", async () => {
   assert.match(readme, /已完成公司资料编辑/);
   assert.match(readme, /固定租户边界和同源请求验证/);
   assert.doesNotMatch(readme, /ADMIN_PASSWORD_HASH=.*\S+|ADMIN_SESSION_SECRET=.*\S+/);
+  assert.match(legal, /createLegalDocuments/);
+  assert.match(legal, /companyNameZh/);
+  assert.match(legalPage, /company\.companyNameZh/);
+  assert.match(legalCompany, /DEFAULT_TENANT_SLUG/);
+  assert.doesNotMatch(legalCompany, /yunnan-demo/);
+});
+
+test("generates legal documents from the current company profile", async () => {
+  const source = await read("data/legal.ts");
+  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const legal = await import(`data:text/javascript;base64,${Buffer.from(output).toString("base64")}`);
+  const documents = legal.createLegalDocuments({ companyNameZh: "新公司名称", companyNameEn: "New Company", addressZh: "新公司地址", email: "new@example.com", logoMark: "N" });
+  const text = JSON.stringify(documents);
+  assert.match(text, /新公司名称/);
+  assert.match(text, /新公司地址/);
+  assert.match(text, /new@example\.com/);
+  assert.doesNotMatch(text, /yunnan-demo|云南旅行社演示站/);
 });

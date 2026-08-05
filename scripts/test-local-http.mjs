@@ -129,8 +129,9 @@ try {
   const sessionCookie = setCookie.split(";", 1)[0];
   assert.match(sessionCookie, /^qianlin_admin_session=.+/);
   const tamperedCookie = `${sessionCookie.slice(0, -1)}${sessionCookie.endsWith("A") ? "B" : "A"}`;
-  const originalProfile = query("SELECT id, tenant_id, status, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' LIMIT 1")[0];
-  const originalYunnanProfile = query("SELECT id, tenant_id, status, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' LIMIT 1")[0] ?? null;
+  execute("UPDATE tenant_site_profiles SET updated_at = '2000-01-01 00:00:00' WHERE tenant_id = 'qianlin-travel' AND status = 'published'");
+  const originalProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' LIMIT 1")[0];
+  const originalYunnanProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' LIMIT 1")[0] ?? null;
   const saveProfile = (payload, options = {}) => request("/api/admin/profile", {
     method: "PUT",
     headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
@@ -169,13 +170,19 @@ try {
     assert.ok(invalidProfile.body && typeof invalidProfile.body === "object" && invalidProfile.body.fieldErrors);
   }
   const validProfile = {
-    companyNameZh: "黔林旅行社测试名称",
-    companyNameEn: "Qianlin Travel Test Name",
-    descriptionZh: "用于本地集成测试的中文公司介绍。",
-    descriptionEn: "English company description used by the local integration test.",
+    companyNameZh: "  黔林旅行社  ",
+    companyNameEn: " Q ",
+    descriptionZh: "  用于本地集成测试的中文公司介绍。  ",
+    descriptionEn: " English company description used by the local integration test. ",
     addressZh: "贵州省贵阳市测试地址",
     addressEn: "Test address, Guiyang, Guizhou",
-    logoMark: "QL",
+    logoMark: " Q ",
+  };
+  const normalizedProfile = {
+    ...validProfile,
+    companyNameZh: "黔林旅行社",
+    companyNameEn: "Q",
+    logoMark: "Q",
   };
   const maliciousProfile = await saveProfile({ ...validProfile, tenantId: "yunnan-demo", slug: "yunnan-demo", siteStatus: "configuring", status: "archived", isDemo: true, profileId: "other-profile" });
   assert.equal(maliciousProfile.response.status, 400);
@@ -190,25 +197,37 @@ try {
   const savedProfile = await saveProfile(validProfile);
   assert.equal(savedProfile.response.status, 200);
   assert.match(savedProfile.response.headers.get("cache-control") ?? "", /no-store/i);
-  assert.deepEqual(savedProfile.body.profile, validProfile);
+  assert.deepEqual(savedProfile.body.profile, normalizedProfile);
   assert.doesNotMatch(JSON.stringify(savedProfile.body), /tenantId|tenantSlug|siteStatus|isDemo|profileId|session|token/i);
-  const storedProfile = query("SELECT id, tenant_id, status, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' LIMIT 1")[0];
+  const storedProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' LIMIT 1")[0];
   assert.equal(storedProfile.id, originalProfile.id);
   assert.equal(storedProfile.tenant_id, "qianlin-travel");
   assert.equal(storedProfile.status, originalProfile.status);
-  assert.equal(storedProfile.company_name_zh, validProfile.companyNameZh);
-  assert.equal(storedProfile.company_name_en, validProfile.companyNameEn);
+  assert.equal(storedProfile.created_at, originalProfile.created_at);
+  assert.notEqual(storedProfile.updated_at, originalProfile.updated_at);
+  assert.equal(storedProfile.company_name_zh, normalizedProfile.companyNameZh);
+  assert.equal(storedProfile.company_name_en, normalizedProfile.companyNameEn);
   assert.equal(storedProfile.description_zh, validProfile.descriptionZh);
   assert.equal(storedProfile.description_en, validProfile.descriptionEn);
   assert.equal(storedProfile.address_zh, validProfile.addressZh);
   assert.equal(storedProfile.address_en, validProfile.addressEn);
-  assert.equal(storedProfile.logo_mark, validProfile.logoMark);
-  const afterMaliciousYunnanProfile = query("SELECT id, tenant_id, status, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' LIMIT 1")[0] ?? null;
+  assert.equal(storedProfile.logo_mark, normalizedProfile.logoMark);
+  const afterMaliciousYunnanProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' LIMIT 1")[0] ?? null;
   assert.deepEqual(afterMaliciousYunnanProfile, originalYunnanProfile);
+  const qianlinEmail = query("SELECT value FROM tenant_contact_channels WHERE tenant_id = 'qianlin-travel' AND type = 'email' AND status = 'published' LIMIT 1")[0]?.value ?? "";
+  for (const legalPath of ["/privacy", "/terms", "/refund"]) {
+    const legalPage = await request(legalPath);
+    assert.equal(legalPage.response.status, 200);
+    assert.match(String(legalPage.body), /黔林旅行社/);
+    assert.doesNotMatch(String(legalPage.body), /yunnan-demo|云南旅行社演示站/);
+  }
+  const privacyPage = await request("/privacy");
+  assert.match(String(privacyPage.body), /贵州省贵阳市测试地址/);
+  if (qianlinEmail) assert.ok(String(privacyPage.body).includes(qianlinEmail));
   const updatedProfilePage = await request("/admin/profile", { headers: { cookie: sessionCookie } });
-  assert.match(String(updatedProfilePage.body), /黔林旅行社测试名称/);
+  assert.match(String(updatedProfilePage.body), /黔林旅行社/);
   const updatedAdminPage = await request("/admin", { headers: { cookie: sessionCookie } });
-  assert.match(String(updatedAdminPage.body), /黔林旅行社测试名称/);
+  assert.match(String(updatedAdminPage.body), /黔林旅行社/);
   const tamperedSession = await request("/admin", { headers: { cookie: tamperedCookie }, redirect: "manual" });
   assert.ok([302, 303, 307, 308].includes(tamperedSession.response.status));
   const expiredSession = await request("/admin", { headers: { cookie: signedAdminCookie({ tenantId: "qianlin-travel", expiresAt: Math.floor(Date.now() / 1000) - 1 }) }, redirect: "manual" });
@@ -245,13 +264,13 @@ try {
   assert.match(config.response.headers.get("cache-control") ?? "", /no-store/i);
   assert.equal(config.body.isConfigured, true);
   assert.equal(config.body.heroSlides.length, 2);
-  assert.equal(config.body.profile.companyName.zh, validProfile.companyNameZh);
-  assert.equal(config.body.profile.companyName.en, validProfile.companyNameEn);
+  assert.equal(config.body.profile.companyName.zh, normalizedProfile.companyNameZh);
+  assert.equal(config.body.profile.companyName.en, normalizedProfile.companyNameEn);
   assert.equal(config.body.profile.description.zh, validProfile.descriptionZh);
   assert.equal(config.body.profile.description.en, validProfile.descriptionEn);
   assert.equal(config.body.profile.address.zh, validProfile.addressZh);
   assert.equal(config.body.profile.address.en, validProfile.addressEn);
-  assert.equal(config.body.profile.logo.mark, validProfile.logoMark);
+  assert.equal(config.body.profile.logo.mark, normalizedProfile.logoMark);
   assert.match(config.body.profile.images.customize.src, /^\/images\//);
 
   const configuring = await request("/api/t/configuring-test/site-config");

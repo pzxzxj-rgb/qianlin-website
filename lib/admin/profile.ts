@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import { tenantSiteProfiles } from "../../db/schema";
 import { ADMIN_TENANT_ID } from "./auth";
@@ -73,13 +73,14 @@ export function validateAdminProfilePayload(body: unknown): AdminProfileValidati
       fieldErrors[field] = "该字段必须是文本。";
       continue;
     }
-    values[field] = value;
+    const normalizedValue = field === "companyNameZh" || field === "companyNameEn" || field === "logoMark" ? value.trim() : value;
+    values[field] = normalizedValue;
 
-    if (field !== "logoMark" && characterLength(value) > ADMIN_PROFILE_MAX_LENGTHS[field]) {
+    if (field !== "logoMark" && characterLength(normalizedValue) > ADMIN_PROFILE_MAX_LENGTHS[field]) {
       fieldErrors[field] = `内容不能超过 ${ADMIN_PROFILE_MAX_LENGTHS[field]} 个字符。`;
       continue;
     }
-    if (ADMIN_PROFILE_REQUIRED_FIELDS.has(field) && value.trim().length === 0) {
+    if (ADMIN_PROFILE_REQUIRED_FIELDS.has(field) && normalizedValue.length === 0) {
       fieldErrors[field] = "该字段不能为空。";
       continue;
     }
@@ -87,7 +88,7 @@ export function validateAdminProfilePayload(body: unknown): AdminProfileValidati
       fieldErrors[field] = "Logo 标志不能包含换行。";
       continue;
     }
-    if (field === "logoMark" && characterLength(value.trim()) > ADMIN_PROFILE_MAX_LENGTHS.logoMark) {
+    if (field === "logoMark" && characterLength(normalizedValue) > ADMIN_PROFILE_MAX_LENGTHS.logoMark) {
       fieldErrors[field] = `Logo 标志不能超过 ${ADMIN_PROFILE_MAX_LENGTHS.logoMark} 个可见字符。`;
       continue;
     }
@@ -121,6 +122,6 @@ export async function getAdminProfile(tenantId: string): Promise<AdminProfileRow
 export async function updateAdminProfile(tenantId: string, values: AdminProfileValues): Promise<AdminProfileRow | null> {
   if (tenantId !== ADMIN_TENANT_ID) throw new Error("Invalid admin tenant boundary");
   const db = await getDb();
-  const [profile] = await db.update(tenantSiteProfiles).set(values).where(and(eq(tenantSiteProfiles.tenantId, ADMIN_TENANT_ID), eq(tenantSiteProfiles.status, "published"))).returning(profileSelection);
+  const [profile] = await db.update(tenantSiteProfiles).set({ ...values, updatedAt: sql`CURRENT_TIMESTAMP` }).where(and(eq(tenantSiteProfiles.tenantId, ADMIN_TENANT_ID), eq(tenantSiteProfiles.status, "published"))).returning(profileSelection);
   return profile ?? null;
 }

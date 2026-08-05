@@ -150,8 +150,10 @@ export function AdminProfileForm({ initialValues }: { initialValues: AdminProfil
     {success ? <p className="admin-save-success" role="status">{success}</p> : null}
     <div className="admin-profile-field-grid">{FIELD_ORDER.map(renderField)}</div>
     <div className="admin-profile-actions">
-      <button className="button button-dark" type="submit" disabled={pending}>{pending ? "保存中……" : "保存资料"}</button>
-      <button className="button button-light" type="button" disabled={pending} onClick={() => router.push("/admin")}>取消</button>
+      <button className="button button-dark" type="submit" disabled={pending || !isDirty}>{pending ? "保存中……" : "保存资料"}</button>
+      <button className="button button-light" type="button" disabled={pending} onClick={() => {
+        if (!isDirty || window.confirm("有未保存的修改，确定取消吗？")) router.push("/admin");
+      }}>取消</button>
     </div>
   </form>;
 }
