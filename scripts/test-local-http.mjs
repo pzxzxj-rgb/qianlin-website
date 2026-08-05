@@ -104,6 +104,11 @@ try {
   const anonymousAdmin = await request("/admin", { redirect: "manual" });
   assert.ok([302, 303, 307, 308].includes(anonymousAdmin.response.status));
   assert.match(anonymousAdmin.response.headers.get("location") ?? "", /\/admin\/login/);
+  const anonymousProfilePage = await request("/admin/profile", { redirect: "manual" });
+  assert.ok([302, 303, 307, 308].includes(anonymousProfilePage.response.status));
+  assert.match(anonymousProfilePage.response.headers.get("location") ?? "", /\/admin\/login/);
+  const anonymousProfileSave = await request("/api/admin/profile", { method: "PUT", headers: { "content-type": "application/json", origin: baseUrl }, body: "{}" });
+  assert.equal(anonymousProfileSave.response.status, 401);
   const wrongLogin = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: adminTestUsername, password: "wrong-password" }) });
   assert.equal(wrongLogin.response.status, 401);
   const wrongUsername = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: "wrong-user", password: adminTestPassword }) });
@@ -124,6 +129,86 @@ try {
   const sessionCookie = setCookie.split(";", 1)[0];
   assert.match(sessionCookie, /^qianlin_admin_session=.+/);
   const tamperedCookie = `${sessionCookie.slice(0, -1)}${sessionCookie.endsWith("A") ? "B" : "A"}`;
+  const originalProfile = query("SELECT id, tenant_id, status, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' LIMIT 1")[0];
+  const originalYunnanProfile = query("SELECT id, tenant_id, status, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' LIMIT 1")[0] ?? null;
+  const saveProfile = (payload, options = {}) => request("/api/admin/profile", {
+    method: "PUT",
+    headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
+    body: options.body ?? JSON.stringify(payload),
+  });
+  const profilePage = await request("/admin/profile", { headers: { cookie: sessionCookie } });
+  assert.equal(profilePage.response.status, 200);
+  assert.match(String(profilePage.body), /编辑公司资料/);
+  assert.match(String(profilePage.body), /name="companyNameZh"/);
+  const invalidOrigin = await saveProfile({}, { headers: { origin: "https://evil.example" } });
+  assert.equal(invalidOrigin.response.status, 403);
+  const nonJsonProfile = await saveProfile({}, { headers: { "content-type": "text/plain" }, body: "{}" });
+  assert.equal(nonJsonProfile.response.status, 415);
+  const tooLargeProfile = await saveProfile({ descriptionEn: "x".repeat(17_000) });
+  assert.equal(tooLargeProfile.response.status, 413);
+  const invalidJsonProfile = await saveProfile({}, { body: "{" });
+  assert.equal(invalidJsonProfile.response.status, 400);
+  const invalidProfilePayloads = [
+    { companyNameZh: "" },
+    { companyNameEn: "" },
+    { companyNameZh: "x".repeat(101) },
+    { companyNameEn: "x".repeat(161) },
+    { descriptionZh: "x".repeat(1_001) },
+    { descriptionEn: "x".repeat(1_501) },
+    { addressZh: "x".repeat(301) },
+    { addressEn: "x".repeat(501) },
+    { logoMark: "" },
+    { logoMark: "ABCDE" },
+    { logoMark: "Q\nL" },
+    { companyNameZh: 123 },
+    { companyNameZh: "<script>alert(1)</script>" },
+  ];
+  for (const invalidPayload of invalidProfilePayloads) {
+    const invalidProfile = await saveProfile({ ...invalidPayload });
+    assert.equal(invalidProfile.response.status, 400);
+    assert.ok(invalidProfile.body && typeof invalidProfile.body === "object" && invalidProfile.body.fieldErrors);
+  }
+  const validProfile = {
+    companyNameZh: "黔林旅行社测试名称",
+    companyNameEn: "Qianlin Travel Test Name",
+    descriptionZh: "用于本地集成测试的中文公司介绍。",
+    descriptionEn: "English company description used by the local integration test.",
+    addressZh: "贵州省贵阳市测试地址",
+    addressEn: "Test address, Guiyang, Guizhou",
+    logoMark: "QL",
+  };
+  const maliciousProfile = await saveProfile({ ...validProfile, tenantId: "yunnan-demo", slug: "yunnan-demo", siteStatus: "configuring", status: "archived", isDemo: true, profileId: "other-profile" });
+  assert.equal(maliciousProfile.response.status, 400);
+  const invalidOriginWithSession = await saveProfile(validProfile, { headers: { origin: "https://evil.example" } });
+  assert.equal(invalidOriginWithSession.response.status, 403);
+  const tamperedProfile = await saveProfile(validProfile, { cookie: tamperedCookie });
+  assert.equal(tamperedProfile.response.status, 401);
+  const expiredProfile = await saveProfile(validProfile, { cookie: signedAdminCookie({ tenantId: "qianlin-travel", expiresAt: Math.floor(Date.now() / 1000) - 1 }) });
+  assert.equal(expiredProfile.response.status, 401);
+  const wrongTenantProfile = await saveProfile(validProfile, { cookie: signedAdminCookie({ tenantId: "yunnan-demo", expiresAt: Math.floor(Date.now() / 1000) + 3600 }) });
+  assert.equal(wrongTenantProfile.response.status, 401);
+  const savedProfile = await saveProfile(validProfile);
+  assert.equal(savedProfile.response.status, 200);
+  assert.match(savedProfile.response.headers.get("cache-control") ?? "", /no-store/i);
+  assert.deepEqual(savedProfile.body.profile, validProfile);
+  assert.doesNotMatch(JSON.stringify(savedProfile.body), /tenantId|tenantSlug|siteStatus|isDemo|profileId|session|token/i);
+  const storedProfile = query("SELECT id, tenant_id, status, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' LIMIT 1")[0];
+  assert.equal(storedProfile.id, originalProfile.id);
+  assert.equal(storedProfile.tenant_id, "qianlin-travel");
+  assert.equal(storedProfile.status, originalProfile.status);
+  assert.equal(storedProfile.company_name_zh, validProfile.companyNameZh);
+  assert.equal(storedProfile.company_name_en, validProfile.companyNameEn);
+  assert.equal(storedProfile.description_zh, validProfile.descriptionZh);
+  assert.equal(storedProfile.description_en, validProfile.descriptionEn);
+  assert.equal(storedProfile.address_zh, validProfile.addressZh);
+  assert.equal(storedProfile.address_en, validProfile.addressEn);
+  assert.equal(storedProfile.logo_mark, validProfile.logoMark);
+  const afterMaliciousYunnanProfile = query("SELECT id, tenant_id, status, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' LIMIT 1")[0] ?? null;
+  assert.deepEqual(afterMaliciousYunnanProfile, originalYunnanProfile);
+  const updatedProfilePage = await request("/admin/profile", { headers: { cookie: sessionCookie } });
+  assert.match(String(updatedProfilePage.body), /黔林旅行社测试名称/);
+  const updatedAdminPage = await request("/admin", { headers: { cookie: sessionCookie } });
+  assert.match(String(updatedAdminPage.body), /黔林旅行社测试名称/);
   const tamperedSession = await request("/admin", { headers: { cookie: tamperedCookie }, redirect: "manual" });
   assert.ok([302, 303, 307, 308].includes(tamperedSession.response.status));
   const expiredSession = await request("/admin", { headers: { cookie: signedAdminCookie({ tenantId: "qianlin-travel", expiresAt: Math.floor(Date.now() / 1000) - 1 }) }, redirect: "manual" });
@@ -152,11 +237,21 @@ try {
   assert.match(logout.response.headers.get("set-cookie") ?? "", /Max-Age=0/);
   const afterLogout = await request("/admin", { redirect: "manual" });
   assert.ok([302, 303, 307, 308].includes(afterLogout.response.status));
+  const afterLogoutProfileSave = await request("/api/admin/profile", { method: "PUT", headers: { "content-type": "application/json", origin: baseUrl }, body: JSON.stringify(validProfile) });
+  assert.equal(afterLogoutProfileSave.response.status, 401);
 
   const config = await request("/api/t/qianlin-travel/site-config");
   assert.equal(config.response.status, 200);
+  assert.match(config.response.headers.get("cache-control") ?? "", /no-store/i);
   assert.equal(config.body.isConfigured, true);
   assert.equal(config.body.heroSlides.length, 2);
+  assert.equal(config.body.profile.companyName.zh, validProfile.companyNameZh);
+  assert.equal(config.body.profile.companyName.en, validProfile.companyNameEn);
+  assert.equal(config.body.profile.description.zh, validProfile.descriptionZh);
+  assert.equal(config.body.profile.description.en, validProfile.descriptionEn);
+  assert.equal(config.body.profile.address.zh, validProfile.addressZh);
+  assert.equal(config.body.profile.address.en, validProfile.addressEn);
+  assert.equal(config.body.profile.logo.mark, validProfile.logoMark);
   assert.match(config.body.profile.images.customize.src, /^\/images\//);
 
   const configuring = await request("/api/t/configuring-test/site-config");

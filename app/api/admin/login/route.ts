@@ -1,41 +1,10 @@
 import { createAdminCookie, createAdminSession, isAdminConfigured, verifyAdminCredentials } from "../../../../lib/admin/auth";
+import { readRequestBodyWithinLimit } from "../../../../lib/admin/requestSecurity";
 
 const ADMIN_LOGIN_BODY_MAX_BYTES = 8 * 1024;
 
 function errorResponse(errorZh: string, errorEn: string, status: number) {
   return Response.json({ errorZh, errorEn }, { status, headers: { "Cache-Control": "no-store" } });
-}
-
-async function readBodyWithinLimit(request: Request) {
-  if (!request.body) return "";
-
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (!value) continue;
-    totalBytes += value.byteLength;
-    if (totalBytes > ADMIN_LOGIN_BODY_MAX_BYTES) {
-      try {
-        await reader.cancel();
-      } catch {
-        // The request is already being rejected.
-      }
-      return null;
-    }
-    chunks.push(value);
-  }
-
-  const bodyBytes = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bodyBytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(bodyBytes);
 }
 
 export async function POST(request: Request) {
@@ -49,7 +18,7 @@ export async function POST(request: Request) {
     return errorResponse("登录请求过大。", "Login request is too large.", 413);
   }
 
-  const rawBody = await readBodyWithinLimit(request);
+  const rawBody = await readRequestBodyWithinLimit(request, ADMIN_LOGIN_BODY_MAX_BYTES);
   if (rawBody === null) return errorResponse("登录请求过大。", "Login request is too large.", 413);
 
   let body: unknown;

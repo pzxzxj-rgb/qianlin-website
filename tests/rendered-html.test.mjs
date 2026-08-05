@@ -86,7 +86,7 @@ test("documents the Mainland-only scope and production Turnstile requirements", 
   assert.match(demoRoute, /tenant\.isDemo \|\| tenant\.siteStatus !== "published"/);
   assert.match(readme, /当前版本先服务中国大陆用户/);
   assert.match(readme, /生产环境必须同时设置/);
-  assert.match(readme, /当前没有咨询管理后台/);
+  assert.match(readme, /当前仍没有咨询列表/);
   assert.doesNotMatch(readme, /data\/siteConfig\.ts/);
 });
 
@@ -130,7 +130,7 @@ test("keeps phone validation, Turnstile, duplicate protection, and safe local in
 });
 
 test("keeps the 3A admin shell read-only, private, and fixed to qianlin-travel", async () => {
-  const [adminPage, adminLayout, loginPage, loginRoute, logoutRoute, auth, dashboard, dashboardComponent, env] = await Promise.all([
+  const [adminPage, adminLayout, loginPage, loginRoute, logoutRoute, auth, dashboard, dashboardComponent, requestSecurity, env] = await Promise.all([
     read("app/admin/page.tsx"),
     read("app/admin/layout.tsx"),
     read("app/admin/login/page.tsx"),
@@ -139,6 +139,7 @@ test("keeps the 3A admin shell read-only, private, and fixed to qianlin-travel",
     read("lib/admin/auth.ts"),
     read("lib/admin/getAdminDashboard.ts"),
     read("components/AdminDashboard.tsx"),
+    read("lib/admin/requestSecurity.ts"),
     read(".env.example"),
   ]);
   assert.match(adminPage, /getAdminSessionFromCookie/);
@@ -161,7 +162,7 @@ test("keeps the 3A admin shell read-only, private, and fixed to qianlin-travel",
   assert.match(loginRoute, /verifyAdminCredentials/);
   assert.match(loginRoute, /content-type/);
   assert.match(loginRoute, /ADMIN_LOGIN_BODY_MAX_BYTES/);
-  assert.match(loginRoute, /getReader/);
+  assert.match(requestSecurity, /getReader/);
   assert.doesNotMatch(loginRoute, /tenantId/);
   assert.match(logoutRoute, /clearAdminCookie/);
   assert.match(auth, /ADMIN_TENANT_ID = "qianlin-travel"/);
@@ -219,4 +220,50 @@ test("rejects tampered, expired, and cross-tenant admin sessions", async () => {
       else process.env[name] = previous[name];
     }
   }
+});
+
+test("keeps 3B company profile editing protected and limited", async () => {
+  const [profilePage, profileForm, profileRoute, profileService, requestSecurity, dashboard, siteConfigRoute, readme] = await Promise.all([
+    read("app/admin/profile/page.tsx"),
+    read("components/AdminProfileForm.tsx"),
+    read("app/api/admin/profile/route.ts"),
+    read("lib/admin/profile.ts"),
+    read("lib/admin/requestSecurity.ts"),
+    read("components/AdminDashboard.tsx"),
+    read("app/api/t/[tenantSlug]/site-config/route.ts"),
+    read("README.md"),
+  ]);
+  assert.match(profilePage, /getAdminSessionFromCookie/);
+  assert.match(profilePage, /redirect\("\/admin\/login"\)/);
+  assert.match(profilePage, /getAdminProfile/);
+  assert.match(profilePage, /force-no-store/);
+  assert.match(profileForm, /companyNameZh/);
+  assert.match(profileForm, /companyNameEn/);
+  assert.match(profileForm, /descriptionZh/);
+  assert.match(profileForm, /descriptionEn/);
+  assert.match(profileForm, /addressZh/);
+  assert.match(profileForm, /addressEn/);
+  assert.match(profileForm, /logoMark/);
+  assert.match(profileForm, /aria-invalid/);
+  assert.match(profileForm, /router\.push\("\/admin"\)/);
+  assert.match(profileForm, /router\.refresh\(\)/);
+  assert.doesNotMatch(profileForm, /dangerouslySetInnerHTML|tenantId|tenantSlug|siteStatus|profileId/);
+  assert.match(profileRoute, /requireAdminSession/);
+  assert.match(profileRoute, /requireAdminTenant/);
+  assert.match(profileRoute, /verifySameOriginRequest/);
+  assert.match(profileRoute, /application\/json/);
+  assert.match(profileRoute, /16 \* 1024/);
+  assert.match(profileRoute, /updateAdminProfile/);
+  assert.match(profileRoute, /Cache-Control.*no-store/);
+  assert.doesNotMatch(profileRoute, /tenantId.*body|tenantSlug|siteStatus|isDemo|profileId/);
+  assert.match(profileService, /eq\(tenantSiteProfiles\.tenantId, ADMIN_TENANT_ID\)/);
+  assert.match(profileService, /eq\(tenantSiteProfiles\.status, "published"\)/);
+  assert.match(profileService, /companyNameZh/);
+  assert.match(profileService, /logoMark/);
+  assert.match(requestSecurity, /new URL\(origin\)\.origin === new URL\(request\.url\)\.origin/);
+  assert.match(dashboard, /\/admin\/profile/);
+  assert.match(siteConfigRoute, /"Cache-Control": "no-store"/);
+  assert.match(readme, /已完成公司资料编辑/);
+  assert.match(readme, /固定租户边界和同源请求验证/);
+  assert.doesNotMatch(readme, /ADMIN_PASSWORD_HASH=.*\S+|ADMIN_SESSION_SECRET=.*\S+/);
 });

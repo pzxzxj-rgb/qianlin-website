@@ -117,6 +117,15 @@ export async function getAdminSessionFromCookie(cookieHeader: string | null | un
   }
 }
 
+export async function requireAdminSession(request: Request) {
+  return getAdminSessionFromCookie(request.headers.get("cookie"));
+}
+
+export function requireAdminTenant(session: AdminSession) {
+  if (session.tenantId !== ADMIN_TENANT_ID) throw new Error("Invalid admin tenant boundary");
+  return ADMIN_TENANT_ID;
+}
+
 function secureCookieAttribute() {
   return process.env.NODE_ENV === "production" ? "; Secure" : "";
 }

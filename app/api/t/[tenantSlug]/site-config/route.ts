@@ -10,7 +10,7 @@ export async function GET(_request: Request, context: { params: Promise<{ tenant
     const tenant = await resolveActiveTenantBySlug(tenantSlug);
     if (!tenant) return Response.json({ errorZh: "网站不存在或已暂停。", errorEn: "This site does not exist or is not active." }, { status: 404 });
     const config = await getTenantSiteConfig(tenant);
-    return Response.json(config, { headers: { "Cache-Control": config.isConfigured ? "private, max-age=30, stale-while-revalidate=60" : "no-store" } });
+    return Response.json(config, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Failed to load tenant site config", error instanceof Error ? error.name : "UnknownError");
     return unavailableResponse();
