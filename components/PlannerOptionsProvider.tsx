@@ -25,14 +25,14 @@ function isPlannerOptionsResponse(value: unknown): value is PlannerOptionsRespon
   return typeof response.tenantId === "string" && Array.isArray(response.provinces) && Array.isArray(response.cities) && Array.isArray(response.destinations);
 }
 
-export function PlannerOptionsProvider({ children }: { children: React.ReactNode }) {
+export function PlannerOptionsProvider({ children, tenantSlug }: { children: React.ReactNode; tenantSlug: string }) {
   const { language } = useLanguage();
   const [state, setState] = useState<PlannerOptionsState>(initialState);
 
   const loadOptions = useCallback(async () => {
     setState((current) => ({ ...current, status: "loading", provinces: [], cities: [], destinations: [], errorZh: "", errorEn: "" }));
     try {
-      const response = await fetch("/api/planner/options", { headers: { Accept: "application/json" } });
+      const response = await fetch(`/api/t/${encodeURIComponent(tenantSlug)}/planner/options`, { headers: { Accept: "application/json" } });
       const payload: unknown = await response.json().catch(() => null);
       if (!response.ok || !isPlannerOptionsResponse(payload)) {
         const errorPayload = payload as { errorZh?: unknown; errorEn?: unknown } | null;
@@ -42,14 +42,14 @@ export function PlannerOptionsProvider({ children }: { children: React.ReactNode
     } catch {
       setState({ status: "error", provinces: [], cities: [], destinations: [], errorZh: "规划选项暂时无法加载，请稍后重试。", errorEn: "Planning options are temporarily unavailable. Please try again later." });
     }
-  }, []);
+  }, [tenantSlug]);
 
   useEffect(() => {
     const loadTimer = window.setTimeout(() => {
       void loadOptions();
     }, 0);
     return () => window.clearTimeout(loadTimer);
-  }, [loadOptions]);
+  }, [loadOptions, tenantSlug]);
 
   const value = useMemo<PlannerOptionsContextValue>(() => ({
     status: state.status,

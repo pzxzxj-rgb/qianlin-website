@@ -14,24 +14,27 @@ function query(sql) {
     return payload[0]?.results ?? [];
   } catch (error) {
     const message = error?.stderr?.toString().trim() || error?.message || "Unknown local D1 error";
-    console.error("本地 D1 检查失败：" + message);
+    console.error("Local D1 check failed: " + message);
     process.exit(1);
   }
 }
 
-const expectedTables = ["inquiries", "planner_provinces", "planner_cities", "planner_destinations"];
+const expectedTables = ["tenants", "tenant_site_profiles", "tenant_contact_channels", "tenant_hero_slides", "inquiries", "planner_provinces", "planner_cities", "planner_destinations"];
 const tables = new Set(query("SELECT name FROM sqlite_master WHERE type = 'table'").map((row) => row.name));
 const missingTables = expectedTables.filter((table) => !tables.has(table));
 if (missingTables.length > 0) {
-  console.error("本地 D1 缺少数据表：" + missingTables.join(", "));
-  console.error("请先运行 npm run db:migrate:local。");
+  console.error("Local D1 missing tables: " + missingTables.join(", "));
+  console.error("Run npm run db:migrate:local first.");
   process.exit(1);
 }
 
-const counts = query("SELECT (SELECT COUNT(*) FROM planner_provinces WHERE status = 'published') AS province_count, (SELECT COUNT(*) FROM planner_cities WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS city_count, (SELECT COUNT(*) FROM planner_destinations WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS destination_count");
+const counts = query("SELECT (SELECT COUNT(*) FROM tenants WHERE status = 'active') AS active_tenant_count, (SELECT COUNT(*) FROM tenants WHERE slug = 'yunnan-demo' AND is_demo = 1) AS demo_tenant_count, (SELECT COUNT(*) FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_profile_count, (SELECT COUNT(*) FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' AND status = 'published') AS demo_profile_count, (SELECT COUNT(*) FROM tenant_contact_channels WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_contact_count, (SELECT COUNT(*) FROM tenant_hero_slides WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_hero_count, (SELECT COUNT(*) FROM tenant_hero_slides WHERE tenant_id = 'yunnan-demo' AND status = 'published') AS demo_hero_count, (SELECT COUNT(*) FROM planner_provinces WHERE status = 'published') AS province_count, (SELECT COUNT(*) FROM planner_cities WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS city_count, (SELECT COUNT(*) FROM planner_destinations WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS destination_count, (SELECT COUNT(*) FROM inquiries WHERE tenant_id = 'qianlin-travel') AS qianlin_inquiry_count");
 const row = counts[0] ?? {};
-console.log("本地 D1 检查结果（仅限本地开发）");
-console.log("planner_provinces published：" + row.province_count);
-console.log("planner_cities published：" + row.city_count);
-console.log("planner_destinations published：" + row.destination_count);
-console.log("inquiries 表：" + (tables.has("inquiries") ? "存在" : "不存在"));
+console.log("Local D1 check (local development only)");
+console.log("active tenants: " + row.active_tenant_count + "; yunnan-demo demo tenants: " + row.demo_tenant_count);
+console.log("qianlin profiles: " + row.qianlin_profile_count + "; yunnan-demo profiles: " + row.demo_profile_count);
+console.log("qianlin contacts: " + row.qianlin_contact_count + "; qianlin hero slides: " + row.qianlin_hero_count + "; yunnan-demo hero slides: " + row.demo_hero_count);
+console.log("published provinces: " + row.province_count);
+console.log("published qianlin cities: " + row.city_count);
+console.log("published qianlin destinations: " + row.destination_count);
+console.log("qianlin inquiries: " + row.qianlin_inquiry_count + "; inquiries table: " + (tables.has("inquiries") ? "present" : "missing"));

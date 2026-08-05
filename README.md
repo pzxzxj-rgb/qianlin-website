@@ -110,3 +110,14 @@ Hero 当前使用 4 张 `public/images/hero/` 中的本地 WebP 图片，轮播�
 ## 当前不包含
 
 本版本不包含多租户查询、租户识别、子域名解析、后台管理、管理员登录、线路数据库、线路 API、订单中心、在线支付、库存、实时价格、消息中心、App、小程序、正式部署或线上 D1 资源。
+## Phase 2 tenant foundation
+
+The current version includes the minimum tenant foundation for a future SaaS migration. It does not include an admin panel, payments, orders, quotes, remote D1 migration, or deployment.
+
+- `qianlin-travel` is the formal tenant. `/` loads its company profile, contacts, and Hero slides from D1.
+- `yunnan-demo` is a demo tenant at `/t/yunnan-demo`. It has no Qianlin contacts, Hero slides, destinations, or planner data, does not accept real enquiries, and is marked `noindex,nofollow`.
+- Active tenants use `/t/:tenantSlug`; site config, planner options, and enquiries use `/api/t/:tenantSlug/site-config`, `/api/t/:tenantSlug/planner/options`, and `/api/t/:tenantSlug/inquiries`.
+- The old planner and enquiry endpoints remain compatibility routes for the formal tenant only and reuse the same tenant resolver. The server never trusts a client-provided `tenantId`.
+- `tenants`, `tenant_site_profiles`, `tenant_contact_channels`, `tenant_hero_slides`, and tenant-scoped `inquiries` are now in the D1 schema. The existing Guizhou planner model is unchanged apart from tenant filtering.
+
+Local data is managed only through `npm run db:reset:local`, `npm run db:migrate:local`, and `npm run db:check:local`. This phase does not create online D1 resources, run remote migrations, or deploy the website.

@@ -3,6 +3,7 @@ import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqli
 
 export const inquiries = sqliteTable("inquiries", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  tenantId: text("tenant_id").notNull().default("qianlin-travel"),
   name: text("name").notNull(),
   phone: text("phone").notNull(),
   wechat: text("wechat").notNull().default(""),
@@ -18,6 +19,78 @@ export const inquiries = sqliteTable("inquiries", {
   status: text("status").notNull().default("new"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const tenants = sqliteTable("tenants", {
+  id: text("id").primaryKey(),
+  slug: text("slug").notNull(),
+  nameZh: text("name_zh").notNull(),
+  nameEn: text("name_en").notNull(),
+  status: text("status").notNull().default("active"),
+  defaultLanguage: text("default_language").notNull().default("zh"),
+  isDemo: integer("is_demo", { mode: "boolean" }).notNull().default(false),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  slugUnique: uniqueIndex("uq_tenants_slug").on(table.slug),
+  statusIndex: index("idx_tenants_status").on(table.status),
+}));
+
+export const tenantSiteProfiles = sqliteTable("tenant_site_profiles", {
+  id: text("id").primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  companyNameZh: text("company_name_zh").notNull().default(""),
+  companyNameEn: text("company_name_en").notNull().default(""),
+  descriptionZh: text("description_zh").notNull().default(""),
+  descriptionEn: text("description_en").notNull().default(""),
+  addressZh: text("address_zh").notNull().default(""),
+  addressEn: text("address_en").notNull().default(""),
+  logoMark: text("logo_mark").notNull().default(""),
+  logoImageUrl: text("logo_image_url").notNull().default(""),
+  aboutImageUrl: text("about_image_url").notNull().default(""),
+  aboutImageAltZh: text("about_image_alt_zh").notNull().default(""),
+  aboutImageAltEn: text("about_image_alt_en").notNull().default(""),
+  customizeImageUrl: text("customize_image_url").notNull().default(""),
+  customizeImageAltZh: text("customize_image_alt_zh").notNull().default(""),
+  customizeImageAltEn: text("customize_image_alt_en").notNull().default(""),
+  status: text("status").notNull().default("published"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  tenantUnique: uniqueIndex("uq_tenant_site_profiles_tenant").on(table.tenantId),
+  tenantStatusIndex: index("idx_tenant_site_profiles_tenant_status").on(table.tenantId, table.status),
+}));
+
+export const tenantContactChannels = sqliteTable("tenant_contact_channels", {
+  id: text("id").primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  type: text("type").notNull(),
+  labelZh: text("label_zh").notNull().default(""),
+  labelEn: text("label_en").notNull().default(""),
+  value: text("value").notNull(),
+  href: text("href"),
+  displayOrder: integer("display_order").notNull().default(0),
+  status: text("status").notNull().default("published"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  tenantStatusOrderIndex: index("idx_tenant_contact_channels_tenant_status_order").on(table.tenantId, table.status, table.displayOrder),
+}));
+
+export const tenantHeroSlides = sqliteTable("tenant_hero_slides", {
+  id: text("id").primaryKey(),
+  tenantId: text("tenant_id").notNull(),
+  imageUrl: text("image_url").notNull(),
+  altZh: text("alt_zh").notNull().default(""),
+  altEn: text("alt_en").notNull().default(""),
+  desktopPosition: text("desktop_position").notNull().default("center center"),
+  mobilePosition: text("mobile_position").notNull().default("center center"),
+  displayOrder: integer("display_order").notNull().default(0),
+  status: text("status").notNull().default("published"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  tenantStatusOrderIndex: index("idx_tenant_hero_slides_tenant_status_order").on(table.tenantId, table.status, table.displayOrder),
+}));
 
 export const plannerProvinces = sqliteTable("planner_provinces", {
   id: text("id").primaryKey(),

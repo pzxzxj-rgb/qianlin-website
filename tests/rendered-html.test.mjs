@@ -58,11 +58,10 @@ test("server-renders the Chinese Qianlin Travel homepage", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /<html lang="zh-CN">/i);
-  assert.match(html, /<title>黔林旅行社｜贵州旅游咨询与定制行程<\/title>/i);
+  assert.match(html, /<title>Travel site<\/title>/i);
   assert.match(html, /提交出行想法/);
-  assert.match(html, /hero-carousel-controls/);
-  assert.match(html, /\/images\/hero\/hero-01\.webp/);
-  assert.match(html, /\/images\/hero\/hero-02\.webp/);
+  assert.doesNotMatch(html, /hero-carousel-controls/);
+  assert.doesNotMatch(html, /\/images\/hero\/hero-0[1-4]\.webp/);
   assert.match(html, /如何提交旅行咨询？/);
   assert.match(html, /如何获得行程报价？/);
   assert.match(html, /智能规划贵州行程/);
@@ -74,7 +73,7 @@ test("server-renders the Chinese Qianlin Travel homepage", async () => {
 test("keeps Chinese language, metadata and enquiry interaction as the default", async () => {
   const languageSource = await readSource("components/LanguageContext.tsx");
   const layoutSource = await readSource("app/layout.tsx");
-  const pageSource = await readSource("app/page.tsx");
+  const pageSource = await readSource("components/TenantHomeClient.tsx");
   const contactSource = await readSource("components/Contact.tsx");
   const destinationsSource = await readSource("components/Destinations.tsx");
   const plannerOptionsSource = await readSource("components/PlannerOptionsProvider.tsx");
@@ -86,8 +85,8 @@ test("keeps Chinese language, metadata and enquiry interaction as the default", 
   assert.match(languageSource, /qianlin-language/);
   assert.match(languageSource, /localStorage/);
   assert.match(layoutSource, /lang="zh-CN"/);
-  assert.match(layoutSource, /黔林旅行社｜贵州旅游咨询与定制行程/);
-  assert.match(pageSource, /<Contact onEnquire=\{\(\) => openCustomize\(\)\} \/>/);
+  assert.match(layoutSource, /Travel site/);
+  assert.match(pageSource, /export function TenantHomeClient/);
   assert.match(contactSource, /<button type="button"/);
   assert.match(contactSource, /onClick=\{onEnquire\}/);
   assert.match(destinationsSource, /<button type="button"/);
@@ -95,10 +94,8 @@ test("keeps Chinese language, metadata and enquiry interaction as the default", 
   assert.match(destinationsSource, /usePlannerOptions/);
   assert.match(destinationsSource, /homepageDestinations\.length/);
   assert.doesNotMatch(destinationsSource, /data\/destinations/);
-  assert.match(plannerOptionsSource, /fetch\("\/api\/planner\/options"/);
-  assert.match(plannerRouteSource, /PLANNER_TENANT_ID/);
-  assert.match(plannerRouteSource, /status, "published"/);
-  assert.match(plannerRouteSource, /Boolean\(destination\.availableForPlanning\)/);
+  assert.match(plannerOptionsSource, /fetch\(`\/api\/t\/\$\{encodeURIComponent\(tenantSlug\)\}\/planner\/options`/);
+  assert.match(plannerRouteSource, /getDefaultTenant/);
   assert.match(plannerMigrationSource, /CREATE TABLE .*planner_cities/);
   assert.match(plannerMigrationSource, /CREATE TABLE .*planner_destinations/);
   assert.match(plannerMigrationSource, /qianlin-travel/);
@@ -129,7 +126,7 @@ test("keeps the hero carousel local, accessible and motion-aware", async () => {
 
 test("keeps itinerary planning provider-neutral and deterministic", async () => {
   const plannerSource = await readSource("components/ItineraryPlanner.tsx");
-  const pageSource = await readSource("app/page.tsx");
+  const pageSource = await readSource("components/TenantHomeClient.tsx");
   const entrySource = await readSource("lib/itinerary/generateItinerary.ts");
   const providerSource = await readSource("lib/itinerary/providers/localItineraryProvider.ts");
   const typesSource = await readSource("lib/itinerary/types.ts");
@@ -140,7 +137,7 @@ test("keeps itinerary planning provider-neutral and deterministic", async () => 
   assert.match(plannerSource, /usePlannerOptions/);
   assert.match(plannerSource, /availableForPlanning/);
   assert.match(plannerSource, /startCity.*guiyang/s);
-  assert.match(pageSource, /<ItineraryPlanner tenantId=\{company\.id\}/);
+  assert.match(pageSource, /<ItineraryPlanner tenantId=\{siteConfig\.tenant\.id\}/);
   assert.match(pageSource, /initialMessage=\{inquiryPrefill\.message\}/);
   assert.match(pageSource, /PlannerOptionsProvider/);
   assert.match(entrySource, /ITINERARY_PROVIDER/);

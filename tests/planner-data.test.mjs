@@ -6,10 +6,11 @@ import { fileURLToPath } from "node:url";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const readSource = (relativePath) => fs.readFile(path.join(projectRoot, relativePath), "utf8");
-const [schemaSource, migrationSource, routeSource, plannerSource, destinationsSource, translationsSource] = await Promise.all([
+const [schemaSource, migrationSource, routeSource, optionsSource, plannerSource, destinationsSource, translationsSource] = await Promise.all([
   readSource("db/schema.ts"),
   readSource("drizzle/0002_tranquil_polaris.sql"),
   readSource("app/api/planner/options/route.ts"),
+  readSource("lib/planner/getOptionsForTenant.ts"),
   readSource("components/ItineraryPlanner.tsx"),
   readSource("components/Destinations.tsx"),
   readSource("data/translations.ts"),
@@ -59,9 +60,10 @@ test("keeps unverified new images out of the homepage", () => {
 });
 
 test("keeps the API and planner fully dynamic", () => {
-  assert.match(routeSource, /plannerProvinces/);
-  assert.match(routeSource, /provinceCode/);
-  assert.match(routeSource, /Boolean\(destination\.availableForPlanning\)/);
+  assert.match(routeSource, /getDefaultTenant/);
+  assert.match(optionsSource, /plannerProvinces/);
+  assert.match(optionsSource, /provinceCode/);
+  assert.match(optionsSource, /Boolean\(destination\.availableForPlanning\)/);
   assert.doesNotMatch(plannerSource, /data\/destinations|t\.planner\.cities/);
   assert.doesNotMatch(plannerSource, /destinations\s*=\s*\[/);
   assert.doesNotMatch(plannerSource, /useState\(["']Guiyang["']\)/);

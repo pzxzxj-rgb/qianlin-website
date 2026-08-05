@@ -22,6 +22,13 @@
       "when": 1785838200135,
       "tag": "0002_tranquil_polaris",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1785899685175,
+      "tag": "0003_early_bedlam",
+      "breakpoints": true
     }
   ]
 }

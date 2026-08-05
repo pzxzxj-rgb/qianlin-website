@@ -1,8 +1,9 @@
-import { company } from "../data/siteConfig";
+import type { TenantSiteConfig } from "../lib/tenancy/types";
 import { useLanguage } from "./LanguageContext";
 import { SectionHeading } from "./SectionHeading";
 
-export function About() {
+export function About({ siteConfig }: { siteConfig: TenantSiteConfig }) {
   const { language, t } = useLanguage();
-  return <section id="about" className="section section-about"><div className="container about-layout"><div className="about-image-wrap"><img src={company.images.about} alt={company.imageAlt.about[language]} loading="lazy" /><span className="about-stamp">{company.logo.mark}<br /><small>{t.about.stamp}</small></span></div><div className="about-copy"><SectionHeading eyebrow={t.about.eyebrow} title={t.about.title} description={company.description[language]} /><p className="about-lead">{t.about.lead}</p><div className="about-services">{t.about.services.map((service) => <span key={service}>{service}</span>)}</div><a className="text-link" href="#contact">{t.about.link} <span aria-hidden="true">↗</span></a></div></div></section>;
+  const title = siteConfig.tenant.isDemo ? siteConfig.profile.companyName[language] : t.about.title;
+  return <section id="about" className="section section-about"><div className="container about-layout"><div className="about-image-wrap">{siteConfig.profile.images.about.src ? <img src={siteConfig.profile.images.about.src} alt={siteConfig.profile.images.about.alt[language]} loading="lazy" /> : null}<span className="about-stamp">{siteConfig.profile.logo.mark}<br /><small>{t.about.stamp}</small></span></div><div className="about-copy"><SectionHeading eyebrow={t.about.eyebrow} title={title} description={siteConfig.profile.description[language]} /><p className="about-lead">{t.about.lead}</p>{siteConfig.tenant.isDemo ? null : <><div className="about-services">{t.about.services.map((service) => <span key={service}>{service}</span>)}</div><a className="text-link" href="#contact">{t.about.link} <span aria-hidden="true">↗</span></a></>}</div></div></section>;
 }

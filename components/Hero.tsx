@@ -2,22 +2,22 @@
 
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
-import { company } from "../data/siteConfig";
+import type { TenantSiteConfig } from "../lib/tenancy/types";
 import { useLanguage } from "./LanguageContext";
 
 const AUTO_ADVANCE_MS = 6000;
 
-type HeroProps = { showTours: boolean; onCustomize: () => void };
+type HeroProps = { showTours: boolean; onCustomize: () => void; slides: TenantSiteConfig["heroSlides"]; demoName?: { zh: string; en: string }; demoDescription?: { zh: string; en: string } };
 
-export function Hero({ showTours, onCustomize }: HeroProps) {
+export function Hero({ showTours, onCustomize, slides, demoName, demoDescription }: HeroProps) {
   const { language, t } = useLanguage();
   const [activeIndex, setActiveIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const [isControlFocused, setIsControlFocused] = useState(false);
   const [isDocumentHidden, setIsDocumentHidden] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-  const slides = company.heroSlides;
   const isPaused = isHovered || isControlFocused || isDocumentHidden || prefersReducedMotion;
+  const isDemo = Boolean(demoName);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -50,18 +50,18 @@ export function Hero({ showTours, onCustomize }: HeroProps) {
       <div className="hero-overlay" aria-hidden="true" />
       <div className="container hero-content">
         <p className="hero-kicker"><span /> {t.hero.kicker}</p>
-        <h1>{t.hero.title}<br /><em>{t.hero.accent}</em></h1>
-        <p className="hero-description">{t.hero.description}</p>
-        <p className="hero-chinese">{t.hero.chinese}</p>
+        <h1>{isDemo ? demoName?.[language] : t.hero.title}<br />{isDemo ? null : <em>{t.hero.accent}</em>}</h1>
+        <p className="hero-description">{isDemo ? demoDescription?.[language] : t.hero.description}</p>
+        <p className="hero-chinese">{isDemo ? "" : t.hero.chinese}</p>
         <div className="hero-actions">{showTours ? <a className="button button-light" href="#tours">{t.hero.explore} <span aria-hidden="true">↗</span></a> : null}<button type="button" className="button button-ghost" onClick={onCustomize}>{t.hero.customize} <span aria-hidden="true">↗</span></button></div>
       </div>
       <div className="hero-scroll-hint" aria-hidden="true"><span /> {t.hero.scroll}</div>
       <div className="hero-location" aria-hidden="true"><span>26° 34′ N</span><span>106° 43′ E</span></div>
-      <div className="hero-carousel-controls" role="group" aria-label={language === "zh" ? "首页图片轮播控制" : "Hero image carousel controls"} onFocus={() => setIsControlFocused(true)} onBlur={(event) => { if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget as Node)) setIsControlFocused(false); }}>
+      {slides.length > 0 ? <div className="hero-carousel-controls" role="group" aria-label={language === "zh" ? "首页图片轮播控制" : "Hero image carousel controls"} onFocus={() => setIsControlFocused(true)} onBlur={(event) => { if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget as Node)) setIsControlFocused(false); }}>
         <button type="button" className="hero-carousel-arrow" onClick={() => moveSlide(-1)} aria-label={t.hero.previous}><span aria-hidden="true">←</span></button>
         <div className="hero-carousel-dots">{slides.map((slide, index) => <button type="button" className={`hero-carousel-dot${activeIndex === index ? " hero-carousel-dot-active" : ""}`} key={slide.id} onClick={() => goToSlide(index)} aria-label={language === "zh" ? `${t.hero.slide}${index + 1}张首页图片` : `${t.hero.slide} ${index + 1}`} aria-current={activeIndex === index ? "true" : undefined} />)}</div>
         <button type="button" className="hero-carousel-arrow" onClick={() => moveSlide(1)} aria-label={t.hero.next}><span aria-hidden="true">→</span></button>
-      </div>
+      </div> : null}
     </section>
   );
 }
