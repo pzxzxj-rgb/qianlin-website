@@ -38,6 +38,7 @@ export type PlannerDestinationOption = {
 
 export type PlannerOptionsResponse = {
   tenantId: string;
+  tenantSlug: string;
   provinces: PlannerProvinceOption[];
   cities: PlannerCityOption[];
   destinations: PlannerDestinationOption[];

@@ -1,9 +1,28 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+
+export const tenants = sqliteTable("tenants", {
+  id: text("id").primaryKey(),
+  slug: text("slug").notNull(),
+  nameZh: text("name_zh").notNull(),
+  nameEn: text("name_en").notNull(),
+  status: text("status").notNull().default("active"),
+  siteStatus: text("site_status").notNull().default("configuring"),
+  defaultLanguage: text("default_language").notNull().default("zh"),
+  isDemo: integer("is_demo", { mode: "boolean" }).notNull().default(false),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  slugUnique: uniqueIndex("uq_tenants_slug").on(table.slug),
+  statusIndex: index("idx_tenants_status").on(table.status),
+  statusCheck: check("ck_tenants_status", sql`${table.status} in ('active', 'suspended', 'archived')`),
+  siteStatusCheck: check("ck_tenants_site_status", sql`${table.siteStatus} in ('configuring', 'published')`),
+  languageCheck: check("ck_tenants_default_language", sql`${table.defaultLanguage} in ('zh', 'en')`),
+}));
 
 export const inquiries = sqliteTable("inquiries", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  tenantId: text("tenant_id").notNull().default("qianlin-travel"),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
   name: text("name").notNull(),
   phone: text("phone").notNull(),
   wechat: text("wechat").notNull().default(""),
@@ -18,30 +37,20 @@ export const inquiries = sqliteTable("inquiries", {
   privacyConsent: integer("privacy_consent", { mode: "boolean" }).notNull().default(false),
   status: text("status").notNull().default("new"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-});
-
-export const tenants = sqliteTable("tenants", {
-  id: text("id").primaryKey(),
-  slug: text("slug").notNull(),
-  nameZh: text("name_zh").notNull(),
-  nameEn: text("name_en").notNull(),
-  status: text("status").notNull().default("active"),
-  defaultLanguage: text("default_language").notNull().default("zh"),
-  isDemo: integer("is_demo", { mode: "boolean" }).notNull().default(false),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => ({
-  slugUnique: uniqueIndex("uq_tenants_slug").on(table.slug),
-  statusIndex: index("idx_tenants_status").on(table.status),
+  tenantStatusCreatedIndex: index("idx_inquiries_tenant_status_created").on(table.tenantId, table.status, table.createdAt),
+  statusCheck: check("ck_inquiries_status", sql`${table.status} in ('new', 'contacted', 'closed')`),
 }));
 
 export const tenantSiteProfiles = sqliteTable("tenant_site_profiles", {
   id: text("id").primaryKey(),
-  tenantId: text("tenant_id").notNull(),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
   companyNameZh: text("company_name_zh").notNull().default(""),
   companyNameEn: text("company_name_en").notNull().default(""),
   descriptionZh: text("description_zh").notNull().default(""),
   descriptionEn: text("description_en").notNull().default(""),
+  primaryRegionZh: text("primary_region_zh").notNull().default(""),
+  primaryRegionEn: text("primary_region_en").notNull().default(""),
   addressZh: text("address_zh").notNull().default(""),
   addressEn: text("address_en").notNull().default(""),
   logoMark: text("logo_mark").notNull().default(""),
@@ -58,11 +67,12 @@ export const tenantSiteProfiles = sqliteTable("tenant_site_profiles", {
 }, (table) => ({
   tenantUnique: uniqueIndex("uq_tenant_site_profiles_tenant").on(table.tenantId),
   tenantStatusIndex: index("idx_tenant_site_profiles_tenant_status").on(table.tenantId, table.status),
+  statusCheck: check("ck_tenant_site_profiles_status", sql`${table.status} in ('draft', 'published', 'archived')`),
 }));
 
 export const tenantContactChannels = sqliteTable("tenant_contact_channels", {
   id: text("id").primaryKey(),
-  tenantId: text("tenant_id").notNull(),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
   type: text("type").notNull(),
   labelZh: text("label_zh").notNull().default(""),
   labelEn: text("label_en").notNull().default(""),
@@ -74,11 +84,12 @@ export const tenantContactChannels = sqliteTable("tenant_contact_channels", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => ({
   tenantStatusOrderIndex: index("idx_tenant_contact_channels_tenant_status_order").on(table.tenantId, table.status, table.displayOrder),
+  statusCheck: check("ck_tenant_contact_channels_status", sql`${table.status} in ('draft', 'published', 'archived')`),
 }));
 
 export const tenantHeroSlides = sqliteTable("tenant_hero_slides", {
   id: text("id").primaryKey(),
-  tenantId: text("tenant_id").notNull(),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
   imageUrl: text("image_url").notNull(),
   altZh: text("alt_zh").notNull().default(""),
   altEn: text("alt_en").notNull().default(""),
@@ -90,6 +101,7 @@ export const tenantHeroSlides = sqliteTable("tenant_hero_slides", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => ({
   tenantStatusOrderIndex: index("idx_tenant_hero_slides_tenant_status_order").on(table.tenantId, table.status, table.displayOrder),
+  statusCheck: check("ck_tenant_hero_slides_status", sql`${table.status} in ('draft', 'published', 'archived')`),
 }));
 
 export const plannerProvinces = sqliteTable("planner_provinces", {
@@ -108,7 +120,7 @@ export const plannerProvinces = sqliteTable("planner_provinces", {
 
 export const plannerCities = sqliteTable("planner_cities", {
   id: text("id").primaryKey(),
-  tenantId: text("tenant_id").notNull(),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
   provinceCode: text("province_code").notNull().default("guizhou"),
   code: text("code").notNull(),
   nameZh: text("name_zh").notNull(),
@@ -126,7 +138,7 @@ export const plannerCities = sqliteTable("planner_cities", {
 
 export const plannerDestinations = sqliteTable("planner_destinations", {
   id: text("id").primaryKey(),
-  tenantId: text("tenant_id").notNull(),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
   provinceCode: text("province_code").notNull().default("guizhou"),
   slug: text("slug").notNull(),
   cityCode: text("city_code"),
@@ -156,8 +168,16 @@ export const plannerDestinations = sqliteTable("planner_destinations", {
   homepageOrderIndex: index("idx_planner_destinations_homepage_order").on(table.tenantId, table.status, table.showOnHomepage, table.displayOrder),
 }));
 
+export type Tenant = typeof tenants.$inferSelect;
+export type NewTenant = typeof tenants.$inferInsert;
 export type Inquiry = typeof inquiries.$inferSelect;
 export type NewInquiry = typeof inquiries.$inferInsert;
+export type TenantSiteProfile = typeof tenantSiteProfiles.$inferSelect;
+export type NewTenantSiteProfile = typeof tenantSiteProfiles.$inferInsert;
+export type TenantContactChannel = typeof tenantContactChannels.$inferSelect;
+export type NewTenantContactChannel = typeof tenantContactChannels.$inferInsert;
+export type TenantHeroSlide = typeof tenantHeroSlides.$inferSelect;
+export type NewTenantHeroSlide = typeof tenantHeroSlides.$inferInsert;
 export type PlannerProvince = typeof plannerProvinces.$inferSelect;
 export type NewPlannerProvince = typeof plannerProvinces.$inferInsert;
 export type PlannerCity = typeof plannerCities.$inferSelect;

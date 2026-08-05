@@ -11,11 +11,15 @@ export async function generateMetadata({ params }: TenantPageProps): Promise<Met
   try {
     const tenant = await resolveActiveTenantBySlug(tenantSlug);
     if (!tenant) return { title: "Site unavailable", robots: { index: false, follow: false } };
+    const siteConfig = await getTenantSiteConfig(tenant);
+    const isPublic = siteConfig.isConfigured && siteConfig.tenant.siteStatus === "published" && !siteConfig.tenant.isDemo;
     return {
-      title: tenant.name.zh,
-      description: tenant.name.en,
+      title: siteConfig.profile.companyName.zh || tenant.name.zh,
+      description: siteConfig.profile.description.zh || siteConfig.profile.primaryRegion.zh || tenant.name.en,
       alternates: { canonical: tenant.slug === DEFAULT_TENANT_SLUG ? "/" : `/t/${tenant.slug}` },
-      robots: tenant.isDemo ? { index: false, follow: false } : undefined,
+      robots: isPublic ? undefined : { index: false, follow: false },
+      openGraph: { title: siteConfig.profile.companyName.en || tenant.name.en, description: siteConfig.profile.description.en || siteConfig.profile.primaryRegion.en, url: tenant.slug === DEFAULT_TENANT_SLUG ? "/" : `/t/${tenant.slug}`, type: "website" },
+      twitter: { card: "summary_large_image", title: siteConfig.profile.companyName.en || tenant.name.en, description: siteConfig.profile.description.en || siteConfig.profile.primaryRegion.en },
     };
   } catch {
     return { title: "Travel site", robots: { index: false, follow: false } };

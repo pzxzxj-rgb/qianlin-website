@@ -3,9 +3,12 @@ import { getDb } from "../../db";
 import { plannerCities, plannerDestinations, plannerProvinces } from "../../db/schema";
 import type { PlannerOptionsResponse } from "./types";
 
-type TenantKey = { id: string };
+type TenantKey = { id: string; slug: string; siteStatus?: string };
 
 export async function getPlannerOptionsForTenant(tenant: TenantKey): Promise<PlannerOptionsResponse> {
+  if (tenant.siteStatus === "configuring") {
+    return { tenantId: tenant.id, tenantSlug: tenant.slug, provinces: [], cities: [], destinations: [] };
+  }
   const db = await getDb();
   const [cityRows, destinationRows] = await Promise.all([
     db.select({
@@ -52,6 +55,7 @@ export async function getPlannerOptionsForTenant(tenant: TenantKey): Promise<Pla
 
   return {
     tenantId: tenant.id,
+    tenantSlug: tenant.slug,
     provinces: provinceRows.filter((province) => provinceCodes.has(province.code)).map((province) => ({
       id: province.id,
       code: province.code,

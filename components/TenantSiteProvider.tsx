@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { TenantSiteConfig } from "../lib/tenancy/types";
 
 type TenantSiteState = {
@@ -11,24 +11,50 @@ type TenantSiteState = {
 
 const TenantSiteContext = createContext<TenantSiteState | null>(null);
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}
+
+function isTenantSiteConfig(value: unknown, tenantSlug: string): value is TenantSiteConfig {
+  if (!isRecord(value) || !isRecord(value.tenant) || !isRecord(value.profile)) return false;
+  if (value.tenant.slug !== tenantSlug || typeof value.tenant.id !== "string") return false;
+  if (value.tenant.siteStatus !== "configuring" && value.tenant.siteStatus !== "published") return false;
+  if (typeof value.isConfigured !== "boolean" || !Array.isArray(value.contacts) || !Array.isArray(value.heroSlides)) return false;
+  return true;
+}
+
 export function TenantSiteProvider({ tenantSlug, initialConfig, children }: { tenantSlug: string; initialConfig: TenantSiteConfig | null; children: React.ReactNode }) {
-  const [state, setState] = useState<{ status: TenantSiteState["status"]; config: TenantSiteConfig | null }>({ status: initialConfig ? "success" : "loading", config: initialConfig });
+  const usableInitialConfig = initialConfig?.tenant.slug === tenantSlug ? initialConfig : null;
+  const [state, setState] = useState<{ status: TenantSiteState["status"]; config: TenantSiteConfig | null }>({ status: usableInitialConfig ? "success" : "loading", config: usableInitialConfig });
+  const requestIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const loadConfig = useCallback(async () => {
-    setState((current) => ({ ...current, status: current.config ? "success" : "loading" }));
+    const requestId = ++requestIdRef.current;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setState({ status: "loading", config: null });
+
     try {
-      const response = await fetch(`/api/t/${encodeURIComponent(tenantSlug)}/site-config`, { headers: { Accept: "application/json" } });
+      const response = await fetch(`/api/t/${encodeURIComponent(tenantSlug)}/site-config`, { headers: { Accept: "application/json" }, signal: controller.signal });
       const payload: unknown = await response.json().catch(() => null);
-      if (!response.ok || !payload || typeof payload !== "object" || !("tenant" in payload) || !("profile" in payload)) throw new Error("SITE_CONFIG_UNAVAILABLE");
-      setState({ status: "success", config: payload as TenantSiteConfig });
+      if (!response.ok || !isTenantSiteConfig(payload, tenantSlug)) throw new Error("SITE_CONFIG_UNAVAILABLE");
+      if (requestId !== requestIdRef.current || controller.signal.aborted) return;
+      setState({ status: "success", config: payload });
     } catch {
-      setState((current) => ({ status: current.config ? "success" : "error", config: current.config }));
+      if (controller.signal.aborted || requestId !== requestIdRef.current) return;
+      setState({ status: "error", config: null });
     }
   }, [tenantSlug]);
 
   useEffect(() => {
-    const loadTimer = window.setTimeout(() => { void loadConfig(); }, 0);
-    return () => window.clearTimeout(loadTimer);
+    const timer = window.setTimeout(() => { void loadConfig(); }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      requestIdRef.current += 1;
+      abortRef.current?.abort();
+    };
   }, [loadConfig]);
 
   const value = useMemo(() => ({ ...state, retry: loadConfig }), [loadConfig, state]);

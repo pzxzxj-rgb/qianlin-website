@@ -5,6 +5,7 @@ export type ResolvedTenant = {
   slug: string;
   name: { zh: string; en: string };
   status: string;
+  siteStatus: "configuring" | "published";
   defaultLanguage: TenantLanguage;
   isDemo: boolean;
 };
@@ -14,12 +15,15 @@ export type TenantSiteConfig = {
     id: string;
     slug: string;
     name: { zh: string; en: string };
+    siteStatus: "configuring" | "published";
     defaultLanguage: TenantLanguage;
     isDemo: boolean;
   };
+  isConfigured: boolean;
   profile: {
     companyName: { zh: string; en: string };
     description: { zh: string; en: string };
+    primaryRegion: { zh: string; en: string };
     address: { zh: string; en: string };
     logo: { mark: string; imageUrl: string };
     images: {

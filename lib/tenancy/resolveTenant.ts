@@ -1,6 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "../../db";
 import { tenantContactChannels, tenantHeroSlides, tenantSiteProfiles, tenants } from "../../db/schema";
+import { sanitizeContactHref } from "./sanitizeContactHref";
 import type { ResolvedTenant, TenantSiteConfig } from "./types";
 
 export const DEFAULT_TENANT_SLUG = "qianlin-travel";
@@ -16,6 +17,7 @@ export async function resolveActiveTenantBySlug(slug: string): Promise<ResolvedT
     nameZh: tenants.nameZh,
     nameEn: tenants.nameEn,
     status: tenants.status,
+    siteStatus: tenants.siteStatus,
     defaultLanguage: tenants.defaultLanguage,
     isDemo: tenants.isDemo,
   }).from(tenants).where(and(eq(tenants.slug, slug), eq(tenants.status, "active"))).limit(1);
@@ -25,6 +27,7 @@ export async function resolveActiveTenantBySlug(slug: string): Promise<ResolvedT
     slug: tenant.slug,
     name: { zh: tenant.nameZh, en: tenant.nameEn },
     status: tenant.status,
+    siteStatus: tenant.siteStatus === "published" ? "published" : "configuring",
     defaultLanguage: tenant.defaultLanguage === "en" ? "en" : "zh",
     isDemo: Boolean(tenant.isDemo),
   };
@@ -47,12 +50,15 @@ export async function getTenantSiteConfig(tenant: ResolvedTenant): Promise<Tenan
       id: tenant.id,
       slug: tenant.slug,
       name: tenant.name,
+      siteStatus: tenant.siteStatus,
       defaultLanguage: tenant.defaultLanguage,
       isDemo: tenant.isDemo,
     },
+    isConfigured: tenant.siteStatus === "published" && Boolean(profile),
     profile: {
       companyName: { zh: profile?.companyNameZh || tenant.name.zh, en: profile?.companyNameEn || tenant.name.en },
       description: { zh: profile?.descriptionZh ?? "", en: profile?.descriptionEn ?? "" },
+      primaryRegion: { zh: profile?.primaryRegionZh ?? "", en: profile?.primaryRegionEn ?? "" },
       address: { zh: profile?.addressZh ?? "", en: profile?.addressEn ?? "" },
       logo: { mark: profile?.logoMark ?? "", imageUrl: profile?.logoImageUrl ?? "" },
       images: {
@@ -65,7 +71,7 @@ export async function getTenantSiteConfig(tenant: ResolvedTenant): Promise<Tenan
       type: contact.type,
       label: { zh: contact.labelZh, en: contact.labelEn },
       value: contact.value,
-      ...(contact.href ? { href: contact.href } : {}),
+      ...(sanitizeContactHref(contact.href) ? { href: sanitizeContactHref(contact.href) } : {}),
     })),
     heroSlides: heroRows.map((slide) => ({
       id: slide.id,

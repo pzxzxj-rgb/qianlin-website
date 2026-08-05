@@ -44,7 +44,7 @@ export const localItineraryProvider: ItineraryProvider = {
       .sort((left, right) => left.routeOrder - right.routeOrder || left.displayOrder - right.displayOrder);
 
     if (selected.length === 0) {
-      throw new ItineraryGenerationError("NO_VALID_DESTINATIONS", input.language === "zh" ? "请至少选择一个可规划的贵州景点。" : "Please select at least one available Guizhou destination.");
+      throw new ItineraryGenerationError("NO_VALID_DESTINATIONS", input.language === "zh" ? "请至少选择一个可规划的目的地。" : "Please select at least one available destination.");
     }
 
     const unavailableIds = requestedIds.filter((id) => {

@@ -5,8 +5,8 @@ export async function POST(request: Request, context: { params: Promise<{ tenant
   const { tenantSlug } = await context.params;
   try {
     const tenant = await resolveActiveTenantBySlug(tenantSlug);
-    if (!tenant) return Response.json({ errorZh: "站点不存在或已暂停。", errorEn: "This site does not exist or is not active." }, { status: 404 });
-    if (tenant.isDemo) return Response.json({ errorZh: "演示站不接收真实咨询。", errorEn: "The demo site does not accept real enquiries." }, { status: 403 });
+    if (!tenant) return Response.json({ errorZh: "网站不存在或已暂停。", errorEn: "This site does not exist or is not active." }, { status: 404 });
+    if (tenant.isDemo || tenant.siteStatus !== "published") return Response.json({ errorZh: tenant.isDemo ? "演示站点不接收真实咨询。" : "网站尚未开放咨询。", errorEn: tenant.isDemo ? "The demo site does not accept real enquiries." : "This site is not accepting enquiries yet." }, { status: 403 });
     return handleInquiry(request, tenant);
   } catch (error) {
     console.error("Failed to resolve tenant inquiry target", error instanceof Error ? error.name : "UnknownError");

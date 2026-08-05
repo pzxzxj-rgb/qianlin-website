@@ -6,48 +6,51 @@ import { fileURLToPath } from "node:url";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => fs.readFile(path.join(projectRoot, file), "utf8");
-const [schema, migration, resolver, siteRoute, plannerRoute, inquiryRoute, home, dynamicPage, form, provider] = await Promise.all([
+const [schema, migration, resolver, siteRoute, plannerRoute, inquiryRoute, home, dynamicPage, provider, plannerProvider] = await Promise.all([
   read("db/schema.ts"),
-  read("drizzle/0003_early_bedlam.sql"),
+  read("drizzle/0004_numerous_captain_flint.sql"),
   read("lib/tenancy/resolveTenant.ts"),
   read("app/api/t/[tenantSlug]/site-config/route.ts"),
   read("app/api/t/[tenantSlug]/planner/options/route.ts"),
   read("app/api/t/[tenantSlug]/inquiries/route.ts"),
   read("components/TenantHomeClient.tsx"),
   read("app/t/[tenantSlug]/page.tsx"),
-  read("components/CustomizeForm.tsx"),
+  read("components/TenantSiteProvider.tsx"),
   read("components/PlannerOptionsProvider.tsx"),
 ]);
 
-test("creates tenant-scoped site and inquiry storage", () => {
-  assert.match(schema, /tenants = sqliteTable\("tenants"/);
-  assert.match(schema, /tenantSiteProfiles = sqliteTable\("tenant_site_profiles"/);
-  assert.match(schema, /tenantContactChannels = sqliteTable\("tenant_contact_channels"/);
-  assert.match(schema, /tenantHeroSlides = sqliteTable\("tenant_hero_slides"/);
-  assert.match(schema, /tenantId: text\("tenant_id"\).*qianlin-travel/s);
-  assert.match(migration, /'qianlin-travel'.*'Qianlin Travel'/s);
-  assert.match(migration, /'yunnan-demo'.*'Yunnan Demo Travel'/s);
-  assert.match(migration, /'qianlin-hero-01'/);
-  assert.match(migration, /'qianlin-phone'/);
-  assert.match(migration, /UPDATE `inquiries` SET `tenant_id` = 'qianlin-travel'/);
+test("defines tenants before child tables and removes the inquiry default tenant", () => {
+  assert.ok(schema.indexOf("export const tenants") < schema.indexOf("export const inquiries"));
+  assert.match(schema, /tenantId: text\("tenant_id"\)\.notNull\(\)\.references\(\(\) => tenants\.id/);
+  assert.match(schema, /siteStatus: text\("site_status"\)/);
+  assert.match(schema, /ck_tenants_status/);
+  assert.match(schema, /ck_tenants_site_status/);
+  assert.match(schema, /ck_tenants_default_language/);
+  for (const table of ["tenant_site_profiles", "tenant_contact_channels", "tenant_hero_slides", "planner_cities", "planner_destinations"]) {
+    const start = schema.indexOf(`sqliteTable("${table}"`);
+    const end = schema.indexOf("export const", start + 1);
+    assert.match(schema.slice(start, end < 0 ? undefined : end), /references\(\(\) => tenants\.id, \{ onDelete: "restrict" \}\)/, table);
+  }
+  assert.match(migration, /COALESCE\(NULLIF\(`tenant_id`, ''\), 'qianlin-travel'\)/);
+  assert.match(migration, /site_status.*'published'/s);
+  assert.match(migration, /云途旅行/);
+  assert.match(migration, /Yuntu Travel Demo/);
+  assert.match(migration, /idx_inquiries_tenant_status_created/);
 });
 
-test("resolves active tenants by database slug without a fixed tenant union", () => {
+test("resolves active tenants by database slug and isolates all tenant APIs", () => {
   assert.match(resolver, /eq\(tenants\.slug, slug\)/);
   assert.match(resolver, /eq\(tenants\.status, "active"\)/);
+  assert.match(resolver, /siteStatus/);
   assert.doesNotMatch(resolver, /if \(slug ===/);
   assert.match(siteRoute, /resolveActiveTenantBySlug/);
   assert.match(plannerRoute, /resolveActiveTenantBySlug/);
   assert.match(inquiryRoute, /resolveActiveTenantBySlug/);
-});
-
-test("keeps demo tenants from reusing Qianlin operational data", () => {
-  assert.match(inquiryRoute, /tenant\.isDemo/);
-  assert.match(inquiryRoute, /does not accept real enquiries/);
+  assert.match(inquiryRoute, /tenant\.isDemo \|\| tenant\.siteStatus !== "published"/);
   assert.match(home, /siteConfig\.tenant\.isDemo/);
-  assert.match(home, /isDemo \? <About siteConfig=\{siteConfig\} \/>/);
-  assert.match(home, /: <>\{hasVisibleTours/);
-  assert.match(dynamicPage, /robots: tenant\.isDemo \? \{ index: false, follow: false \}/);
-  assert.match(form, /\/api\/t\/\$\{encodeURIComponent\(tenantSlug\)\}\/inquiries/);
-  assert.match(provider, /\/api\/t\/\$\{encodeURIComponent\(tenantSlug\)\}\/planner\/options/);
+  assert.match(home, /!siteConfig\.isConfigured/);
+  assert.match(dynamicPage, /robots: isPublic \? undefined : \{ index: false, follow: false \}/);
+  assert.match(provider, /AbortController/);
+  assert.match(provider, /value\.tenant\.slug !== tenantSlug/);
+  assert.match(plannerProvider, /value\.tenantSlug !== tenantSlug/);
 });

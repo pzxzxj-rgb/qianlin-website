@@ -8,7 +8,8 @@ export async function generateMetadata(): Promise<Metadata> {
     const tenant = await getDefaultTenant();
     if (tenant) {
       const siteConfig = await getTenantSiteConfig(tenant);
-      return { title: siteConfig.profile.companyName.zh, description: siteConfig.profile.description.zh, alternates: { canonical: "/" } };
+      const isPublic = siteConfig.isConfigured && siteConfig.tenant.siteStatus === "published";
+      return { title: siteConfig.profile.companyName.zh, description: siteConfig.profile.description.zh || siteConfig.profile.primaryRegion.zh, alternates: { canonical: "/" }, robots: isPublic && !siteConfig.tenant.isDemo ? undefined : { index: false, follow: false }, openGraph: { title: siteConfig.profile.companyName.en, description: siteConfig.profile.description.en, url: "/", type: "website" }, twitter: { card: "summary_large_image", title: siteConfig.profile.companyName.en, description: siteConfig.profile.description.en } };
     }
   } catch {
     // Build and no-binding test environments use the generic root metadata.
