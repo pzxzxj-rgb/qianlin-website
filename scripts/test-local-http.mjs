@@ -92,6 +92,16 @@ try {
     createdDevVars = true;
   }
   runWrangler(["d1", "migrations", "apply", "DB", "--local", "--config", configPath, "--persist-to", statePath]);
+  execute("UPDATE tenant_site_profiles SET updated_at = '2000-01-01 00:00:00' WHERE tenant_id = 'qianlin-travel' AND status = 'published'");
+  execute("UPDATE tenant_hero_slides SET updated_at = '2000-01-01 00:00:00' WHERE tenant_id = 'qianlin-travel' AND status = 'published'");
+  const originalProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' LIMIT 1")[0];
+  const originalYunnanProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' LIMIT 1")[0] ?? null;
+  const originalQianlinImageProfile = query("SELECT id, tenant_id, status, created_at, updated_at, about_image_url, about_image_alt_zh, about_image_alt_en, customize_image_url, customize_image_alt_zh, customize_image_alt_en FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' AND status = 'published' LIMIT 1")[0];
+  const originalYunnanImageProfile = query("SELECT id, tenant_id, status, created_at, updated_at, about_image_url, about_image_alt_zh, about_image_alt_en, customize_image_url, customize_image_alt_zh, customize_image_alt_en FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' AND status = 'published' LIMIT 1")[0] ?? null;
+  const originalQianlinHeroes = query("SELECT id, tenant_id, status, display_order, created_at, updated_at, image_url, alt_zh, alt_en, desktop_position, mobile_position FROM tenant_hero_slides WHERE tenant_id = 'qianlin-travel' AND status = 'published' ORDER BY display_order, id");
+  const originalYunnanHeroes = query("SELECT id, tenant_id, status, display_order, created_at, updated_at, image_url, alt_zh, alt_en, desktop_position, mobile_position FROM tenant_hero_slides WHERE tenant_id = 'yunnan-demo' AND status = 'published' ORDER BY display_order, id");
+  execute("UPDATE tenant_contact_channels SET value = '  qianlin-test@example.com  ' WHERE tenant_id = 'qianlin-travel' AND type = 'email' AND status = 'published'");
+  const qianlinEmail = "qianlin-test@example.com";
   execute("INSERT INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('configuring-test', 'configuring-test', '配置测试', 'Configuring test', 'active', 'configuring', 'zh', 0)");
 
   server = spawn(process.execPath, [path.join(root, "node_modules", "vinext", "dist", "cli.js"), "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
@@ -129,14 +139,95 @@ try {
   const sessionCookie = setCookie.split(";", 1)[0];
   assert.match(sessionCookie, /^qianlin_admin_session=.+/);
   const tamperedCookie = `${sessionCookie.slice(0, -1)}${sessionCookie.endsWith("A") ? "B" : "A"}`;
-  execute("UPDATE tenant_site_profiles SET updated_at = '2000-01-01 00:00:00' WHERE tenant_id = 'qianlin-travel' AND status = 'published'");
-  const originalProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' LIMIT 1")[0];
-  const originalYunnanProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' LIMIT 1")[0] ?? null;
   const saveProfile = (payload, options = {}) => request("/api/admin/profile", {
     method: "PUT",
     headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
     body: options.body ?? JSON.stringify(payload),
   });
+  const saveProfileImages = (payload, options = {}) => request("/api/admin/images/profile", {
+    method: "PUT",
+    headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
+    body: options.body ?? JSON.stringify(payload),
+  });
+  const saveHeroImages = (payload, options = {}) => request("/api/admin/images/hero", {
+    method: "PUT",
+    headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
+    body: options.body ?? JSON.stringify(payload),
+  });
+  const validProfileImages = {
+    aboutImageUrl: "/images/guizhou/about-village.png",
+    aboutImageAltZh: "贵州山间村寨主题视觉图",
+    aboutImageAltEn: "Guizhou mountain village travel visual",
+    customizeImageUrl: "/images/guizhou/customize-mountains.png",
+    customizeImageAltZh: "贵州层叠群山主题视觉图",
+    customizeImageAltEn: "Layered Guizhou mountains travel visual",
+  };
+  const validHeroImages = {
+    slides: [
+      { imageUrl: "/images/hero/hero-03.webp", altZh: "贵州山水主题视觉图三", altEn: "Guizhou landscape travel visual three", desktopPosition: "left center", mobilePosition: "center top" },
+      { imageUrl: "/images/guizhou/huangguoshu.png", altZh: "贵州瀑布主题视觉图", altEn: "Guizhou waterfall travel visual", desktopPosition: "right center", mobilePosition: "center bottom" },
+    ],
+  };
+  const anonymousImagesPage = await request("/admin/images", { redirect: "manual" });
+  assert.ok([302, 303, 307, 308].includes(anonymousImagesPage.response.status));
+  assert.match(anonymousImagesPage.response.headers.get("location") ?? "", /\/admin\/login/);
+  const anonymousProfileImages = await saveProfileImages(validProfileImages, { cookie: "" });
+  assert.equal(anonymousProfileImages.response.status, 401);
+  const anonymousHeroImages = await saveHeroImages(validHeroImages, { cookie: "" });
+  assert.equal(anonymousHeroImages.response.status, 401);
+  const imagesPage = await request("/admin/images", { headers: { cookie: sessionCookie } });
+  assert.equal(imagesPage.response.status, 200);
+  assert.match(imagesPage.response.headers.get("cache-control") ?? "", /no-store/i);
+  assert.match(String(imagesPage.body), /<title>网站图片管理 \| 黔林旅行社<\/title>/);
+  assert.match(String(imagesPage.body), /<meta[^>]+name="robots"[^>]+noindex/i);
+  assert.doesNotMatch(String(imagesPage.body), /rel="canonical"|property="og:/i);
+  assert.match(String(imagesPage.body), /Hero 轮播图片/);
+  assert.match(String(imagesPage.body), /关于我们图片/);
+  assert.match(String(imagesPage.body), /定制咨询图片/);
+  const invalidImageOrigin = await saveProfileImages(validProfileImages, { headers: { origin: "https://evil.example" } });
+  assert.equal(invalidImageOrigin.response.status, 403);
+  const nonJsonImage = await saveProfileImages(validProfileImages, { headers: { "content-type": "text/plain" }, body: JSON.stringify(validProfileImages) });
+  assert.equal(nonJsonImage.response.status, 415);
+  const tooLargeImage = await saveProfileImages({ ...validProfileImages, aboutImageAltEn: "x".repeat(17_000) });
+  assert.equal(tooLargeImage.response.status, 413);
+  const invalidJsonImage = await saveProfileImages(validProfileImages, { body: "{" });
+  assert.equal(invalidJsonImage.response.status, 400);
+  const invalidPaths = ["/images/not-in-catalog.webp", "https://example.com/image.webp", "http://example.com/image.webp", "data:image/png;base64,abc", "blob:https://example.com/id", "/images/../secret.webp", "/images/guizhou/about-village.png?x=1", "/images/guizhou/about-village.png#section", "", 123];
+  for (const pathValue of invalidPaths) {
+    const invalidPath = await saveProfileImages({ ...validProfileImages, aboutImageUrl: pathValue });
+    assert.equal(invalidPath.response.status, 400);
+  }
+  for (const invalidAlt of ["", "   ", "x".repeat(161), "<strong>图片</strong>"]) {
+    const invalidAltResponse = await saveProfileImages({ ...validProfileImages, aboutImageAltZh: invalidAlt });
+    assert.equal(invalidAltResponse.response.status, 400);
+  }
+  const invalidEnglishAlt = await saveProfileImages({ ...validProfileImages, aboutImageAltEn: "x".repeat(221) });
+  assert.equal(invalidEnglishAlt.response.status, 400);
+  const invalidPosition = await saveHeroImages({ slides: validHeroImages.slides.map((slide, index) => index === 0 ? { ...slide, desktopPosition: "top: 0;" } : slide) });
+  assert.equal(invalidPosition.response.status, 400);
+  const invalidCssPosition = await saveHeroImages({ slides: validHeroImages.slides.map((slide, index) => index === 0 ? { ...slide, mobilePosition: "url(javascript:alert(1))" } : slide) });
+  assert.equal(invalidCssPosition.response.status, 400);
+  const invalidHeroId = await saveHeroImages({ ...validHeroImages, slides: validHeroImages.slides.map((slide, index) => index === 0 ? { ...slide, id: originalQianlinHeroes[index].id } : slide) });
+  assert.equal(invalidHeroId.response.status, 400);
+  const invalidHeroTenant = await saveHeroImages({ ...validHeroImages, tenantId: "yunnan-demo" });
+  assert.equal(invalidHeroTenant.response.status, 400);
+  const invalidHeroStatus = await saveHeroImages({ ...validHeroImages, slides: validHeroImages.slides.map((slide, index) => index === 0 ? { ...slide, status: "archived" } : slide) });
+  assert.equal(invalidHeroStatus.response.status, 400);
+  const invalidHeroOrder = await saveHeroImages({ ...validHeroImages, slides: validHeroImages.slides.map((slide, index) => index === 0 ? { ...slide, displayOrder: 999 } : slide) });
+  assert.equal(invalidHeroOrder.response.status, 400);
+  for (const invalidCookie of [tamperedCookie, signedAdminCookie({ tenantId: "qianlin-travel", expiresAt: Math.floor(Date.now() / 1000) - 1 }), signedAdminCookie({ tenantId: "yunnan-demo", expiresAt: Math.floor(Date.now() / 1000) + 3600 })]) {
+    assert.equal((await saveProfileImages(validProfileImages, { cookie: invalidCookie })).response.status, 401);
+    assert.equal((await saveHeroImages(validHeroImages, { cookie: invalidCookie })).response.status, 401);
+  }
+  const savedProfileImages = await saveProfileImages({ ...validProfileImages, aboutImageAltZh: "  贵州山间村寨主题视觉图  ", aboutImageAltEn: "  Guizhou mountain village travel visual  " });
+  assert.equal(savedProfileImages.response.status, 200);
+  assert.match(savedProfileImages.response.headers.get("cache-control") ?? "", /no-store/i);
+  assert.equal(savedProfileImages.body.profile.aboutImageAltZh, "贵州山间村寨主题视觉图");
+  assert.equal(savedProfileImages.body.profile.aboutImageAltEn, "Guizhou mountain village travel visual");
+  const savedHeroImages = await saveHeroImages(validHeroImages);
+  assert.equal(savedHeroImages.response.status, 200);
+  assert.match(savedHeroImages.response.headers.get("cache-control") ?? "", /no-store/i);
+  assert.deepEqual(savedHeroImages.body.heroSlides, validHeroImages.slides);
   const profilePage = await request("/admin/profile", { headers: { cookie: sessionCookie } });
   assert.equal(profilePage.response.status, 200);
   assert.match(String(profilePage.body), /编辑公司资料/);
@@ -199,23 +290,6 @@ try {
   assert.match(savedProfile.response.headers.get("cache-control") ?? "", /no-store/i);
   assert.deepEqual(savedProfile.body.profile, normalizedProfile);
   assert.doesNotMatch(JSON.stringify(savedProfile.body), /tenantId|tenantSlug|siteStatus|isDemo|profileId|session|token/i);
-  const storedProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' LIMIT 1")[0];
-  assert.equal(storedProfile.id, originalProfile.id);
-  assert.equal(storedProfile.tenant_id, "qianlin-travel");
-  assert.equal(storedProfile.status, originalProfile.status);
-  assert.equal(storedProfile.created_at, originalProfile.created_at);
-  assert.notEqual(storedProfile.updated_at, originalProfile.updated_at);
-  assert.equal(storedProfile.company_name_zh, normalizedProfile.companyNameZh);
-  assert.equal(storedProfile.company_name_en, normalizedProfile.companyNameEn);
-  assert.equal(storedProfile.description_zh, validProfile.descriptionZh);
-  assert.equal(storedProfile.description_en, validProfile.descriptionEn);
-  assert.equal(storedProfile.address_zh, validProfile.addressZh);
-  assert.equal(storedProfile.address_en, validProfile.addressEn);
-  assert.equal(storedProfile.logo_mark, normalizedProfile.logoMark);
-  const afterMaliciousYunnanProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' LIMIT 1")[0] ?? null;
-  assert.deepEqual(afterMaliciousYunnanProfile, originalYunnanProfile);
-  execute("UPDATE tenant_contact_channels SET value = '  qianlin-test@example.com  ' WHERE tenant_id = 'qianlin-travel' AND type = 'email' AND status = 'published'");
-  const qianlinEmail = "qianlin-test@example.com";
   for (const legalPath of ["/privacy", "/terms", "/refund"]) {
     const legalPage = await request(legalPath);
     assert.equal(legalPage.response.status, 200);
@@ -319,6 +393,44 @@ try {
   assert.equal(duplicate.response.status, 409);
   const differentName = await request("/api/t/qianlin-travel/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...validPayload, name: "Different name" }) });
   assert.equal(differentName.response.status, 201);
+  const storedImageProfile = query("SELECT id, tenant_id, status, created_at, updated_at, about_image_url, about_image_alt_zh, about_image_alt_en, customize_image_url, customize_image_alt_zh, customize_image_alt_en FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' AND status = 'published' LIMIT 1")[0];
+  assert.equal(storedImageProfile.id, originalQianlinImageProfile.id);
+  assert.equal(storedImageProfile.tenant_id, originalQianlinImageProfile.tenant_id);
+  assert.equal(storedImageProfile.status, originalQianlinImageProfile.status);
+  assert.equal(storedImageProfile.created_at, originalQianlinImageProfile.created_at);
+  assert.notEqual(storedImageProfile.updated_at, originalQianlinImageProfile.updated_at);
+  assert.equal(storedImageProfile.about_image_url, validProfileImages.aboutImageUrl);
+  assert.equal(storedImageProfile.customize_image_url, validProfileImages.customizeImageUrl);
+  const storedHeroes = query("SELECT id, tenant_id, status, display_order, created_at, updated_at, image_url, alt_zh, alt_en, desktop_position, mobile_position FROM tenant_hero_slides WHERE tenant_id = 'qianlin-travel' AND status = 'published' ORDER BY display_order, id");
+  assert.equal(storedHeroes.length, 2);
+  for (let index = 0; index < storedHeroes.length; index += 1) {
+    assert.equal(storedHeroes[index].id, originalQianlinHeroes[index].id);
+    assert.equal(storedHeroes[index].tenant_id, originalQianlinHeroes[index].tenant_id);
+    assert.equal(storedHeroes[index].status, originalQianlinHeroes[index].status);
+    assert.equal(storedHeroes[index].display_order, originalQianlinHeroes[index].display_order);
+    assert.equal(storedHeroes[index].created_at, originalQianlinHeroes[index].created_at);
+    assert.notEqual(storedHeroes[index].updated_at, originalQianlinHeroes[index].updated_at);
+    assert.deepEqual({ imageUrl: storedHeroes[index].image_url, altZh: storedHeroes[index].alt_zh, altEn: storedHeroes[index].alt_en, desktopPosition: storedHeroes[index].desktop_position, mobilePosition: storedHeroes[index].mobile_position }, validHeroImages.slides[index]);
+  }
+  const afterImageYunnanProfile = query("SELECT id, tenant_id, status, created_at, updated_at, about_image_url, about_image_alt_zh, about_image_alt_en, customize_image_url, customize_image_alt_zh, customize_image_alt_en FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' AND status = 'published' LIMIT 1")[0] ?? null;
+  const afterImageYunnanHeroes = query("SELECT id, tenant_id, status, display_order, created_at, updated_at, image_url, alt_zh, alt_en, desktop_position, mobile_position FROM tenant_hero_slides WHERE tenant_id = 'yunnan-demo' AND status = 'published' ORDER BY display_order, id");
+  assert.deepEqual(afterImageYunnanProfile, originalYunnanImageProfile);
+  assert.deepEqual(afterImageYunnanHeroes, originalYunnanHeroes);
+  const storedProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' LIMIT 1")[0];
+  assert.equal(storedProfile.id, originalProfile.id);
+  assert.equal(storedProfile.tenant_id, "qianlin-travel");
+  assert.equal(storedProfile.status, originalProfile.status);
+  assert.equal(storedProfile.created_at, originalProfile.created_at);
+  assert.notEqual(storedProfile.updated_at, originalProfile.updated_at);
+  assert.equal(storedProfile.company_name_zh, normalizedProfile.companyNameZh);
+  assert.equal(storedProfile.company_name_en, normalizedProfile.companyNameEn);
+  assert.equal(storedProfile.description_zh, validProfile.descriptionZh);
+  assert.equal(storedProfile.description_en, validProfile.descriptionEn);
+  assert.equal(storedProfile.address_zh, validProfile.addressZh);
+  assert.equal(storedProfile.address_en, validProfile.addressEn);
+  assert.equal(storedProfile.logo_mark, normalizedProfile.logoMark);
+  const afterMaliciousYunnanProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' LIMIT 1")[0] ?? null;
+  assert.deepEqual(afterMaliciousYunnanProfile, originalYunnanProfile);
   const stored = query("SELECT tenant_id, phone, message FROM inquiries ORDER BY id DESC LIMIT 1")[0];
   assert.equal(stored.tenant_id, "qianlin-travel");
   assert.equal(stored.phone, "18985127882");
