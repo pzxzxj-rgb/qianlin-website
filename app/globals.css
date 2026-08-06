@@ -523,6 +523,23 @@ img { display: block; max-width: 100%; }
 .admin-image-fields input:disabled, .admin-image-fields select:disabled { cursor: wait; opacity: .7; }
 .admin-image-fields input[aria-invalid="true"], .admin-image-fields select[aria-invalid="true"] { border-color: #9a4b3e; }
 .admin-image-path { margin: -4px 0 0; overflow-wrap: anywhere; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.admin-contacts-shell { width: min(980px, calc(100% - 48px)); }
+.admin-contacts-card { margin-top: 44px; }
+.admin-contacts-form { display: grid; gap: 28px; padding-top: 28px; }
+.admin-contact-loading { margin: 0; color: var(--muted); font-size: 12px; }
+.admin-contact-list { display: grid; gap: 16px; }
+.admin-contact-card { display: grid; gap: 22px; padding: 21px; border: 1px solid var(--line); background: var(--sand); }
+.admin-contact-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.admin-contact-card-heading h3 { margin: 7px 0 0; font-family: Georgia, serif; font-size: 24px; font-weight: 400; }
+.admin-contact-id { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.admin-contact-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 20px; }
+.admin-contact-field { display: grid; align-content: start; gap: 7px; }
+.admin-contact-field label { color: var(--forest-soft); font-size: 10px; font-weight: 700; letter-spacing: .06em; }
+.admin-contact-field input, .admin-contact-field select { width: 100%; min-height: 43px; padding: 9px 11px; border: 1px solid var(--line); color: var(--ink); background: var(--paper); outline: 0; font: inherit; font-size: 12px; }
+.admin-contact-field input:focus, .admin-contact-field select:focus { border-color: var(--gold); }
+.admin-contact-field input:disabled, .admin-contact-field select:disabled { cursor: wait; opacity: .7; }
+.admin-contact-field input[aria-invalid="true"], .admin-contact-field select[aria-invalid="true"] { border-color: #9a4b3e; }
+.admin-contact-field:nth-child(5) { grid-column: span 2; }
 
 @media (max-width: 760px) {
   .admin-topbar { min-height: 72px; padding: 0 20px; }
@@ -553,4 +570,10 @@ img { display: block; max-width: 100%; }
   .admin-image-card-heading { flex-direction: column; }
   .admin-image-card-label { max-width: 100%; text-align: left; }
   .admin-image-preview img { height: 190px; }
+  .admin-contacts-shell { width: calc(100% - 40px); }
+  .admin-contacts-card { margin-top: 32px; }
+  .admin-contact-card { padding: 18px; }
+  .admin-contact-card-heading { flex-direction: column; }
+  .admin-contact-fields { grid-template-columns: 1fr; }
+  .admin-contact-field:nth-child(5) { grid-column: auto; }
 }

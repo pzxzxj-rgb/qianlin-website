@@ -100,6 +100,8 @@ try {
   const originalYunnanImageProfile = query("SELECT id, tenant_id, status, created_at, updated_at, about_image_url, about_image_alt_zh, about_image_alt_en, customize_image_url, customize_image_alt_zh, customize_image_alt_en FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' AND status = 'published' LIMIT 1")[0] ?? null;
   const originalQianlinHeroes = query("SELECT id, tenant_id, status, display_order, created_at, updated_at, image_url, alt_zh, alt_en, desktop_position, mobile_position FROM tenant_hero_slides WHERE tenant_id = 'qianlin-travel' AND status = 'published' ORDER BY display_order, id");
   const originalYunnanHeroes = query("SELECT id, tenant_id, status, display_order, created_at, updated_at, image_url, alt_zh, alt_en, desktop_position, mobile_position FROM tenant_hero_slides WHERE tenant_id = 'yunnan-demo' AND status = 'published' ORDER BY display_order, id");
+  execute("INSERT OR IGNORE INTO tenant_contact_channels (id, tenant_id, type, label_zh, label_en, value, href, display_order, status) VALUES ('yunnan-contact-test', 'yunnan-demo', 'phone', '测试电话', 'Test phone', '13900001234', 'tel:+8613900001234', 10, 'published')");
+  const originalYunnanContacts = query("SELECT id, tenant_id, type, label_zh, label_en, value, href, display_order, status, created_at, updated_at FROM tenant_contact_channels WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id");
   execute("UPDATE tenant_contact_channels SET value = '  qianlin-test@example.com  ' WHERE tenant_id = 'qianlin-travel' AND type = 'email' AND status = 'published'");
   const qianlinEmail = "qianlin-test@example.com";
   execute("INSERT INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('configuring-test', 'configuring-test', '配置测试', 'Configuring test', 'active', 'configuring', 'zh', 0)");
@@ -117,8 +119,15 @@ try {
   const anonymousProfilePage = await request("/admin/profile", { redirect: "manual" });
   assert.ok([302, 303, 307, 308].includes(anonymousProfilePage.response.status));
   assert.match(anonymousProfilePage.response.headers.get("location") ?? "", /\/admin\/login/);
+  const anonymousContactsPage = await request("/admin/contacts", { redirect: "manual" });
+  assert.ok([302, 303, 307, 308].includes(anonymousContactsPage.response.status));
+  assert.match(anonymousContactsPage.response.headers.get("location") ?? "", /\/admin\/login/);
   const anonymousProfileSave = await request("/api/admin/profile", { method: "PUT", headers: { "content-type": "application/json", origin: baseUrl }, body: "{}" });
   assert.equal(anonymousProfileSave.response.status, 401);
+  const anonymousContactsRead = await request("/api/admin/contacts");
+  assert.equal(anonymousContactsRead.response.status, 401);
+  const anonymousContactsSave = await request("/api/admin/contacts", { method: "PUT", headers: { "content-type": "application/json", origin: baseUrl }, body: "{}" });
+  assert.equal(anonymousContactsSave.response.status, 401);
   const wrongLogin = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: adminTestUsername, password: "wrong-password" }) });
   assert.equal(wrongLogin.response.status, 401);
   const wrongUsername = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: "wrong-user", password: adminTestPassword }) });
@@ -140,6 +149,14 @@ try {
   assert.match(sessionCookie, /^qianlin_admin_session=.+/);
   const tamperedCookie = `${sessionCookie.slice(0, -1)}${sessionCookie.endsWith("A") ? "B" : "A"}`;
   const saveProfile = (payload, options = {}) => request("/api/admin/profile", {
+    method: "PUT",
+    headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
+    body: options.body ?? JSON.stringify(payload),
+  });
+  const getContacts = (options = {}) => request("/api/admin/contacts", {
+    headers: { cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
+  });
+  const saveContacts = (payload, options = {}) => request("/api/admin/contacts", {
     method: "PUT",
     headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
     body: options.body ?? JSON.stringify(payload),
@@ -305,6 +322,102 @@ try {
   assert.match(String(updatedProfilePage.body), /黔林旅行社/);
   const updatedAdminPage = await request("/admin", { headers: { cookie: sessionCookie } });
   assert.match(String(updatedAdminPage.body), /黔林旅行社/);
+  const contactsPage = await request("/admin/contacts", { headers: { cookie: sessionCookie } });
+  assert.equal(contactsPage.response.status, 200);
+  assert.match(contactsPage.response.headers.get("cache-control") ?? "", /no-store/i);
+  assert.match(String(contactsPage.body), /<title>联系方式管理 \| 黔林旅行社<\/title>/);
+  assert.match(String(contactsPage.body), /<meta[^>]+name="robots"[^>]+noindex/i);
+  assert.doesNotMatch(String(contactsPage.body), /rel="canonical"|property="og:/i);
+  assert.match(String(contactsPage.body), /中文显示名称/);
+  assert.match(String(contactsPage.body), /英文显示名称/);
+  assert.match(String(contactsPage.body), /跳转链接/);
+  assert.match(String(contactsPage.body), /联系方式已加载/);
+
+  const currentQianlinContacts = query("SELECT id, tenant_id, type, label_zh, label_en, value, href, display_order, status FROM tenant_contact_channels WHERE tenant_id = 'qianlin-travel' ORDER BY display_order, id").map((row) => ({ id: row.id, type: row.type, labelZh: row.label_zh, labelEn: row.label_en, value: row.value, href: row.href ?? "", displayOrder: row.display_order, status: row.status }));
+  const validContacts = { channels: currentQianlinContacts };
+  const contactsRead = await getContacts();
+  assert.equal(contactsRead.response.status, 200);
+  assert.match(contactsRead.response.headers.get("cache-control") ?? "", /no-store/i);
+  assert.deepEqual(contactsRead.body.contacts, currentQianlinContacts);
+  assert.doesNotMatch(JSON.stringify(contactsRead.body), /tenantId|tenant_id|tenantSlug|ownerId|isDemo|session|token|password/i);
+
+  const invalidContactsOrigin = await saveContacts(validContacts, { headers: { origin: "https://evil.example" } });
+  assert.equal(invalidContactsOrigin.response.status, 403);
+  const nonJsonContacts = await saveContacts(validContacts, { headers: { "content-type": "text/plain" }, body: JSON.stringify(validContacts) });
+  assert.equal(nonJsonContacts.response.status, 415);
+  const tooLargeContacts = await saveContacts({ channels: currentQianlinContacts.map((contact, index) => index === 0 ? { ...contact, labelEn: "x".repeat(30_000) } : contact) });
+  assert.equal(tooLargeContacts.response.status, 413);
+  const invalidJsonContacts = await saveContacts(validContacts, { body: "{" });
+  assert.equal(invalidJsonContacts.response.status, 400);
+
+  const contactWith = (index, changes) => ({ channels: currentQianlinContacts.map((contact, contactIndex) => contactIndex === index ? { ...contact, ...changes } : { ...contact }) });
+  const phoneIndex = currentQianlinContacts.findIndex((contact) => contact.type === "phone");
+  const wechatIndex = currentQianlinContacts.findIndex((contact) => contact.type === "wechat");
+  const emailIndex = currentQianlinContacts.findIndex((contact) => contact.type === "email");
+  assert.ok(phoneIndex >= 0 && wechatIndex >= 0 && emailIndex >= 0);
+  const phoneSaved = await saveContacts(contactWith(phoneIndex, { value: "13800001234", href: "tel:+8613800001234" }));
+  assert.equal(phoneSaved.response.status, 200);
+  assert.equal(phoneSaved.body.contacts[phoneIndex].value, "13800001234");
+  assert.equal(phoneSaved.body.contacts[phoneIndex].href, "tel:+8613800001234");
+  const wechatSaved = await saveContacts({ channels: phoneSaved.body.contacts.map((contact, index) => index === wechatIndex ? { ...contact, value: "qianlin-test-3d", href: "" } : contact) });
+  assert.equal(wechatSaved.response.status, 200);
+  assert.equal(wechatSaved.body.contacts[wechatIndex].value, "qianlin-test-3d");
+  assert.equal(wechatSaved.body.contacts[wechatIndex].href, "");
+  const emailSaved = await saveContacts({ channels: wechatSaved.body.contacts.map((contact, index) => index === emailIndex ? { ...contact, value: "contact-test@example.invalid", href: "mailto:contact-test@example.invalid" } : contact) });
+  assert.equal(emailSaved.response.status, 200);
+  assert.equal(emailSaved.body.contacts[emailIndex].value, "contact-test@example.invalid");
+  assert.equal(emailSaved.body.contacts[emailIndex].href, "mailto:contact-test@example.invalid");
+  assert.doesNotMatch(JSON.stringify(emailSaved.body), /tenantId|tenant_id|tenantSlug|ownerId|isDemo|session|token|password/i);
+  const metadataSaved = await saveContacts({ channels: emailSaved.body.contacts.map((contact) => contact.id === emailSaved.body.contacts[phoneIndex].id ? { ...contact, labelZh: "咨询电话", labelEn: "Travel phone", displayOrder: 15 } : contact) });
+  assert.equal(metadataSaved.response.status, 200);
+  assert.equal(metadataSaved.body.contacts.find((contact) => contact.id === emailSaved.body.contacts[phoneIndex].id)?.labelZh, "咨询电话");
+  assert.equal(metadataSaved.body.contacts.find((contact) => contact.id === emailSaved.body.contacts[phoneIndex].id)?.displayOrder, 15);
+  const drafted = await saveContacts({ channels: metadataSaved.body.contacts.map((contact) => contact.id === emailSaved.body.contacts[phoneIndex].id ? { ...contact, status: "draft" } : contact) });
+  assert.equal(drafted.response.status, 200);
+  assert.equal(drafted.body.contacts.find((contact) => contact.id === emailSaved.body.contacts[phoneIndex].id)?.status, "draft");
+  const restored = await saveContacts({ channels: drafted.body.contacts.map((contact) => contact.id === emailSaved.body.contacts[phoneIndex].id ? { ...contact, status: "published" } : contact) });
+  assert.equal(restored.response.status, 200);
+  const updatedContactPayload = { channels: restored.body.contacts };
+
+  for (const invalidPayload of [
+    contactWith(phoneIndex, { value: "" }),
+    contactWith(phoneIndex, { value: "   " }),
+    contactWith(phoneIndex, { value: "12345678901" }),
+    contactWith(phoneIndex, { value: "x".repeat(33) }),
+    contactWith(phoneIndex, { value: "13800001234", labelZh: "<script>alert(1)</script>" }),
+    contactWith(phoneIndex, { value: "13800001234", labelEn: "x".repeat(101) }),
+    contactWith(emailIndex, { value: "invalid-email" }),
+    contactWith(emailIndex, { value: "contact-test@example.invalid", href: "javascript:alert(1)" }),
+    contactWith(emailIndex, { value: "contact-test@example.invalid", href: "data:text/html,blocked" }),
+    contactWith(emailIndex, { value: "contact-test@example.invalid", href: "blob:https://example.invalid/id" }),
+    contactWith(emailIndex, { value: "contact-test@example.invalid", href: "https://example.invalid/../secret" }),
+    contactWith(phoneIndex, { value: "13800001234", displayOrder: -1 }),
+    contactWith(phoneIndex, { value: "13800001234", displayOrder: 1001 }),
+    contactWith(phoneIndex, { value: "13800001234", displayOrder: 1.5 }),
+    contactWith(phoneIndex, { value: "13800001234", status: "pending" }),
+    contactWith(phoneIndex, { value: "13800001234", type: "whatsapp" }),
+  ]) {
+    const invalidResponse = await saveContacts(invalidPayload);
+    assert.equal(invalidResponse.response.status, 400);
+    assert.ok(invalidResponse.body && typeof invalidResponse.body === "object" && invalidResponse.body.fieldErrors);
+  }
+
+  for (const dangerousField of ["tenantId", "tenant_id", "tenantSlug", "ownerId", "isDemo"]) {
+    const dangerousResponse = await saveContacts({ ...updatedContactPayload, [dangerousField]: "yunnan-demo" });
+    assert.equal(dangerousResponse.response.status, 400);
+  }
+  const unknownContactField = await saveContacts({ channels: updatedContactPayload.channels.map((contact) => ({ ...contact, unexpected: "rejected" })) });
+  assert.equal(unknownContactField.response.status, 400);
+  const crossTenantContact = await saveContacts({ channels: updatedContactPayload.channels.map((contact, index) => index === 0 ? { ...contact, id: "yunnan-contact-test" } : contact) });
+  assert.equal(crossTenantContact.response.status, 409);
+  assert.doesNotMatch(JSON.stringify(crossTenantContact.body), /yunnan-demo|yunnan-contact-test|tenant/i);
+  assert.deepEqual(query("SELECT id, tenant_id, type, label_zh, label_en, value, href, display_order, status, created_at, updated_at FROM tenant_contact_channels WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id"), originalYunnanContacts);
+  assert.deepEqual(query("SELECT id, tenant_id, type, label_zh, label_en, value, href, display_order, status FROM tenant_contact_channels WHERE tenant_id = 'qianlin-travel' ORDER BY display_order, id"), updatedContactPayload.channels.map((contact) => ({ id: contact.id, tenant_id: "qianlin-travel", type: contact.type, label_zh: contact.labelZh, label_en: contact.labelEn, value: contact.value, href: contact.href || null, display_order: contact.displayOrder, status: contact.status })));
+
+  for (const invalidCookie of [tamperedCookie, signedAdminCookie({ tenantId: "qianlin-travel", expiresAt: Math.floor(Date.now() / 1000) - 1 }), signedAdminCookie({ tenantId: "yunnan-demo", expiresAt: Math.floor(Date.now() / 1000) + 3600 })]) {
+    assert.equal((await getContacts({ cookie: invalidCookie })).response.status, 401);
+    assert.equal((await saveContacts(updatedContactPayload, { cookie: invalidCookie })).response.status, 401);
+  }
   const tamperedSession = await request("/admin", { headers: { cookie: tamperedCookie }, redirect: "manual" });
   assert.ok([302, 303, 307, 308].includes(tamperedSession.response.status));
   const expiredSession = await request("/admin", { headers: { cookie: signedAdminCookie({ tenantId: "qianlin-travel", expiresAt: Math.floor(Date.now() / 1000) - 1 }) }, redirect: "manual" });
@@ -335,6 +448,8 @@ try {
   assert.ok([302, 303, 307, 308].includes(afterLogout.response.status));
   const afterLogoutProfileSave = await request("/api/admin/profile", { method: "PUT", headers: { "content-type": "application/json", origin: baseUrl }, body: JSON.stringify(validProfile) });
   assert.equal(afterLogoutProfileSave.response.status, 401);
+  const afterLogoutContactsSave = await request("/api/admin/contacts", { method: "PUT", headers: { "content-type": "application/json", origin: baseUrl }, body: JSON.stringify(updatedContactPayload) });
+  assert.equal(afterLogoutContactsSave.response.status, 401);
 
   const config = await request("/api/t/qianlin-travel/site-config");
   assert.equal(config.response.status, 200);
@@ -349,6 +464,14 @@ try {
   assert.equal(config.body.profile.address.en, validProfile.addressEn);
   assert.equal(config.body.profile.logo.mark, normalizedProfile.logoMark);
   assert.match(config.body.profile.images.customize.src, /^\/images\//);
+  assert.equal(config.body.contacts.find((contact) => contact.type === "phone")?.value, "13800001234");
+  assert.equal(config.body.contacts.find((contact) => contact.type === "wechat")?.value, "qianlin-test-3d");
+  assert.equal(config.body.contacts.find((contact) => contact.type === "email")?.value, "contact-test@example.invalid");
+  assert.equal(config.body.contacts.find((contact) => contact.type === "email")?.href, "mailto:contact-test@example.invalid");
+  const publicHome = await request("/");
+  assert.equal(publicHome.response.status, 200);
+  assert.match(String(publicHome.body), /13800001234/);
+  assert.match(String(publicHome.body), /contact-test@example\.invalid/);
 
   const configuring = await request("/api/t/configuring-test/site-config");
   assert.equal(configuring.response.status, 200);
