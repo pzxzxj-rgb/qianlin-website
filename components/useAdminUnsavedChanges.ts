@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export function confirmAdminNavigation(isDirty: boolean, message: string) {
   return !isDirty || window.confirm(message);
 }
 
 export function useAdminUnsavedChanges(isDirty: boolean, message: string) {
+  const guardRef = useRef<{ url: string; id: string } | null>(null);
+
   useEffect(() => {
     if (!isDirty) return;
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -18,17 +20,26 @@ export function useAdminUnsavedChanges(isDirty: boolean, message: string) {
   }, [isDirty]);
 
   useEffect(() => {
-    if (!isDirty) return;
-    const guardedUrl = window.location.href;
-    let allowNavigation = false;
-    window.history.pushState({ ...window.history.state, adminUnsavedGuard: true }, "", guardedUrl);
+    if (!isDirty) {
+      const guard = guardRef.current;
+      guardRef.current = null;
+      if (guard && window.location.href === guard.url && window.history.state?.adminUnsavedGuardId === guard.id) window.history.back();
+      return;
+    }
+    if (!guardRef.current) {
+      const guardedUrl = window.location.href;
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      window.history.pushState({ ...window.history.state, adminUnsavedGuard: true, adminUnsavedGuardId: id }, "", guardedUrl);
+      guardRef.current = { url: guardedUrl, id };
+    }
     const handlePopState = () => {
-      if (allowNavigation) return;
+      const guard = guardRef.current;
+      if (!guard) return;
       if (window.confirm(message)) {
-        allowNavigation = true;
+        guardRef.current = null;
         window.history.back();
       } else {
-        window.history.pushState({ ...window.history.state, adminUnsavedGuard: true }, "", guardedUrl);
+        window.history.pushState({ ...window.history.state, adminUnsavedGuard: true, adminUnsavedGuardId: guard.id }, "", guard.url);
       }
     };
     window.addEventListener("popstate", handlePopState);

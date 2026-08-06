@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "./LanguageContext";
 import type { PlannerCityOption, PlannerDestinationOption, PlannerOptionsLoadState, PlannerOptionsResponse, PlannerProvinceOption } from "../lib/planner/types";
+import { isAdminImagePathForUsage } from "../lib/admin/imageCatalog";
 
 type PlannerOptionsContextValue = {
   status: PlannerOptionsLoadState;
@@ -35,15 +36,16 @@ function isPlannerDestination(value: unknown): boolean {
     && isLocalizedText(value.name)
     && isLocalizedText(value.description)
     && typeof value.imageUrl === "string"
+    && (value.imageUrl === "" || isAdminImagePathForUsage(value.imageUrl, "destination"))
     && (value.cardSize === "small" || value.cardSize === "large")
     && isLocalizedText(value.region)
     && (value.overnightSuggestion === undefined || isLocalizedText(value.overnightSuggestion))
-    && Number.isInteger(value.routeOrder)
+    && Number.isInteger(value.routeOrder) && value.routeOrder >= 0 && value.routeOrder <= 1000
     && (value.recommendedVisitHours === undefined || (Number.isInteger(value.recommendedVisitHours) && value.recommendedVisitHours >= 1 && value.recommendedVisitHours <= 48))
     && typeof value.majorAttraction === "boolean"
     && typeof value.availableForPlanning === "boolean"
     && typeof value.showOnHomepage === "boolean"
-    && Number.isInteger(value.displayOrder);
+    && Number.isInteger(value.displayOrder) && value.displayOrder >= 0 && value.displayOrder <= 1000;
 }
 
 function isPlannerOptionsResponse(value: unknown, tenantSlug: string): value is PlannerOptionsResponse {

@@ -1,6 +1,7 @@
 import { asc, and, eq } from "drizzle-orm";
 import { getDb } from "../../db";
 import { plannerCities, plannerDestinations, plannerProvinces } from "../../db/schema";
+import { isAdminImagePathForUsage } from "../admin/imageCatalog";
 import type { PlannerOptionsResponse } from "./types";
 
 type TenantKey = { id: string; slug: string; siteStatus?: string };
@@ -78,7 +79,7 @@ export async function getPlannerOptionsForTenant(tenant: TenantKey): Promise<Pla
       ...(destination.cityCode ? { cityCode: destination.cityCode } : {}),
       name: { zh: destination.nameZh, en: destination.nameEn },
       description: { zh: destination.descriptionZh, en: destination.descriptionEn },
-      imageUrl: destination.imageUrl,
+      imageUrl: isAdminImagePathForUsage(destination.imageUrl, "destination") ? destination.imageUrl : "",
       cardSize: destination.cardSize === "large" ? "large" : "small",
       region: { zh: destination.regionZh, en: destination.regionEn },
       ...(destination.overnightZh || destination.overnightEn ? { overnightSuggestion: { zh: destination.overnightZh, en: destination.overnightEn } } : {}),
@@ -86,7 +87,7 @@ export async function getPlannerOptionsForTenant(tenant: TenantKey): Promise<Pla
       ...(destination.recommendedVisitHours === null ? {} : { recommendedVisitHours: destination.recommendedVisitHours }),
       majorAttraction: Boolean(destination.majorAttraction),
       availableForPlanning: Boolean(destination.availableForPlanning),
-      showOnHomepage: Boolean(destination.showOnHomepage),
+      showOnHomepage: Boolean(destination.showOnHomepage) && isAdminImagePathForUsage(destination.imageUrl, "destination"),
       displayOrder: destination.displayOrder,
     })),
   };

@@ -14,7 +14,6 @@ export const ADMIN_DESTINATION_FIELDS = [
   "nameEn",
   "descriptionZh",
   "descriptionEn",
-  "imageUrl",
   "cardSize",
   "regionZh",
   "regionEn",
@@ -38,7 +37,6 @@ export type AdminDestinationInput = {
   nameEn: string;
   descriptionZh: string;
   descriptionEn: string;
-  imageUrl: string;
   cardSize: AdminDestinationCardSize;
   regionZh: string;
   regionEn: string;
@@ -63,6 +61,7 @@ export type AdminDestinationValues = AdminDestinationInput & {
   id: string;
   cityNameZh: string;
   cityNameEn: string;
+  hasHomepageImage: boolean;
 };
 
 export type AdminDestinationFieldErrors = Record<string, string>;
@@ -92,6 +91,13 @@ export class AdminDestinationCityError extends Error {
   constructor(message = "Destination city is unavailable") {
     super(message);
     this.name = "AdminDestinationCityError";
+  }
+}
+
+export class AdminDestinationImageError extends Error {
+  constructor(message = "Destination cannot be shown on the homepage without a safe local image") {
+    super(message);
+    this.name = "AdminDestinationImageError";
   }
 }
 
@@ -165,7 +171,6 @@ function emptyDestination(): AdminDestinationInput {
     nameEn: "",
     descriptionZh: "",
     descriptionEn: "",
-    imageUrl: "",
     cardSize: "small",
     regionZh: "",
     regionEn: "",
@@ -210,16 +215,6 @@ function validateCityCode(value: unknown, fieldErrors: AdminDestinationFieldErro
   }
   const normalizedValue = value.trim().toLowerCase();
   if (normalizedValue && !SAFE_CODE_PATTERN.test(normalizedValue)) fieldErrors.cityCode = "所属城市格式不正确。";
-  return normalizedValue;
-}
-
-function validateImage(value: unknown, fieldErrors: AdminDestinationFieldErrors) {
-  if (typeof value !== "string") {
-    fieldErrors.imageUrl = "目的地图片格式不正确。";
-    return "";
-  }
-  const normalizedValue = value.trim();
-  if (normalizedValue && !isAdminImagePathForUsage(normalizedValue, "destination")) fieldErrors.imageUrl = "目的地图片只能从项目内置白名单中选择。";
   return normalizedValue;
 }
 
@@ -270,12 +265,7 @@ export function validateAdminDestinationPayload(body: unknown): AdminDestination
   values.cityCode = validateCityCode(body.cityCode, fieldErrors);
   values.nameZh = validatePlainText(body.nameZh, fieldErrors, "nameZh", "中文名称", NAME_ZH_MAX_LENGTH);
   values.nameEn = validatePlainText(body.nameEn, fieldErrors, "nameEn", "英文名称", NAME_EN_MAX_LENGTH);
-  values.descriptionZh = validatePlainText(body.descriptionZh, fieldErrors, "descriptionZh", "中文介绍", DESCRIPTION_ZH_MAX_LENGTH);
-  values.descriptionEn = validatePlainText(body.descriptionEn, fieldErrors, "descriptionEn", "英文介绍", DESCRIPTION_EN_MAX_LENGTH);
-  values.imageUrl = validateImage(body.imageUrl, fieldErrors);
   values.cardSize = validateEnum(body.cardSize, ADMIN_DESTINATION_CARD_SIZES, fieldErrors, "cardSize", "卡片大小") as AdminDestinationCardSize;
-  values.regionZh = validatePlainText(body.regionZh, fieldErrors, "regionZh", "中文区域名称", REGION_MAX_LENGTH);
-  values.regionEn = validatePlainText(body.regionEn, fieldErrors, "regionEn", "英文区域名称", REGION_MAX_LENGTH);
   values.routeOrder = validateInteger(body.routeOrder, fieldErrors, "routeOrder", "线路顺序", ROUTE_ORDER_MIN, ROUTE_ORDER_MAX);
   values.overnightZh = validatePlainText(body.overnightZh, fieldErrors, "overnightZh", "中文住宿建议", OVERNIGHT_ZH_MAX_LENGTH, false);
   values.overnightEn = validatePlainText(body.overnightEn, fieldErrors, "overnightEn", "英文住宿建议", OVERNIGHT_EN_MAX_LENGTH, false);
@@ -287,9 +277,12 @@ export function validateAdminDestinationPayload(body: unknown): AdminDestination
   values.majorAttraction = validateBoolean(body.majorAttraction, fieldErrors, "majorAttraction", "主要景点") ;
   values.availableForPlanning = validateBoolean(body.availableForPlanning, fieldErrors, "availableForPlanning", "参与行程规划") ;
   values.showOnHomepage = validateBoolean(body.showOnHomepage, fieldErrors, "showOnHomepage", "首页展示") ;
+  values.descriptionZh = validatePlainText(body.descriptionZh, fieldErrors, "descriptionZh", "中文介绍", DESCRIPTION_ZH_MAX_LENGTH, values.showOnHomepage);
+  values.descriptionEn = validatePlainText(body.descriptionEn, fieldErrors, "descriptionEn", "英文介绍", DESCRIPTION_EN_MAX_LENGTH, values.showOnHomepage);
+  values.regionZh = validatePlainText(body.regionZh, fieldErrors, "regionZh", "中文区域名称", REGION_MAX_LENGTH, values.availableForPlanning);
+  values.regionEn = validatePlainText(body.regionEn, fieldErrors, "regionEn", "英文区域名称", REGION_MAX_LENGTH, values.availableForPlanning);
   values.displayOrder = validateInteger(body.displayOrder, fieldErrors, "displayOrder", "首页显示顺序", DISPLAY_ORDER_MIN, DISPLAY_ORDER_MAX);
   values.status = validateEnum(body.status, ADMIN_DESTINATION_STATUSES, fieldErrors, "status", "目的地状态") as AdminDestinationStatus;
-  if (values.showOnHomepage && !values.imageUrl) fieldErrors.imageUrl = "开启首页展示时必须选择合法的目的地图片。";
 
   return { values, fieldErrors, hasUnknownFields, invalidShape: false };
 }
@@ -325,6 +318,7 @@ type AdminDestinationRow = {
 function mapDestinationRow(row: AdminDestinationRow, cityByCode: Map<string, AdminCityOption>): AdminDestinationValues {
   if (row.provinceCode !== ADMIN_DESTINATION_PROVINCE_CODE || !ADMIN_DESTINATION_CARD_SIZES.includes(row.cardSize as AdminDestinationCardSize) || !ADMIN_DESTINATION_STATUSES.includes(row.status as AdminDestinationStatus)) throw new AdminDestinationConfigurationError();
   const city = row.cityCode ? cityByCode.get(row.cityCode) : undefined;
+  const hasHomepageImage = Boolean(row.imageUrl && isAdminImagePathForUsage(row.imageUrl, "destination"));
   return {
     id: row.id,
     slug: row.slug,
@@ -335,7 +329,7 @@ function mapDestinationRow(row: AdminDestinationRow, cityByCode: Map<string, Adm
     nameEn: row.nameEn,
     descriptionZh: row.descriptionZh,
     descriptionEn: row.descriptionEn,
-    imageUrl: row.imageUrl,
+    hasHomepageImage,
     cardSize: row.cardSize as AdminDestinationCardSize,
     regionZh: row.regionZh,
     regionEn: row.regionEn,
@@ -345,7 +339,7 @@ function mapDestinationRow(row: AdminDestinationRow, cityByCode: Map<string, Adm
     recommendedVisitHours: row.recommendedVisitHours,
     majorAttraction: Boolean(row.majorAttraction),
     availableForPlanning: Boolean(row.availableForPlanning),
-    showOnHomepage: Boolean(row.showOnHomepage),
+    showOnHomepage: Boolean(row.showOnHomepage) && hasHomepageImage,
     displayOrder: row.displayOrder,
     status: row.status as AdminDestinationStatus,
   };
@@ -383,7 +377,7 @@ function isUniqueViolation(error: unknown) {
   return /unique|constraint/i.test(error instanceof Error ? error.message : String(error));
 }
 
-function destinationWriteValues(values: AdminDestinationInput) {
+function destinationWriteValues(values: AdminDestinationInput, imageUrl: string, showOnHomepage: boolean) {
   return {
     slug: values.slug,
     cityCode: values.cityCode || null,
@@ -391,7 +385,7 @@ function destinationWriteValues(values: AdminDestinationInput) {
     nameEn: values.nameEn,
     descriptionZh: values.descriptionZh,
     descriptionEn: values.descriptionEn,
-    imageUrl: values.imageUrl,
+    imageUrl,
     cardSize: values.cardSize,
     regionZh: values.regionZh,
     regionEn: values.regionEn,
@@ -401,7 +395,7 @@ function destinationWriteValues(values: AdminDestinationInput) {
     recommendedVisitHours: values.recommendedVisitHours,
     majorAttraction: values.majorAttraction,
     availableForPlanning: values.availableForPlanning,
-    showOnHomepage: values.showOnHomepage,
+    showOnHomepage,
     displayOrder: values.displayOrder,
     status: values.status,
   };
@@ -429,7 +423,7 @@ export async function createAdminDestination(tenantId: string, values: AdminDest
   if (existing[0]) throw new AdminDestinationConflictError();
   const id = globalThis.crypto.randomUUID();
   try {
-    await db.insert(plannerDestinations).values({ id, tenantId, provinceCode: ADMIN_DESTINATION_PROVINCE_CODE, ...destinationWriteValues(values) });
+    await db.insert(plannerDestinations).values({ id, tenantId, provinceCode: ADMIN_DESTINATION_PROVINCE_CODE, ...destinationWriteValues(values, "", false) });
   } catch (error) {
     if (isUniqueViolation(error)) throw new AdminDestinationConflictError();
     throw error;
@@ -445,8 +439,10 @@ export async function updateAdminDestination(tenantId: string, destinationId: st
   const db = await getDb();
   const duplicate = await db.select({ id: plannerDestinations.id }).from(plannerDestinations).where(and(eq(plannerDestinations.tenantId, tenantId), eq(plannerDestinations.slug, values.slug), ne(plannerDestinations.id, destinationId))).limit(1);
   if (duplicate[0]) throw new AdminDestinationConflictError();
+  const hasHomepageImage = Boolean(current.imageUrl && isAdminImagePathForUsage(current.imageUrl, "destination"));
+  if (values.showOnHomepage && !hasHomepageImage) throw new AdminDestinationImageError();
   try {
-    await db.update(plannerDestinations).set({ ...destinationWriteValues(values), updatedAt: sql`CURRENT_TIMESTAMP` }).where(and(eq(plannerDestinations.id, destinationId), eq(plannerDestinations.tenantId, tenantId)));
+    await db.update(plannerDestinations).set({ ...destinationWriteValues(values, current.imageUrl, values.showOnHomepage), updatedAt: sql`CURRENT_TIMESTAMP` }).where(and(eq(plannerDestinations.id, destinationId), eq(plannerDestinations.tenantId, tenantId)));
   } catch (error) {
     if (isUniqueViolation(error)) throw new AdminDestinationConflictError();
     throw error;

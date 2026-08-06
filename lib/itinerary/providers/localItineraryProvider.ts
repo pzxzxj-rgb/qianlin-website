@@ -85,8 +85,8 @@ export const localItineraryProvider: ItineraryProvider = {
     const unassignedDestinationIds = [...unknownIds, ...unavailableIds, ...selected.slice(cursor).map((destination) => destination.id)];
     const warnings = [
       input.language === "zh"
-        ? "该行程根据景点区域和建议游玩时长自动整理，仅供前期参考。实际车程、开放时间、住宿和交通安排需要由旅行顾问进一步确认。"
-        : "This reference itinerary is organized by destination areas and suggested visit time. Actual driving time, opening hours, accommodation and transport must be confirmed with a travel consultant.",
+        ? "该行程根据景点区域和线路顺序自动整理，仅供前期参考。实际车程、开放时间、住宿和交通安排需要由旅行顾问进一步确认。"
+        : "This reference itinerary is organized by destination areas and route order. Actual driving time, opening hours, accommodation and transport must be confirmed with a travel consultant.",
     ];
 
     if (unassignedDestinationIds.length > 0) {

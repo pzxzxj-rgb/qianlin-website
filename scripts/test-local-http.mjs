@@ -110,6 +110,7 @@ try {
   execute("INSERT OR IGNORE INTO tenant_tours (id, tenant_id, slug, title_zh, title_en, description_zh, description_en, duration_zh, duration_en, tag_zh, tag_en, price_text_zh, price_text_en, image_url, image_alt_zh, image_alt_en, featured, display_order, status) VALUES ('yunnan-tour-test', 'yunnan-demo', 'fictional-shared-route', '云南虚构线路', 'Fictional Yunnan route', '云南租户测试线路介绍。', 'A fictional Yunnan tour for tenant isolation tests.', '', '', '测试', 'Test', '', '', '', '', '', 1, 5, 'published')");
   const originalYunnanTours = query("SELECT id, tenant_id, slug, title_zh, title_en, description_zh, description_en, duration_zh, duration_en, tag_zh, tag_en, price_text_zh, price_text_en, image_url, image_alt_zh, image_alt_en, featured, display_order, status, created_at, updated_at FROM tenant_tours WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id");
   const originalQianlinDestinationIdentities = query("SELECT id, tenant_id FROM planner_destinations WHERE tenant_id = 'qianlin-travel' ORDER BY id");
+  const originalQianlinDestinationImages = query("SELECT id, tenant_id, image_url, show_on_homepage FROM planner_destinations WHERE tenant_id = 'qianlin-travel' ORDER BY id");
   execute("INSERT OR IGNORE INTO planner_destinations (id, tenant_id, province_code, slug, city_code, name_zh, name_en, description_zh, description_en, image_url, card_size, region_zh, region_en, route_order, overnight_zh, overnight_en, recommended_visit_hours, major_attraction, available_for_planning, show_on_homepage, display_order, status) VALUES ('yunnan-destination-test', 'yunnan-demo', 'guizhou', 'fictional-shared-destination', 'yunnan-test-city', '云南虚构目的地', 'Fictional Yunnan destination', '云南租户虚构目的地介绍。', 'A fictional Yunnan destination for tenant isolation tests.', '/images/guizhou/hero-guizhou.png', 'small', '云南虚构区域', 'Fictional Yunnan region', 5, '', '', 3, 1, 1, 1, 5, 'published')");
   const originalYunnanDestinations = query("SELECT id, tenant_id, province_code, slug, city_code, name_zh, name_en, description_zh, description_en, image_url, card_size, region_zh, region_en, route_order, overnight_zh, overnight_en, recommended_visit_hours, major_attraction, available_for_planning, show_on_homepage, display_order, status, created_at, updated_at FROM planner_destinations WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id");
   execute("UPDATE tenant_contact_channels SET value = '  qianlin-test@example.com  ', href = 'mailto:qianlin-test@example.com' WHERE tenant_id = 'qianlin-travel' AND type = 'email' AND status = 'published'");
@@ -405,6 +406,8 @@ try {
   assert.match(String(destinationsPage.body), /新增目的地/);
   assert.match(String(destinationsPage.body), /已有目的地/);
   assert.match(String(destinationsPage.body), /状态筛选/);
+  assert.match(String(destinationsPage.body), /已有首页图片|暂无首页图片/);
+  assert.doesNotMatch(String(destinationsPage.body), /AdminImagePreview|目的地图片|图片预览/);
   assert.match(String(destinationsPage.body), /黄果树瀑布/);
   assert.doesNotMatch(String(destinationsPage.body), /yunnan-demo|云南虚构目的地/);
   const toursRead = await getTours();
@@ -443,7 +446,6 @@ try {
     nameEn: "Fictional Guizhou Destination",
     descriptionZh: "用于本地集成测试的虚构贵州目的地介绍。",
     descriptionEn: "A fictional Guizhou destination for local integration testing.",
-    imageUrl: "/images/guizhou/hero-guizhou.png",
     cardSize: "large",
     regionZh: "虚构贵州区域",
     regionEn: "Fictional Guizhou region",
@@ -463,10 +465,13 @@ try {
   assert.ok(createdDestinationResponse.body.destination?.id);
   assert.doesNotMatch(JSON.stringify(createdDestinationResponse.body), /tenantId|tenant_id|tenantSlug|ownerId|organizationId|isDemo|createdBy|provinceCode|province_code|createdAt|updatedAt|session|token|password/i);
   const createdDestination = createdDestinationResponse.body.destination;
-  const createdDestinationRow = query("SELECT id, tenant_id, province_code, city_code, created_at, updated_at FROM planner_destinations WHERE id = '" + createdDestination.id + "' AND tenant_id = 'qianlin-travel'")[0];
+  const createdDestinationRow = query("SELECT id, tenant_id, province_code, city_code, image_url, show_on_homepage, created_at, updated_at FROM planner_destinations WHERE id = '" + createdDestination.id + "' AND tenant_id = 'qianlin-travel'")[0];
   assert.equal(createdDestinationRow.tenant_id, "qianlin-travel");
   assert.equal(createdDestinationRow.province_code, "guizhou");
   assert.equal(createdDestinationRow.city_code, "guiyang");
+  assert.equal(createdDestinationRow.image_url, "");
+  assert.equal(createdDestinationRow.show_on_homepage, 0);
+  assert.equal(createdDestinationResponse.body.destination.hasHomepageImage, false);
   assert.ok(createdDestinationRow.created_at);
   const duplicateDestinationSlug = await createDestination({ ...validDestination, nameZh: "重复 slug 测试目的地" });
   assert.equal(duplicateDestinationSlug.response.status, 409);
@@ -547,7 +552,6 @@ try {
     nameEn: row.name_en,
     descriptionZh: row.description_zh,
     descriptionEn: row.description_en,
-    imageUrl: row.image_url,
     cardSize: row.card_size,
     regionZh: row.region_zh,
     regionEn: row.region_en,
@@ -568,7 +572,7 @@ try {
   assert.equal(updatedExistingDestination.response.status, 200);
   assert.equal(updatedExistingDestination.body.destination.nameZh, "更新后的虚构黄果树目的地");
   assert.doesNotMatch(JSON.stringify(updatedExistingDestination.body), /tenantId|tenant_id|tenantSlug|ownerId|organizationId|isDemo|createdBy|provinceCode|province_code|createdAt|updatedAt|session|token|password/i);
-  const updatedExistingRow = query("SELECT id, tenant_id, province_code, created_at, updated_at, name_zh, display_order FROM planner_destinations WHERE id = 'huangguoshu-waterfall' AND tenant_id = 'qianlin-travel'")[0];
+  const updatedExistingRow = query("SELECT id, tenant_id, province_code, created_at, updated_at, name_zh, display_order, image_url, show_on_homepage FROM planner_destinations WHERE id = 'huangguoshu-waterfall' AND tenant_id = 'qianlin-travel'")[0];
   assert.equal(updatedExistingRow.id, existingDestinationBefore.id);
   assert.equal(updatedExistingRow.tenant_id, "qianlin-travel");
   assert.equal(updatedExistingRow.province_code, "guizhou");
@@ -576,7 +580,38 @@ try {
   assert.notEqual(updatedExistingRow.updated_at, "2000-01-01 00:00:00");
   assert.equal(updatedExistingRow.name_zh, "更新后的虚构黄果树目的地");
   assert.equal(updatedExistingRow.display_order, 7);
-  const createdDestinationUpdated = await updateDestination(createdDestination.id, { ...validDestination, nameZh: "发布后的虚构贵州目的地", status: "published", displayOrder: 1, routeOrder: 6, availableForPlanning: false, showOnHomepage: true });
+  assert.equal(updatedExistingRow.image_url, existingDestinationBefore.image_url);
+  assert.equal(updatedExistingRow.show_on_homepage, 0);
+  const imageReplacementRejected = await updateDestination("huangguoshu-waterfall", { ...existingDestinationPayload, imageUrl: "/images/guizhou/hero-guizhou.png" });
+  assert.equal(imageReplacementRejected.response.status, 400);
+  assert.ok(imageReplacementRejected.body.fieldErrors?.imageUrl);
+  assert.equal(query("SELECT image_url FROM planner_destinations WHERE id = 'huangguoshu-waterfall' AND tenant_id = 'qianlin-travel'")[0].image_url, existingDestinationBefore.image_url);
+  const homepageEnabled = await updateDestination("huangguoshu-waterfall", { ...existingDestinationPayload, showOnHomepage: true });
+  assert.equal(homepageEnabled.response.status, 200);
+  assert.equal(homepageEnabled.body.destination.showOnHomepage, true);
+  assert.equal(homepageEnabled.body.destination.hasHomepageImage, true);
+  assert.equal(query("SELECT image_url, show_on_homepage FROM planner_destinations WHERE id = 'huangguoshu-waterfall' AND tenant_id = 'qianlin-travel'")[0].image_url, existingDestinationBefore.image_url);
+  const homepageMissingZh = await updateDestination("huangguoshu-waterfall", { ...existingDestinationPayload, showOnHomepage: true, descriptionZh: "" });
+  assert.equal(homepageMissingZh.response.status, 400);
+  const homepageMissingEn = await updateDestination("huangguoshu-waterfall", { ...existingDestinationPayload, showOnHomepage: true, descriptionEn: "" });
+  assert.equal(homepageMissingEn.response.status, 400);
+  assert.equal(query("SELECT name_zh, image_url, show_on_homepage FROM planner_destinations WHERE id = 'huangguoshu-waterfall' AND tenant_id = 'qianlin-travel'")[0].show_on_homepage, 1);
+  const planningDisabled = await updateDestination("huangguoshu-waterfall", { ...existingDestinationPayload, showOnHomepage: false, availableForPlanning: false, regionZh: "", regionEn: "" });
+  assert.equal(planningDisabled.response.status, 200);
+  const planningMissingZh = await updateDestination("huangguoshu-waterfall", { ...existingDestinationPayload, showOnHomepage: false, availableForPlanning: true, regionZh: "" });
+  assert.equal(planningMissingZh.response.status, 400);
+  const planningMissingEn = await updateDestination("huangguoshu-waterfall", { ...existingDestinationPayload, showOnHomepage: false, availableForPlanning: true, regionEn: "" });
+  assert.equal(planningMissingEn.response.status, 400);
+  const restoredHomepage = await updateDestination("huangguoshu-waterfall", { ...existingDestinationPayload, showOnHomepage: true, availableForPlanning: true });
+  assert.equal(restoredHomepage.response.status, 200);
+  const createdOptionalDescription = await updateDestination(createdDestination.id, { ...validDestination, showOnHomepage: false, availableForPlanning: false, descriptionZh: "", descriptionEn: "", regionZh: "", regionEn: "" });
+  assert.equal(createdOptionalDescription.response.status, 200);
+  const createdBeforeNoImageUpdate = query("SELECT id, tenant_id, image_url, show_on_homepage, description_zh, description_en, region_zh, region_en, display_order, status FROM planner_destinations WHERE id = '" + createdDestination.id + "' AND tenant_id = 'qianlin-travel'")[0];
+  const noHomepageImageUpdate = await updateDestination(createdDestination.id, { ...validDestination, showOnHomepage: true });
+  assert.equal(noHomepageImageUpdate.response.status, 400);
+  assert.ok(noHomepageImageUpdate.body.fieldErrors?.showOnHomepage);
+  assert.deepEqual(query("SELECT id, tenant_id, image_url, show_on_homepage, description_zh, description_en, region_zh, region_en, display_order, status FROM planner_destinations WHERE id = '" + createdDestination.id + "' AND tenant_id = 'qianlin-travel'")[0], createdBeforeNoImageUpdate);
+  const createdDestinationUpdated = await updateDestination(createdDestination.id, { ...validDestination, nameZh: "发布后的虚构贵州目的地", status: "published", displayOrder: 1, routeOrder: 6, availableForPlanning: false, showOnHomepage: false, descriptionZh: "", descriptionEn: "", regionZh: "", regionEn: "" });
   assert.equal(createdDestinationUpdated.response.status, 200);
   const createdBeforeConflict = query("SELECT id, tenant_id, slug, name_zh, city_code, status FROM planner_destinations WHERE id = '" + createdDestination.id + "' AND tenant_id = 'qianlin-travel'")[0];
   const duplicateDestinationUpdate = await updateDestination(createdDestination.id, { ...validDestination, slug: "huangguoshu-waterfall", nameZh: "不应写入的重复目的地" });
@@ -585,7 +620,7 @@ try {
   const invalidDestinationUpdate = await updateDestination(createdDestination.id, { ...validDestination, cityCode: "yunnan-test-city" });
   assert.equal(invalidDestinationUpdate.response.status, 400);
   assert.deepEqual(query("SELECT id, tenant_id, slug, name_zh, city_code, status FROM planner_destinations WHERE id = '" + createdDestination.id + "' AND tenant_id = 'qianlin-travel'")[0], createdBeforeConflict);
-  const publishedDestinationPayload = { ...validDestination, nameZh: "发布后的虚构贵州目的地", status: "published", displayOrder: 1, routeOrder: 6, availableForPlanning: true, showOnHomepage: true };
+  const publishedDestinationPayload = { ...validDestination, nameZh: "发布后的虚构贵州目的地", status: "published", displayOrder: 1, routeOrder: 6, availableForPlanning: false, showOnHomepage: false, descriptionZh: "", descriptionEn: "", regionZh: "", regionEn: "" };
   const archivedDestination = await updateDestination(createdDestination.id, { ...publishedDestinationPayload, status: "archived" });
   assert.equal(archivedDestination.response.status, 200);
   const restoredDestination = await updateDestination(createdDestination.id, publishedDestinationPayload);
@@ -602,7 +637,7 @@ try {
   assert.equal(destinationReadAfterSave.body.destinations.length, 17);
   assert.ok(destinationReadAfterSave.body.destinations.some((destination) => destination.id === createdDestination.id && destination.status === "published"));
   assert.ok(destinationReadAfterSave.body.destinations.every((destination) => !Object.hasOwn(destination, "tenantId") && !Object.hasOwn(destination, "tenant_id") && !Object.hasOwn(destination, "provinceCode") && !Object.hasOwn(destination, "createdAt") && !Object.hasOwn(destination, "updatedAt")));
-  const draftDestination = await createDestination({ ...validDestination, slug: "draft-fictional-destination", nameZh: "草稿虚构目的地", status: "draft", imageUrl: "", showOnHomepage: false });
+  const draftDestination = await createDestination({ ...validDestination, slug: "draft-fictional-destination", nameZh: "草稿虚构目的地", status: "draft", showOnHomepage: false });
   const archivedDestinationForPublic = await createDestination({ ...validDestination, slug: "archived-fictional-destination", nameZh: "归档虚构目的地", status: "archived", showOnHomepage: false });
   assert.equal(draftDestination.response.status, 201);
   assert.equal(archivedDestinationForPublic.response.status, 201);
@@ -899,11 +934,14 @@ try {
   assert.equal(config.body.contacts.find((contact) => contact.type === "wechat")?.value, "qianlin-test-3d");
   assert.equal(config.body.contacts.find((contact) => contact.type === "email")?.value, "contact-test@example.invalid");
   assert.equal(config.body.contacts.find((contact) => contact.type === "email")?.href, "mailto:contact-test@example.invalid");
+  execute("UPDATE planner_destinations SET image_url = 'https://evil.example/unsafe-destination.webp' WHERE id = '" + createdDestination.id + "' AND tenant_id = 'qianlin-travel'");
   const qianlinOptions = await request("/api/t/qianlin-travel/planner/options");
   assert.equal(qianlinOptions.response.status, 200);
   assert.match(qianlinOptions.response.headers.get("cache-control") ?? "", /no-store/i);
   assert.ok(qianlinOptions.body.destinations.some((destination) => destination.slug === "fictional-destination-route"));
   assert.doesNotMatch(JSON.stringify(qianlinOptions.body), /draft-fictional-destination|archived-fictional-destination|yunnan-destination-test|云南虚构目的地/);
+  assert.equal(qianlinOptions.body.destinations.find((destination) => destination.slug === "fictional-destination-route")?.imageUrl, "");
+  assert.ok(qianlinOptions.body.destinations.every((destination) => destination.imageUrl === "" || /^\/images\//.test(destination.imageUrl)));
   assert.ok(qianlinOptions.body.destinations.every((destination) => !Object.hasOwn(destination, "createdAt") && !Object.hasOwn(destination, "updatedAt") && !Object.hasOwn(destination, "tenant_id")));
   for (let index = 1; index < qianlinOptions.body.destinations.length; index += 1) {
     const previous = qianlinOptions.body.destinations[index - 1];
@@ -996,6 +1034,8 @@ try {
   assert.deepEqual(afterYunnanDestinations, originalYunnanDestinations);
   const afterQianlinDestinationIdentities = query("SELECT id, tenant_id FROM planner_destinations WHERE tenant_id = 'qianlin-travel' ORDER BY id");
   for (const originalDestination of originalQianlinDestinationIdentities) assert.ok(afterQianlinDestinationIdentities.some((destination) => destination.id === originalDestination.id && destination.tenant_id === originalDestination.tenant_id));
+  const afterQianlinDestinationImages = query("SELECT id, tenant_id, image_url, show_on_homepage FROM planner_destinations WHERE tenant_id = 'qianlin-travel' ORDER BY id");
+  assert.deepEqual(afterQianlinDestinationImages.filter((destination) => originalQianlinDestinationImages.some((original) => original.id === destination.id)), originalQianlinDestinationImages);
   const storedProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' LIMIT 1")[0];
   assert.equal(storedProfile.id, originalProfile.id);
   assert.equal(storedProfile.tenant_id, "qianlin-travel");
