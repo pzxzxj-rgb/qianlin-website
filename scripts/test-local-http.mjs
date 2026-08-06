@@ -102,7 +102,7 @@ try {
   const originalYunnanHeroes = query("SELECT id, tenant_id, status, display_order, created_at, updated_at, image_url, alt_zh, alt_en, desktop_position, mobile_position FROM tenant_hero_slides WHERE tenant_id = 'yunnan-demo' AND status = 'published' ORDER BY display_order, id");
   execute("INSERT OR IGNORE INTO tenant_contact_channels (id, tenant_id, type, label_zh, label_en, value, href, display_order, status) VALUES ('yunnan-contact-test', 'yunnan-demo', 'phone', '测试电话', 'Test phone', '13900001234', 'tel:+8613900001234', 10, 'published')");
   const originalYunnanContacts = query("SELECT id, tenant_id, type, label_zh, label_en, value, href, display_order, status, created_at, updated_at FROM tenant_contact_channels WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id");
-  execute("UPDATE tenant_contact_channels SET value = '  qianlin-test@example.com  ' WHERE tenant_id = 'qianlin-travel' AND type = 'email' AND status = 'published'");
+  execute("UPDATE tenant_contact_channels SET value = '  qianlin-test@example.com  ', href = 'mailto:qianlin-test@example.com' WHERE tenant_id = 'qianlin-travel' AND type = 'email' AND status = 'published'");
   const qianlinEmail = "qianlin-test@example.com";
   execute("INSERT INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('configuring-test', 'configuring-test', '配置测试', 'Configuring test', 'active', 'configuring', 'zh', 0)");
 
@@ -355,7 +355,7 @@ try {
   const wechatIndex = currentQianlinContacts.findIndex((contact) => contact.type === "wechat");
   const emailIndex = currentQianlinContacts.findIndex((contact) => contact.type === "email");
   assert.ok(phoneIndex >= 0 && wechatIndex >= 0 && emailIndex >= 0);
-  const phoneSaved = await saveContacts(contactWith(phoneIndex, { value: "13800001234", href: "tel:+8613800001234" }));
+  const phoneSaved = await saveContacts(contactWith(phoneIndex, { value: "13800001234", href: "" }));
   assert.equal(phoneSaved.response.status, 200);
   assert.equal(phoneSaved.body.contacts[phoneIndex].value, "13800001234");
   assert.equal(phoneSaved.body.contacts[phoneIndex].href, "tel:+8613800001234");
@@ -363,7 +363,7 @@ try {
   assert.equal(wechatSaved.response.status, 200);
   assert.equal(wechatSaved.body.contacts[wechatIndex].value, "qianlin-test-3d");
   assert.equal(wechatSaved.body.contacts[wechatIndex].href, "");
-  const emailSaved = await saveContacts({ channels: wechatSaved.body.contacts.map((contact, index) => index === emailIndex ? { ...contact, value: "contact-test@example.invalid", href: "mailto:contact-test@example.invalid" } : contact) });
+  const emailSaved = await saveContacts({ channels: wechatSaved.body.contacts.map((contact, index) => index === emailIndex ? { ...contact, value: "contact-test@example.invalid", href: "" } : contact) });
   assert.equal(emailSaved.response.status, 200);
   assert.equal(emailSaved.body.contacts[emailIndex].value, "contact-test@example.invalid");
   assert.equal(emailSaved.body.contacts[emailIndex].href, "mailto:contact-test@example.invalid");
@@ -378,6 +378,16 @@ try {
   const restored = await saveContacts({ channels: drafted.body.contacts.map((contact) => contact.id === emailSaved.body.contacts[phoneIndex].id ? { ...contact, status: "published" } : contact) });
   assert.equal(restored.response.status, 200);
   const updatedContactPayload = { channels: restored.body.contacts };
+  const contactsWith = (contacts, index, changes) => contacts.map((contact, contactIndex) => contactIndex === index ? { ...contact, ...changes } : { ...contact });
+  const phoneMismatch = await saveContacts({ channels: contactsWith(phoneSaved.body.contacts, phoneIndex, { href: "tel:+8613900001234" }) });
+  assert.ok([400, 409].includes(phoneMismatch.response.status));
+  const emailMismatch = await saveContacts({ channels: contactsWith(emailSaved.body.contacts, emailIndex, { href: "mailto:other@example.invalid" }) });
+  assert.ok([400, 409].includes(emailMismatch.response.status));
+  const changedType = await saveContacts({ channels: contactsWith(updatedContactPayload.channels, phoneIndex, { type: "email", value: "type-change@example.invalid", href: "" }) });
+  assert.ok([400, 409].includes(changedType.response.status));
+  const duplicatePhone = await saveContacts({ channels: contactsWith(updatedContactPayload.channels, wechatIndex, { type: "phone", value: "13800001234", href: "" }) });
+  assert.ok([400, 409].includes(duplicatePhone.response.status));
+  assert.deepEqual((await getContacts()).body.contacts, updatedContactPayload.channels);
 
   for (const invalidPayload of [
     contactWith(phoneIndex, { value: "" }),
@@ -391,6 +401,12 @@ try {
     contactWith(emailIndex, { value: "contact-test@example.invalid", href: "data:text/html,blocked" }),
     contactWith(emailIndex, { value: "contact-test@example.invalid", href: "blob:https://example.invalid/id" }),
     contactWith(emailIndex, { value: "contact-test@example.invalid", href: "https://example.invalid/../secret" }),
+    contactWith(emailIndex, { value: "contact-test@example.invalid", href: "mailto:contact-test@example.invalid%00" }),
+    contactWith(emailIndex, { value: "contact-test@example.invalid", href: "mailto:contact-test@example.invalid%1f" }),
+    contactWith(emailIndex, { value: "contact-test@example.invalid", href: "mailto:contact-test@example.invalid%7f" }),
+    contactWith(emailIndex, { value: "contact-test@example.invalid", href: "mailto:contact-test@example.invalid%0d" }),
+    contactWith(emailIndex, { value: "contact-test@example.invalid", href: "mailto:contact-test@example.invalid%0a" }),
+    contactWith(emailIndex, { value: "contact-test@example.invalid", href: "mailto:contact-test@example.invalid%250a" }),
     contactWith(phoneIndex, { value: "13800001234", displayOrder: -1 }),
     contactWith(phoneIndex, { value: "13800001234", displayOrder: 1001 }),
     contactWith(phoneIndex, { value: "13800001234", displayOrder: 1.5 }),

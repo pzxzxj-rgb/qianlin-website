@@ -8,13 +8,14 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const read = (relativePath) => fs.readFile(path.join(projectRoot, relativePath), "utf8");
 
 test("keeps 3D contact management fixed to existing safe channels and qianlin-travel", async () => {
-  const [page, manager, route, service, dashboard, layout] = await Promise.all([
+  const [page, manager, route, service, dashboard, layout, http] = await Promise.all([
     read("app/admin/contacts/page.tsx"),
     read("components/AdminContactManager.tsx"),
     read("app/api/admin/contacts/route.ts"),
     read("lib/admin/contacts.ts"),
     read("components/AdminDashboard.tsx"),
     read("app/admin/layout.tsx"),
+    read("scripts/test-local-http.mjs"),
   ]);
 
   assert.match(page, /getAdminSessionFromCookie/);
@@ -35,6 +36,12 @@ test("keeps 3D contact management fixed to existing safe channels and qianlin-tr
   assert.match(manager, /disabled=\{pending \|\| !isDirty\}/);
   assert.match(manager, /window\.confirm/);
   assert.match(manager, /sessionExpired/);
+  assert.match(manager, /<output/);
+  assert.doesNotMatch(manager, /updateField\(index, "type"/);
+  assert.match(manager, /AdminLogoutButton isDirty=\{isDirty\} disabled=\{pending\}/);
+  assert.match(manager, /popstate/);
+  assert.match(manager, /history\.pushState/);
+  assert.match(manager, /history\.back/);
   assert.doesNotMatch(manager, /dangerouslySetInnerHTML|localStorage|sessionStorage/);
   assert.doesNotMatch(manager, /tenantId|tenant_id|tenantSlug|ownerId|isDemo/);
   assert.match(route, /export async function GET/);
@@ -54,7 +61,21 @@ test("keeps 3D contact management fixed to existing safe channels and qianlin-tr
   assert.match(service, /eq\(tenantContactChannels\.id, value\.id\)/);
   assert.match(service, /eq\(tenantContactChannels\.tenantId, tenantId\)/);
   assert.match(service, /updatedAt: sql`CURRENT_TIMESTAMP`/);
+  assert.match(service, /current\.type !== value\.type/);
+  assert.match(service, /new Set\(values\.map\(\(value\) => value\.type\)\)/);
+  assert.match(service, /tel:\+86/);
+  assert.match(service, /mailto:/);
+  assert.match(service, /ENCODED_CONTROL_CHARACTER_PATTERN/);
   assert.match(dashboard, /href="\/admin\/contacts"/);
   assert.match(layout, /alternates: null/);
   assert.match(layout, /openGraph: null/);
+  assert.match(http, /changedType/);
+  assert.match(http, /duplicatePhone/);
+  assert.match(http, /phoneMismatch/);
+  assert.match(http, /emailMismatch/);
+  assert.match(http, /%0d/);
+  assert.match(http, /%0a/);
+  assert.match(http, /tel:\+8613800001234/);
+  assert.match(http, /mailto:contact-test@example\.invalid/);
+  assert.match(http, /originalYunnanContacts/);
 });

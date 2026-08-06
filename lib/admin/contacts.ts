@@ -47,6 +47,7 @@ const DISPLAY_ORDER_MIN = 0;
 const DISPLAY_ORDER_MAX = 1000;
 const HTML_MARKUP_PATTERN = /<\s*\/?\s*[a-z][^>]*>/i;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F]/;
+const ENCODED_CONTROL_CHARACTER_PATTERN = /%(?:0[0-9a-f]|1[0-9a-f]|7f)/i;
 const MAINLAND_PHONE_PATTERN = /^1[3-9]\d{9}$/;
 const EMAIL_PATTERN = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 const PHONE_SEPARATOR_PATTERN = /[\s\-\u2010-\u2015\u2212\uFF0D]/g;
@@ -74,6 +75,21 @@ function hasUnknownKeys(value: Record<string, unknown>, allowed: readonly string
 
 function characterLength(value: string) {
   return Array.from(value).length;
+}
+
+function containsEncodedControlCharacter(value: string) {
+  let candidate = value;
+  for (let index = 0; index < 3; index += 1) {
+    if (CONTROL_CHARACTER_PATTERN.test(candidate) || ENCODED_CONTROL_CHARACTER_PATTERN.test(candidate)) return true;
+    try {
+      const decoded = decodeURIComponent(candidate);
+      if (decoded === candidate) return false;
+      candidate = decoded;
+    } catch {
+      return false;
+    }
+  }
+  return CONTROL_CHARACTER_PATTERN.test(candidate) || ENCODED_CONTROL_CHARACTER_PATTERN.test(candidate);
 }
 
 function emptyContactValues(): AdminContactChannelValues {
@@ -132,14 +148,18 @@ function validateValue(value: unknown, type: AdminContactType, fieldErrors: Admi
   return normalizedValue;
 }
 
-function validateHref(value: unknown, type: AdminContactType, fieldErrors: AdminContactFieldErrors, key: string) {
+function validateHref(value: unknown, type: AdminContactType, contactValue: string, fieldErrors: AdminContactFieldErrors, key: string) {
   if (typeof value !== "string") {
     fieldErrors[key] = "跳转链接必须是文本。";
     return "";
   }
   const normalizedValue = value.trim();
-  if (!normalizedValue) return "";
-  if (characterLength(normalizedValue) > CONTACT_HREF_MAX_LENGTH || CONTROL_CHARACTER_PATTERN.test(normalizedValue) || /[<>"'\\]/.test(normalizedValue) || HREF_PATH_TRAVERSAL_PATTERN.test(normalizedValue)) {
+  if (!normalizedValue) {
+    if (type === "phone") return `tel:+86${contactValue}`;
+    if (type === "email") return `mailto:${contactValue}`;
+    return "";
+  }
+  if (characterLength(normalizedValue) > CONTACT_HREF_MAX_LENGTH || containsEncodedControlCharacter(normalizedValue) || /[<>"'\\]/.test(normalizedValue) || HREF_PATH_TRAVERSAL_PATTERN.test(normalizedValue)) {
     fieldErrors[key] = "跳转链接包含不安全内容。";
     return normalizedValue;
   }
@@ -153,15 +173,16 @@ function validateHref(value: unknown, type: AdminContactType, fieldErrors: Admin
     }
     if (protocol === "tel:") {
       const phone = normalizedValue.slice(4).replace(PHONE_SEPARATOR_PATTERN, "");
-      if (type !== "phone" || !/^(?:1[3-9]\d{9}|\+861[3-9]\d{9})$/.test(phone)) fieldErrors[key] = "电话跳转链接必须是安全的中国大陆手机链接。";
-      return `tel:${phone}`;
+      const normalizedPhone = phone.startsWith("+86") ? phone.slice(3) : phone;
+      if (type !== "phone" || !MAINLAND_PHONE_PATTERN.test(normalizedPhone) || normalizedPhone !== contactValue) fieldErrors[key] = "电话跳转链接必须与电话内容一致。";
+      return `tel:+86${normalizedPhone}`;
     }
     if (protocol === "mailto:") {
       const email = normalizedValue.slice(7).toLowerCase();
-      if (type !== "email" || !EMAIL_PATTERN.test(email) || email.includes("?") || email.includes("#")) fieldErrors[key] = "邮箱跳转链接必须是安全的 mailto 链接。";
+      if (type !== "email" || !EMAIL_PATTERN.test(email) || email.includes("?") || email.includes("#") || email !== contactValue) fieldErrors[key] = "邮箱跳转链接必须与邮箱内容一致。";
       return `mailto:${email}`;
     }
-    if (protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password || parsed.search.includes("javascript:")) {
+    if (protocol !== "https:" || type !== "wechat" || !parsed.hostname || parsed.username || parsed.password || parsed.search.includes("javascript:")) {
       fieldErrors[key] = "跳转链接只允许 tel:、mailto: 或合法的 https: 地址。";
       return normalizedValue;
     }
@@ -221,7 +242,7 @@ export function validateAdminContactsPayload(body: unknown): AdminContactValidat
     const labelZh = validatePlainText(channel.labelZh, fieldErrors, `${prefix}.labelZh`, "中文显示名称");
     const labelEn = validatePlainText(channel.labelEn, fieldErrors, `${prefix}.labelEn`, "英文显示名称");
     const normalizedValue = validateValue(channel.value, type, fieldErrors, `${prefix}.value`);
-    const href = validateHref(channel.href, type, fieldErrors, `${prefix}.href`);
+    const href = validateHref(channel.href, type, normalizedValue, fieldErrors, `${prefix}.href`);
     const displayOrder = validateDisplayOrder(channel.displayOrder, fieldErrors, `${prefix}.displayOrder`);
     const status = validateStatus(channel.status, fieldErrors, `${prefix}.status`);
     values.push({ id, type, labelZh, labelEn, value: normalizedValue, href, displayOrder, status });
@@ -267,7 +288,12 @@ function contactValuesMatch(row: AdminContactChannelValues, values: AdminContact
 export async function updateAdminContacts(tenantId: string, values: AdminContactChannelValues[]): Promise<AdminContactChannelValues[]> {
   assertAdminTenant(tenantId);
   const currentRows = await getAdminContacts(tenantId);
-  if (currentRows.length === 0 || currentRows.length !== values.length || new Set(values.map((value) => value.id)).size !== currentRows.length || values.some((value) => !currentRows.some((row) => row.id === value.id))) throw new AdminContactConfigurationError();
+  const currentById = new Map(currentRows.map((row) => [row.id, row]));
+  if (currentRows.length === 0 || currentRows.length !== values.length || new Set(values.map((value) => value.id)).size !== currentRows.length || values.some((value) => {
+    const current = currentById.get(value.id);
+    return !current || current.type !== value.type;
+  })) throw new AdminContactConfigurationError();
+  if (new Set(values.map((value) => value.type)).size !== values.length) throw new AdminContactConfigurationError();
 
   const db = await getDb();
   const statements = values.map((value) => db.update(tenantContactChannels).set({ type: value.type, labelZh: value.labelZh, labelEn: value.labelEn, value: value.value, href: value.href || null, displayOrder: value.displayOrder, status: value.status, updatedAt: sql`CURRENT_TIMESTAMP` }).where(and(eq(tenantContactChannels.id, value.id), eq(tenantContactChannels.tenantId, tenantId))));

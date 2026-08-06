@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useState } from "react";
 import type { AdminDashboardData } from "../lib/admin/getAdminDashboard";
 
-export function AdminLogoutButton() {
+export function AdminLogoutButton({ isDirty = false, disabled = false }: { isDirty?: boolean; disabled?: boolean }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
   async function handleLogout() {
-    if (pending) return;
+    if (pending || disabled) return;
+    if (isDirty && !window.confirm("有未保存的修改，确定退出登录吗？")) return;
     setPending(true);
     setError("");
     try {
@@ -22,7 +23,7 @@ export function AdminLogoutButton() {
     }
   }
 
-  return <span className="admin-logout-control"><button type="button" className="admin-logout" onClick={handleLogout} disabled={pending}>{pending ? "退出中…" : "退出登录"}</button>{error ? <span className="admin-action-error" role="alert">{error}</span> : null}</span>;
+  return <span className="admin-logout-control"><button type="button" className="admin-logout" onClick={handleLogout} disabled={pending || disabled}>{pending ? "退出中…" : "退出登录"}</button>{error ? <span className="admin-action-error" role="alert">{error}</span> : null}</span>;
 }
 
 export function AdminReloadButton() {

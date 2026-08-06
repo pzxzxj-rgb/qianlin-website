@@ -25,7 +25,6 @@ const STATUS_LABELS: Record<AdminContactStatus, string> = {
   archived: "已归档",
 };
 
-const ADMIN_CONTACT_TYPES: AdminContactType[] = ["phone", "wechat", "email"];
 const ADMIN_CONTACT_STATUSES: AdminContactStatus[] = ["draft", "published", "archived"];
 
 function cloneValues(values: AdminContactChannelValues[]) {
@@ -44,6 +43,8 @@ function isAdminContactValues(value: unknown): value is AdminContactChannelValue
 export function confirmAdminContactNavigation(isDirty: boolean) {
   return !isDirty || window.confirm("有未保存的修改，确定返回后台吗？");
 }
+
+type EditableContactField = Exclude<keyof AdminContactChannelValues, "id" | "type">;
 
 export function AdminContactManager({ initialValues }: { initialValues: AdminContactChannelValues[] }) {
   const router = useRouter();
@@ -66,11 +67,29 @@ export function AdminContactManager({ initialValues }: { initialValues: AdminCon
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
+  useEffect(() => {
+    if (!isDirty) return;
+    const guardedUrl = window.location.href;
+    let allowNavigation = false;
+    window.history.pushState({ ...window.history.state, adminContactGuard: true }, "", guardedUrl);
+    const handlePopState = () => {
+      if (allowNavigation) return;
+      if (window.confirm("有未保存的修改，确定离开联系方式管理吗？")) {
+        allowNavigation = true;
+        window.history.back();
+      } else {
+        window.history.pushState({ ...window.history.state, adminContactGuard: true }, "", guardedUrl);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [isDirty]);
+
   function handleReturn(event: MouseEvent<HTMLAnchorElement>) {
     if (!confirmAdminContactNavigation(isDirty)) event.preventDefault();
   }
 
-  function updateField(index: number, field: keyof AdminContactChannelValues, event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+  function updateField(index: number, field: EditableContactField, event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     const rawValue = event.target.value;
     setValues((current) => current.map((contact, contactIndex) => contactIndex === index ? { ...contact, [field]: field === "displayOrder" ? Number(rawValue) : rawValue } : contact));
     setFieldErrors((current) => {
@@ -128,7 +147,7 @@ export function AdminContactManager({ initialValues }: { initialValues: AdminCon
   }
 
   return <main className="admin-page">
-    <header className="admin-topbar"><Link className="admin-brand" href="/admin" onClick={handleReturn}><span className="brand-mark">Q</span><span><strong>QIANLIN TRAVEL</strong><small>联系方式管理</small></span></Link><div className="admin-topbar-actions"><Link className="admin-profile-back-link" href="/admin" onClick={handleReturn}>返回后台</Link><AdminLogoutButton /></div></header>
+    <header className="admin-topbar"><Link className="admin-brand" href="/admin" onClick={handleReturn}><span className="brand-mark">Q</span><span><strong>QIANLIN TRAVEL</strong><small>联系方式管理</small></span></Link><div className="admin-topbar-actions"><Link className="admin-profile-back-link" href="/admin" onClick={handleReturn}>返回后台</Link><AdminLogoutButton isDirty={isDirty} disabled={pending} /></div></header>
     <div className="admin-shell admin-contacts-shell">
       <div className="admin-heading"><div><span className="eyebrow">QIANLIN TRAVEL · CONTACTS</span><h1>联系方式管理</h1><p>编辑官网公开展示的电话、微信和邮箱。当前页面只管理黔林旅行社已有记录。</p></div></div>
       <section className="admin-card admin-contacts-card">
@@ -137,7 +156,7 @@ export function AdminContactManager({ initialValues }: { initialValues: AdminCon
           <p className="admin-contact-loading" role="status" aria-live="polite">{pending ? "正在保存联系方式……" : "联系方式已加载"}</p>
           {error ? <div className="admin-form-error" role="alert">{error}{sessionExpired ? <Link href="/admin/login">重新登录</Link> : null}</div> : null}
           {success ? <p className="admin-save-success" role="status">{success}</p> : null}
-          <div className="admin-contact-list">{values.map((contact, index) => <article className="admin-contact-card" key={contact.id}><div className="admin-contact-card-heading"><div><span className="eyebrow">CHANNEL {index + 1}</span><h3>{TYPE_LABELS[contact.type]}</h3></div><span className="admin-contact-id">已有记录</span></div><div className="admin-contact-fields"><div className="admin-contact-field"><label htmlFor={`type-${index}`}>类型</label><select id={`type-${index}`} name={`type-${index}`} value={contact.type} disabled={pending} onChange={(event) => updateField(index, "type", event)}>{ADMIN_CONTACT_TYPES.map((type) => <option value={type} key={type}>{TYPE_LABELS[type]}</option>)}</select></div>{renderField(index, "labelZh")}{renderField(index, "labelEn")}{renderField(index, "value")}{renderField(index, "href")}{renderField(index, "displayOrder")}<div className="admin-contact-field"><label htmlFor={`status-${index}`}>状态</label><select id={`status-${index}`} name={`status-${index}`} value={contact.status} disabled={pending} aria-invalid={Boolean(fieldErrors[`channels.${index}.status`])} aria-describedby={fieldErrors[`channels.${index}.status`] ? `status-${index}-error` : undefined} onChange={(event) => updateField(index, "status", event)}>{ADMIN_CONTACT_STATUSES.map((status) => <option value={status} key={status}>{STATUS_LABELS[status]}</option>)}</select>{fieldErrors[`channels.${index}.status`] ? <p id={`status-${index}-error`} className="admin-field-error" role="alert">{fieldErrors[`channels.${index}.status`]}</p> : null}</div></div></article>)}</div>
+          <div className="admin-contact-list">{values.map((contact, index) => <article className="admin-contact-card" key={contact.id}><div className="admin-contact-card-heading"><div><span className="eyebrow">CHANNEL {index + 1}</span><h3>{TYPE_LABELS[contact.type]}</h3></div><span className="admin-contact-id">已有记录</span></div><div className="admin-contact-fields"><div className="admin-contact-field"><label htmlFor={`type-${index}`}>类型</label><output id={`type-${index}`} className="admin-contact-readonly">{TYPE_LABELS[contact.type]}</output></div>{renderField(index, "labelZh")}{renderField(index, "labelEn")}{renderField(index, "value")}{renderField(index, "href")}{renderField(index, "displayOrder")}<div className="admin-contact-field"><label htmlFor={`status-${index}`}>状态</label><select id={`status-${index}`} name={`status-${index}`} value={contact.status} disabled={pending} aria-invalid={Boolean(fieldErrors[`channels.${index}.status`])} aria-describedby={fieldErrors[`channels.${index}.status`] ? `status-${index}-error` : undefined} onChange={(event) => updateField(index, "status", event)}>{ADMIN_CONTACT_STATUSES.map((status) => <option value={status} key={status}>{STATUS_LABELS[status]}</option>)}</select>{fieldErrors[`channels.${index}.status`] ? <p id={`status-${index}-error`} className="admin-field-error" role="alert">{fieldErrors[`channels.${index}.status`]}</p> : null}</div></div></article>)}</div>
           <div className="admin-profile-actions"><button className="button button-dark" type="submit" disabled={pending || !isDirty}>{pending ? "保存中……" : "保存联系方式"}</button><button className="button button-light" type="button" disabled={pending} onClick={() => { if (confirmAdminContactNavigation(isDirty)) router.push("/admin"); }}>取消</button></div>
         </form>
       </section>
