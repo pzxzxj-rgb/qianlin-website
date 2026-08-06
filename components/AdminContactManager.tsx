@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ChangeEvent, FormEvent, MouseEvent } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AdminLogoutButton } from "./AdminDashboard";
+import { confirmAdminNavigation, useAdminUnsavedChanges } from "./useAdminUnsavedChanges";
 import type { AdminContactChannelValues, AdminContactFieldErrors, AdminContactStatus, AdminContactType } from "../lib/admin/contacts";
 
 type AdminContactResponse = {
@@ -41,7 +42,7 @@ function isAdminContactValues(value: unknown): value is AdminContactChannelValue
 }
 
 export function confirmAdminContactNavigation(isDirty: boolean) {
-  return !isDirty || window.confirm("有未保存的修改，确定返回后台吗？");
+  return confirmAdminNavigation(isDirty, "有未保存的修改，确定返回后台吗？");
 }
 
 type EditableContactField = Exclude<keyof AdminContactChannelValues, "id" | "type">;
@@ -57,33 +58,7 @@ export function AdminContactManager({ initialValues }: { initialValues: AdminCon
   const [sessionExpired, setSessionExpired] = useState(false);
   const isDirty = JSON.stringify(values) !== JSON.stringify(baseline);
 
-  useEffect(() => {
-    if (!isDirty) return;
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isDirty]);
-
-  useEffect(() => {
-    if (!isDirty) return;
-    const guardedUrl = window.location.href;
-    let allowNavigation = false;
-    window.history.pushState({ ...window.history.state, adminContactGuard: true }, "", guardedUrl);
-    const handlePopState = () => {
-      if (allowNavigation) return;
-      if (window.confirm("有未保存的修改，确定离开联系方式管理吗？")) {
-        allowNavigation = true;
-        window.history.back();
-      } else {
-        window.history.pushState({ ...window.history.state, adminContactGuard: true }, "", guardedUrl);
-      }
-    };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [isDirty]);
+  useAdminUnsavedChanges(isDirty, "有未保存的修改，确定离开联系方式管理吗？");
 
   function handleReturn(event: MouseEvent<HTMLAnchorElement>) {
     if (!confirmAdminContactNavigation(isDirty)) event.preventDefault();

@@ -1,4 +1,4 @@
-export type AdminImageUsage = "hero" | "about" | "customize" | "tour";
+export type AdminImageUsage = "hero" | "about" | "customize" | "tour" | "destination";
 
 export type AdminImageOption = {
   path: string;
@@ -19,12 +19,12 @@ export const ADMIN_IMAGE_CATALOG = [
   { path: "/images/hero/hero-09.webp", labelZh: "贵州主题竖版视觉图 09", labelEn: "Guizhou portrait visual 09", recommendedFor: ["about"] },
   { path: "/images/guizhou/about-village.png", labelZh: "贵州山间村寨主题图", labelEn: "Guizhou mountain village image", recommendedFor: ["about"] },
   { path: "/images/guizhou/customize-mountains.png", labelZh: "贵州层叠群山主题图", labelEn: "Layered Guizhou mountains image", recommendedFor: ["customize", "hero", "tour"] },
-  { path: "/images/guizhou/fanjing-mountain.png", labelZh: "梵净山主题图", labelEn: "Fanjing Mountain image", recommendedFor: ["customize", "hero", "tour"] },
-  { path: "/images/guizhou/hero-guizhou.png", labelZh: "贵州山水主题宽幅图", labelEn: "Wide Guizhou landscape image", recommendedFor: ["hero", "customize", "tour"] },
-  { path: "/images/guizhou/huangguoshu.png", labelZh: "黄果树瀑布主题图", labelEn: "Huangguoshu Waterfall image", recommendedFor: ["hero", "customize", "tour"] },
-  { path: "/images/guizhou/libo-xiaoqikong.png", labelZh: "荔波小七孔主题图", labelEn: "Libo Xiaoqikong image", recommendedFor: ["hero", "customize", "tour"] },
-  { path: "/images/guizhou/wanfenglin.png", labelZh: "万峰林主题宽幅图", labelEn: "Wanfenglin landscape image", recommendedFor: ["hero", "customize", "tour"] },
-  { path: "/images/guizhou/xijiang-miao-village.png", labelZh: "西江千户苗寨主题图", labelEn: "Xijiang Miao Village image", recommendedFor: ["about", "customize", "tour"] },
+  { path: "/images/guizhou/fanjing-mountain.png", labelZh: "梵净山主题图", labelEn: "Fanjing Mountain image", recommendedFor: ["customize", "hero", "tour", "destination"] },
+  { path: "/images/guizhou/hero-guizhou.png", labelZh: "贵州山水主题宽幅图", labelEn: "Wide Guizhou landscape image", recommendedFor: ["hero", "customize", "tour", "destination"] },
+  { path: "/images/guizhou/huangguoshu.png", labelZh: "黄果树瀑布主题图", labelEn: "Huangguoshu Waterfall image", recommendedFor: ["hero", "customize", "tour", "destination"] },
+  { path: "/images/guizhou/libo-xiaoqikong.png", labelZh: "荔波小七孔主题图", labelEn: "Libo Xiaoqikong image", recommendedFor: ["hero", "customize", "tour", "destination"] },
+  { path: "/images/guizhou/wanfenglin.png", labelZh: "万峰林主题宽幅图", labelEn: "Wanfenglin landscape image", recommendedFor: ["hero", "customize", "tour", "destination"] },
+  { path: "/images/guizhou/xijiang-miao-village.png", labelZh: "西江千户苗寨主题图", labelEn: "Xijiang Miao Village image", recommendedFor: ["about", "customize", "tour", "destination"] },
 ] as const satisfies readonly AdminImageOption[];
 
 const ADMIN_IMAGE_PATHS = new Set<string>(ADMIN_IMAGE_CATALOG.map((image) => image.path));

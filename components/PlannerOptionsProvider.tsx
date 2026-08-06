@@ -19,14 +19,39 @@ const PlannerOptionsContext = createContext<PlannerOptionsContextValue | null>(n
 const initialState: PlannerOptionsState = { status: "idle", provinces: [], cities: [], destinations: [], errorZh: "", errorEn: "" };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object";
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isLocalizedText(value: unknown): value is { zh: string; en: string } {
+  return isRecord(value) && typeof value.zh === "string" && typeof value.en === "string";
+}
+
+function isPlannerDestination(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return typeof value.id === "string"
+    && typeof value.provinceCode === "string"
+    && typeof value.slug === "string"
+    && (value.cityCode === undefined || typeof value.cityCode === "string")
+    && isLocalizedText(value.name)
+    && isLocalizedText(value.description)
+    && typeof value.imageUrl === "string"
+    && (value.cardSize === "small" || value.cardSize === "large")
+    && isLocalizedText(value.region)
+    && (value.overnightSuggestion === undefined || isLocalizedText(value.overnightSuggestion))
+    && Number.isInteger(value.routeOrder)
+    && (value.recommendedVisitHours === undefined || (Number.isInteger(value.recommendedVisitHours) && value.recommendedVisitHours >= 1 && value.recommendedVisitHours <= 48))
+    && typeof value.majorAttraction === "boolean"
+    && typeof value.availableForPlanning === "boolean"
+    && typeof value.showOnHomepage === "boolean"
+    && Number.isInteger(value.displayOrder);
 }
 
 function isPlannerOptionsResponse(value: unknown, tenantSlug: string): value is PlannerOptionsResponse {
   if (!isRecord(value) || value.tenantSlug !== tenantSlug || typeof value.tenantId !== "string") return false;
   if (!Array.isArray(value.provinces) || !Array.isArray(value.cities) || !Array.isArray(value.destinations)) return false;
-  return value.cities.every((city) => isRecord(city) && typeof city.availableAsStart === "boolean" && typeof city.availableAsEnd === "boolean")
-    && value.destinations.every((destination) => isRecord(destination) && typeof destination.majorAttraction === "boolean" && typeof destination.availableForPlanning === "boolean" && typeof destination.showOnHomepage === "boolean");
+  return value.provinces.every((province) => isRecord(province) && typeof province.id === "string" && typeof province.code === "string" && isLocalizedText(province.name) && Number.isInteger(province.displayOrder))
+    && value.cities.every((city) => isRecord(city) && typeof city.id === "string" && typeof city.provinceCode === "string" && typeof city.code === "string" && isLocalizedText(city.name) && typeof city.availableAsStart === "boolean" && typeof city.availableAsEnd === "boolean" && Number.isInteger(city.displayOrder))
+    && value.destinations.every(isPlannerDestination);
 }
 
 export function PlannerOptionsProvider({ children, tenantSlug }: { children: React.ReactNode; tenantSlug: string }) {

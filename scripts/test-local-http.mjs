@@ -52,7 +52,12 @@ async function waitForServer() {
 }
 
 async function request(pathname, init) {
-  const response = await fetch(`${baseUrl}${pathname}`, init);
+  let response;
+  try {
+    response = await fetch(`${baseUrl}${pathname}`, { ...init, headers: { connection: "close", ...(init?.headers ?? {}) } });
+  } catch (error) {
+    throw new Error(`HTTP request failed for ${pathname}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+  }
   const text = await response.text();
   let body = null;
   try {
@@ -104,6 +109,9 @@ try {
   const originalYunnanContacts = query("SELECT id, tenant_id, type, label_zh, label_en, value, href, display_order, status, created_at, updated_at FROM tenant_contact_channels WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id");
   execute("INSERT OR IGNORE INTO tenant_tours (id, tenant_id, slug, title_zh, title_en, description_zh, description_en, duration_zh, duration_en, tag_zh, tag_en, price_text_zh, price_text_en, image_url, image_alt_zh, image_alt_en, featured, display_order, status) VALUES ('yunnan-tour-test', 'yunnan-demo', 'fictional-shared-route', '云南虚构线路', 'Fictional Yunnan route', '云南租户测试线路介绍。', 'A fictional Yunnan tour for tenant isolation tests.', '', '', '测试', 'Test', '', '', '', '', '', 1, 5, 'published')");
   const originalYunnanTours = query("SELECT id, tenant_id, slug, title_zh, title_en, description_zh, description_en, duration_zh, duration_en, tag_zh, tag_en, price_text_zh, price_text_en, image_url, image_alt_zh, image_alt_en, featured, display_order, status, created_at, updated_at FROM tenant_tours WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id");
+  const originalQianlinDestinationIdentities = query("SELECT id, tenant_id FROM planner_destinations WHERE tenant_id = 'qianlin-travel' ORDER BY id");
+  execute("INSERT OR IGNORE INTO planner_destinations (id, tenant_id, province_code, slug, city_code, name_zh, name_en, description_zh, description_en, image_url, card_size, region_zh, region_en, route_order, overnight_zh, overnight_en, recommended_visit_hours, major_attraction, available_for_planning, show_on_homepage, display_order, status) VALUES ('yunnan-destination-test', 'yunnan-demo', 'guizhou', 'fictional-shared-destination', 'yunnan-test-city', '云南虚构目的地', 'Fictional Yunnan destination', '云南租户虚构目的地介绍。', 'A fictional Yunnan destination for tenant isolation tests.', '/images/guizhou/hero-guizhou.png', 'small', '云南虚构区域', 'Fictional Yunnan region', 5, '', '', 3, 1, 1, 1, 5, 'published')");
+  const originalYunnanDestinations = query("SELECT id, tenant_id, province_code, slug, city_code, name_zh, name_en, description_zh, description_en, image_url, card_size, region_zh, region_en, route_order, overnight_zh, overnight_en, recommended_visit_hours, major_attraction, available_for_planning, show_on_homepage, display_order, status, created_at, updated_at FROM planner_destinations WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id");
   execute("UPDATE tenant_contact_channels SET value = '  qianlin-test@example.com  ', href = 'mailto:qianlin-test@example.com' WHERE tenant_id = 'qianlin-travel' AND type = 'email' AND status = 'published'");
   const qianlinEmail = "qianlin-test@example.com";
   execute("INSERT INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('configuring-test', 'configuring-test', '配置测试', 'Configuring test', 'active', 'configuring', 'zh', 0)");
@@ -127,6 +135,9 @@ try {
   const anonymousToursPage = await request("/admin/tours", { redirect: "manual" });
   assert.ok([302, 303, 307, 308].includes(anonymousToursPage.response.status));
   assert.match(anonymousToursPage.response.headers.get("location") ?? "", /\/admin\/login/);
+  const anonymousDestinationsPage = await request("/admin/destinations", { redirect: "manual" });
+  assert.ok([302, 303, 307, 308].includes(anonymousDestinationsPage.response.status));
+  assert.match(anonymousDestinationsPage.response.headers.get("location") ?? "", /\/admin\/login/);
   const anonymousProfileSave = await request("/api/admin/profile", { method: "PUT", headers: { "content-type": "application/json", origin: baseUrl }, body: "{}" });
   assert.equal(anonymousProfileSave.response.status, 401);
   const anonymousContactsRead = await request("/api/admin/contacts");
@@ -139,6 +150,12 @@ try {
   assert.equal(anonymousToursCreate.response.status, 401);
   const anonymousToursUpdate = await request("/api/admin/tours/missing-tour", { method: "PUT", headers: { "content-type": "application/json", origin: baseUrl }, body: "{}" });
   assert.equal(anonymousToursUpdate.response.status, 401);
+  const anonymousDestinationsRead = await request("/api/admin/destinations");
+  assert.equal(anonymousDestinationsRead.response.status, 401);
+  const anonymousDestinationsCreate = await request("/api/admin/destinations", { method: "POST", headers: { "content-type": "application/json", origin: baseUrl }, body: "{}" });
+  assert.equal(anonymousDestinationsCreate.response.status, 401);
+  const anonymousDestinationsUpdate = await request("/api/admin/destinations/missing-destination", { method: "PUT", headers: { "content-type": "application/json", origin: baseUrl }, body: "{}" });
+  assert.equal(anonymousDestinationsUpdate.response.status, 401);
   const wrongLogin = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: adminTestUsername, password: "wrong-password" }) });
   assert.equal(wrongLogin.response.status, 401);
   const wrongUsername = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: "wrong-user", password: adminTestPassword }) });
@@ -181,6 +198,19 @@ try {
     body: options.body ?? JSON.stringify(payload),
   });
   const updateTour = (tourId, payload, options = {}) => request(`/api/admin/tours/${encodeURIComponent(tourId)}`, {
+    method: "PUT",
+    headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
+    body: options.body ?? JSON.stringify(payload),
+  });
+  const getDestinations = (options = {}) => request("/api/admin/destinations", {
+    headers: { cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
+  });
+  const createDestination = (payload, options = {}) => request("/api/admin/destinations", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
+    body: options.body ?? JSON.stringify(payload),
+  });
+  const updateDestination = (destinationId, payload, options = {}) => request(`/api/admin/destinations/${encodeURIComponent(destinationId)}`, {
     method: "PUT",
     headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
     body: options.body ?? JSON.stringify(payload),
@@ -366,6 +396,17 @@ try {
   assert.match(String(toursPage.body), /已有线路/);
   assert.match(String(toursPage.body), /线路数据已加载/);
   assert.doesNotMatch(String(toursPage.body), /yunnan-demo|云南虚构线路/);
+  const destinationsPage = await request("/admin/destinations", { headers: { cookie: sessionCookie } });
+  assert.equal(destinationsPage.response.status, 200);
+  assert.match(destinationsPage.response.headers.get("cache-control") ?? "", /no-store/i);
+  assert.match(String(destinationsPage.body), /<title>目的地管理 \| 黔林旅行社<\/title>/);
+  assert.match(String(destinationsPage.body), /<meta[^>]+name="robots"[^>]+noindex/i);
+  assert.doesNotMatch(String(destinationsPage.body), /rel="canonical"|property="og:/i);
+  assert.match(String(destinationsPage.body), /新增目的地/);
+  assert.match(String(destinationsPage.body), /已有目的地/);
+  assert.match(String(destinationsPage.body), /状态筛选/);
+  assert.match(String(destinationsPage.body), /黄果树瀑布/);
+  assert.doesNotMatch(String(destinationsPage.body), /yunnan-demo|云南虚构目的地/);
   const toursRead = await getTours();
   assert.equal(toursRead.response.status, 200);
   assert.match(toursRead.response.headers.get("cache-control") ?? "", /no-store/i);
@@ -379,6 +420,192 @@ try {
   assert.equal(tooLargeTours.response.status, 413);
   const invalidJsonTours = await createTour({}, { body: "{" });
   assert.equal(invalidJsonTours.response.status, 400);
+  const destinationsRead = await getDestinations();
+  assert.equal(destinationsRead.response.status, 200);
+  assert.match(destinationsRead.response.headers.get("cache-control") ?? "", /no-store/i);
+  assert.equal(destinationsRead.body.destinations.length, 16);
+  assert.ok(destinationsRead.body.cityOptions.some((city) => city.code === "guiyang"));
+  assert.ok(destinationsRead.body.cityOptions.every((city) => !Object.hasOwn(city, "tenantId") && !Object.hasOwn(city, "tenant_id")));
+  assert.doesNotMatch(JSON.stringify(destinationsRead.body), /yunnan-demo|云南虚构目的地|tenantId|tenant_id|tenantSlug|ownerId|organizationId|isDemo|createdBy|createdAt|updatedAt/i);
+  const invalidDestinationsOrigin = await createDestination({}, { headers: { origin: "https://evil.example" } });
+  assert.equal(invalidDestinationsOrigin.response.status, 403);
+  const nonJsonDestinations = await createDestination({}, { headers: { "content-type": "text/plain" }, body: "{}" });
+  assert.equal(nonJsonDestinations.response.status, 415);
+  const tooLargeDestinations = await createDestination({ descriptionEn: "x".repeat(70_000) });
+  assert.equal(tooLargeDestinations.response.status, 413);
+  const invalidJsonDestinations = await createDestination({}, { body: "{" });
+  assert.equal(invalidJsonDestinations.response.status, 400);
+
+  const validDestination = {
+    slug: "fictional-destination-route",
+    cityCode: "guiyang",
+    nameZh: "虚构贵州目的地",
+    nameEn: "Fictional Guizhou Destination",
+    descriptionZh: "用于本地集成测试的虚构贵州目的地介绍。",
+    descriptionEn: "A fictional Guizhou destination for local integration testing.",
+    imageUrl: "/images/guizhou/hero-guizhou.png",
+    cardSize: "large",
+    regionZh: "虚构贵州区域",
+    regionEn: "Fictional Guizhou region",
+    routeOrder: 5,
+    overnightZh: "贵阳",
+    overnightEn: "Guiyang",
+    recommendedVisitHours: 4,
+    majorAttraction: true,
+    availableForPlanning: true,
+    showOnHomepage: true,
+    displayOrder: 0,
+    status: "draft",
+  };
+  const createdDestinationResponse = await createDestination(validDestination);
+  assert.equal(createdDestinationResponse.response.status, 201);
+  assert.match(createdDestinationResponse.response.headers.get("cache-control") ?? "", /no-store/i);
+  assert.ok(createdDestinationResponse.body.destination?.id);
+  assert.doesNotMatch(JSON.stringify(createdDestinationResponse.body), /tenantId|tenant_id|tenantSlug|ownerId|organizationId|isDemo|createdBy|provinceCode|province_code|createdAt|updatedAt|session|token|password/i);
+  const createdDestination = createdDestinationResponse.body.destination;
+  const createdDestinationRow = query("SELECT id, tenant_id, province_code, city_code, created_at, updated_at FROM planner_destinations WHERE id = '" + createdDestination.id + "' AND tenant_id = 'qianlin-travel'")[0];
+  assert.equal(createdDestinationRow.tenant_id, "qianlin-travel");
+  assert.equal(createdDestinationRow.province_code, "guizhou");
+  assert.equal(createdDestinationRow.city_code, "guiyang");
+  assert.ok(createdDestinationRow.created_at);
+  const duplicateDestinationSlug = await createDestination({ ...validDestination, nameZh: "重复 slug 测试目的地" });
+  assert.equal(duplicateDestinationSlug.response.status, 409);
+  assert.doesNotMatch(JSON.stringify(duplicateDestinationSlug.body), /yunnan-demo|planner_destinations|SQL|UNIQUE/i);
+
+  const invalidDestinationPayloads = [
+    { slug: "ab" },
+    { slug: "Bad Slug" },
+    { slug: "bad/slug" },
+    { slug: "bad\\slug" },
+    { slug: "bad..slug" },
+    { slug: "bad%2fslug" },
+    { slug: "-bad-slug" },
+    { slug: "bad-slug-" },
+    { slug: "x".repeat(81) },
+    { nameZh: "" },
+    { nameZh: "   " },
+    { nameEn: "" },
+    { descriptionZh: "" },
+    { descriptionEn: "   " },
+    { descriptionZh: "x".repeat(1_001) },
+    { descriptionEn: "x".repeat(1_501) },
+    { nameZh: "<script>alert(1)</script>" },
+    { descriptionEn: "<strong>unsafe</strong>" },
+    { cityCode: "not-a-real-city" },
+    { imageUrl: "https://example.invalid/destination.webp" },
+    { imageUrl: "http://example.invalid/destination.webp" },
+    { imageUrl: "data:image/png;base64,blocked" },
+    { imageUrl: "blob:https://example.invalid/id" },
+    { imageUrl: "javascript:alert(1)" },
+    { imageUrl: "/images/hero/hero-06.webp" },
+    { imageUrl: "/images/guizhou/../secret.png" },
+    { imageUrl: "/images/guizhou/hero-guizhou.png?x=1" },
+    { imageUrl: "/images/guizhou/hero-guizhou.png#part" },
+    { imageUrl: "/images/guizhou\\hero-guizhou.png" },
+    { cardSize: "medium" },
+    { regionZh: "" },
+    { routeOrder: -1 },
+    { routeOrder: 1001 },
+    { routeOrder: 1.5 },
+    { routeOrder: "1" },
+    { displayOrder: -1 },
+    { displayOrder: 1001 },
+    { displayOrder: 1.5 },
+    { displayOrder: "1" },
+    { overnightZh: "贵阳", overnightEn: "" },
+    { overnightZh: "", overnightEn: "Guiyang" },
+    { recommendedVisitHours: 0 },
+    { recommendedVisitHours: 49 },
+    { recommendedVisitHours: 1.5 },
+    { recommendedVisitHours: "4" },
+    { majorAttraction: "true" },
+    { availableForPlanning: 1 },
+    { showOnHomepage: "false" },
+    { status: "pending" },
+    { showOnHomepage: true, imageUrl: "" },
+  ];
+  for (const [index, changes] of invalidDestinationPayloads.entries()) {
+    const invalidDestination = await createDestination({ ...validDestination, ...changes, slug: changes.slug ?? `invalid-destination-${index}` });
+    assert.equal(invalidDestination.response.status, 400, `invalid destination case ${index}`);
+    assert.ok(invalidDestination.body && typeof invalidDestination.body === "object" && invalidDestination.body.fieldErrors);
+  }
+  const residualFailure = await createDestination({ ...validDestination, slug: "residual-city-destination", cityCode: "yunnan-test-city" });
+  assert.equal(residualFailure.response.status, 400);
+  assert.equal(query("SELECT COUNT(*) AS count FROM planner_destinations WHERE tenant_id = 'qianlin-travel' AND slug = 'residual-city-destination'")[0].count, 0);
+  for (const dangerousField of ["id", "tenantId", "tenant_id", "tenantSlug", "ownerId", "organizationId", "isDemo", "createdBy", "provinceCode", "province_code", "createdAt", "updatedAt"]) {
+    const dangerousDestination = await createDestination({ ...validDestination, slug: `dangerous-destination-${dangerousField.toLowerCase()}`, [dangerousField]: dangerousField === "id" ? "client-destination-id" : "yunnan-demo" });
+    assert.equal(dangerousDestination.response.status, 400);
+  }
+  const unknownDestinationField = await createDestination({ ...validDestination, slug: "unknown-destination-field", unexpected: "rejected" });
+  assert.equal(unknownDestinationField.response.status, 400);
+  assert.equal(query("SELECT COUNT(*) AS count FROM planner_destinations WHERE tenant_id = 'qianlin-travel' AND slug IN ('unknown-destination-field', 'dangerous-destination-tenantid')")[0].count, 0);
+
+  const toDestinationPayload = (row) => ({
+    slug: row.slug,
+    cityCode: row.city_code ?? "",
+    nameZh: row.name_zh,
+    nameEn: row.name_en,
+    descriptionZh: row.description_zh,
+    descriptionEn: row.description_en,
+    imageUrl: row.image_url,
+    cardSize: row.card_size,
+    regionZh: row.region_zh,
+    regionEn: row.region_en,
+    routeOrder: row.route_order,
+    overnightZh: row.overnight_zh,
+    overnightEn: row.overnight_en,
+    recommendedVisitHours: row.recommended_visit_hours,
+    majorAttraction: Boolean(row.major_attraction),
+    availableForPlanning: Boolean(row.available_for_planning),
+    showOnHomepage: Boolean(row.show_on_homepage),
+    displayOrder: row.display_order,
+    status: row.status,
+  });
+  execute("UPDATE planner_destinations SET updated_at = '2000-01-01 00:00:00' WHERE id = 'huangguoshu-waterfall' AND tenant_id = 'qianlin-travel'");
+  const existingDestinationBefore = query("SELECT id, tenant_id, province_code, slug, city_code, name_zh, name_en, description_zh, description_en, image_url, card_size, region_zh, region_en, route_order, overnight_zh, overnight_en, recommended_visit_hours, major_attraction, available_for_planning, show_on_homepage, display_order, status, created_at, updated_at FROM planner_destinations WHERE id = 'huangguoshu-waterfall' AND tenant_id = 'qianlin-travel'")[0];
+  const existingDestinationPayload = { ...toDestinationPayload(existingDestinationBefore), nameZh: "更新后的虚构黄果树目的地", nameEn: "Updated fictional Huangguoshu destination", majorAttraction: false, availableForPlanning: true, showOnHomepage: false, cardSize: "small", routeOrder: 42, displayOrder: 7, overnightZh: "安顺", overnightEn: "Anshun", recommendedVisitHours: 5, status: "published" };
+  const updatedExistingDestination = await updateDestination("huangguoshu-waterfall", existingDestinationPayload);
+  assert.equal(updatedExistingDestination.response.status, 200);
+  assert.equal(updatedExistingDestination.body.destination.nameZh, "更新后的虚构黄果树目的地");
+  assert.doesNotMatch(JSON.stringify(updatedExistingDestination.body), /tenantId|tenant_id|tenantSlug|ownerId|organizationId|isDemo|createdBy|provinceCode|province_code|createdAt|updatedAt|session|token|password/i);
+  const updatedExistingRow = query("SELECT id, tenant_id, province_code, created_at, updated_at, name_zh, display_order FROM planner_destinations WHERE id = 'huangguoshu-waterfall' AND tenant_id = 'qianlin-travel'")[0];
+  assert.equal(updatedExistingRow.id, existingDestinationBefore.id);
+  assert.equal(updatedExistingRow.tenant_id, "qianlin-travel");
+  assert.equal(updatedExistingRow.province_code, "guizhou");
+  assert.equal(updatedExistingRow.created_at, existingDestinationBefore.created_at);
+  assert.notEqual(updatedExistingRow.updated_at, "2000-01-01 00:00:00");
+  assert.equal(updatedExistingRow.name_zh, "更新后的虚构黄果树目的地");
+  assert.equal(updatedExistingRow.display_order, 7);
+  const createdDestinationUpdated = await updateDestination(createdDestination.id, { ...validDestination, nameZh: "发布后的虚构贵州目的地", status: "published", displayOrder: 1, routeOrder: 6, availableForPlanning: false, showOnHomepage: true });
+  assert.equal(createdDestinationUpdated.response.status, 200);
+  const createdBeforeConflict = query("SELECT id, tenant_id, slug, name_zh, city_code, status FROM planner_destinations WHERE id = '" + createdDestination.id + "' AND tenant_id = 'qianlin-travel'")[0];
+  const duplicateDestinationUpdate = await updateDestination(createdDestination.id, { ...validDestination, slug: "huangguoshu-waterfall", nameZh: "不应写入的重复目的地" });
+  assert.equal(duplicateDestinationUpdate.response.status, 409);
+  assert.deepEqual(query("SELECT id, tenant_id, slug, name_zh, city_code, status FROM planner_destinations WHERE id = '" + createdDestination.id + "' AND tenant_id = 'qianlin-travel'")[0], createdBeforeConflict);
+  const invalidDestinationUpdate = await updateDestination(createdDestination.id, { ...validDestination, cityCode: "yunnan-test-city" });
+  assert.equal(invalidDestinationUpdate.response.status, 400);
+  assert.deepEqual(query("SELECT id, tenant_id, slug, name_zh, city_code, status FROM planner_destinations WHERE id = '" + createdDestination.id + "' AND tenant_id = 'qianlin-travel'")[0], createdBeforeConflict);
+  const publishedDestinationPayload = { ...validDestination, nameZh: "发布后的虚构贵州目的地", status: "published", displayOrder: 1, routeOrder: 6, availableForPlanning: true, showOnHomepage: true };
+  const archivedDestination = await updateDestination(createdDestination.id, { ...publishedDestinationPayload, status: "archived" });
+  assert.equal(archivedDestination.response.status, 200);
+  const restoredDestination = await updateDestination(createdDestination.id, publishedDestinationPayload);
+  assert.equal(restoredDestination.response.status, 200);
+  const crossTenantDestination = await updateDestination("yunnan-destination-test", { ...validDestination, slug: "fictional-shared-destination" });
+  const missingDestination = await updateDestination("missing-destination-id", validDestination);
+  assert.equal(crossTenantDestination.response.status, 404);
+  assert.equal(missingDestination.response.status, 404);
+  assert.deepEqual(crossTenantDestination.body, missingDestination.body);
+  assert.doesNotMatch(JSON.stringify(crossTenantDestination.body), /yunnan-demo|yunnan-destination-test|planner_destinations|SQL/i);
+  assert.deepEqual(query("SELECT id, tenant_id, province_code, slug, city_code, name_zh, name_en, description_zh, description_en, image_url, card_size, region_zh, region_en, route_order, overnight_zh, overnight_en, recommended_visit_hours, major_attraction, available_for_planning, show_on_homepage, display_order, status, created_at, updated_at FROM planner_destinations WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id"), originalYunnanDestinations);
+  const destinationReadAfterSave = await getDestinations();
+  assert.equal(destinationReadAfterSave.response.status, 200);
+  assert.equal(destinationReadAfterSave.body.destinations.length, 17);
+  assert.ok(destinationReadAfterSave.body.destinations.some((destination) => destination.id === createdDestination.id && destination.status === "published"));
+  assert.ok(destinationReadAfterSave.body.destinations.every((destination) => !Object.hasOwn(destination, "tenantId") && !Object.hasOwn(destination, "tenant_id") && !Object.hasOwn(destination, "provinceCode") && !Object.hasOwn(destination, "createdAt") && !Object.hasOwn(destination, "updatedAt")));
+  const draftDestination = await createDestination({ ...validDestination, slug: "draft-fictional-destination", nameZh: "草稿虚构目的地", status: "draft", imageUrl: "", showOnHomepage: false });
+  const archivedDestinationForPublic = await createDestination({ ...validDestination, slug: "archived-fictional-destination", nameZh: "归档虚构目的地", status: "archived", showOnHomepage: false });
+  assert.equal(draftDestination.response.status, 201);
+  assert.equal(archivedDestinationForPublic.response.status, 201);
 
   const validTour = {
     slug: "fictional-guizhou-5-days",
@@ -601,6 +828,9 @@ try {
     assert.equal((await getTours({ cookie: invalidCookie })).response.status, 401);
     assert.equal((await createTour(validTour, { cookie: invalidCookie })).response.status, 401);
     assert.equal((await updateTour(createdTour.id, validTour, { cookie: invalidCookie })).response.status, 401);
+    assert.equal((await getDestinations({ cookie: invalidCookie })).response.status, 401);
+    assert.equal((await createDestination(validDestination, { cookie: invalidCookie })).response.status, 401);
+    assert.equal((await updateDestination(createdDestination.id, validDestination, { cookie: invalidCookie })).response.status, 401);
   }
   const tamperedSession = await request("/admin", { headers: { cookie: tamperedCookie }, redirect: "manual" });
   assert.ok([302, 303, 307, 308].includes(tamperedSession.response.status));
@@ -640,6 +870,12 @@ try {
   assert.equal(afterLogoutToursCreate.response.status, 401);
   const afterLogoutToursUpdate = await request(`/api/admin/tours/${encodeURIComponent(createdTour.id)}`, { method: "PUT", headers: { "content-type": "application/json", origin: baseUrl }, body: JSON.stringify(validTour) });
   assert.equal(afterLogoutToursUpdate.response.status, 401);
+  const afterLogoutDestinationsRead = await request("/api/admin/destinations");
+  assert.equal(afterLogoutDestinationsRead.response.status, 401);
+  const afterLogoutDestinationsCreate = await request("/api/admin/destinations", { method: "POST", headers: { "content-type": "application/json", origin: baseUrl }, body: JSON.stringify(validDestination) });
+  assert.equal(afterLogoutDestinationsCreate.response.status, 401);
+  const afterLogoutDestinationsUpdate = await request(`/api/admin/destinations/${encodeURIComponent(createdDestination.id)}`, { method: "PUT", headers: { "content-type": "application/json", origin: baseUrl }, body: JSON.stringify(validDestination) });
+  assert.equal(afterLogoutDestinationsUpdate.response.status, 401);
 
   const config = await request("/api/t/qianlin-travel/site-config");
   assert.equal(config.response.status, 200);
@@ -663,6 +899,17 @@ try {
   assert.equal(config.body.contacts.find((contact) => contact.type === "wechat")?.value, "qianlin-test-3d");
   assert.equal(config.body.contacts.find((contact) => contact.type === "email")?.value, "contact-test@example.invalid");
   assert.equal(config.body.contacts.find((contact) => contact.type === "email")?.href, "mailto:contact-test@example.invalid");
+  const qianlinOptions = await request("/api/t/qianlin-travel/planner/options");
+  assert.equal(qianlinOptions.response.status, 200);
+  assert.match(qianlinOptions.response.headers.get("cache-control") ?? "", /no-store/i);
+  assert.ok(qianlinOptions.body.destinations.some((destination) => destination.slug === "fictional-destination-route"));
+  assert.doesNotMatch(JSON.stringify(qianlinOptions.body), /draft-fictional-destination|archived-fictional-destination|yunnan-destination-test|云南虚构目的地/);
+  assert.ok(qianlinOptions.body.destinations.every((destination) => !Object.hasOwn(destination, "createdAt") && !Object.hasOwn(destination, "updatedAt") && !Object.hasOwn(destination, "tenant_id")));
+  for (let index = 1; index < qianlinOptions.body.destinations.length; index += 1) {
+    const previous = qianlinOptions.body.destinations[index - 1];
+    const current = qianlinOptions.body.destinations[index];
+    assert.ok(previous.routeOrder < current.routeOrder || (previous.routeOrder === current.routeOrder && (previous.displayOrder < current.displayOrder || (previous.displayOrder === current.displayOrder && previous.id <= current.id))));
+  }
   const publicHome = await request("/");
   assert.equal(publicHome.response.status, 200);
   assert.match(String(publicHome.body), /13800001234/);
@@ -684,7 +931,9 @@ try {
 
   const yunnanOptions = await request("/api/t/yunnan-demo/planner/options");
   assert.equal(yunnanOptions.response.status, 200);
-  assert.equal(yunnanOptions.body.destinations.length, 0);
+  assert.equal(yunnanOptions.body.destinations.length, 1);
+  assert.equal(yunnanOptions.body.destinations[0].id, "yunnan-destination-test");
+  assert.doesNotMatch(JSON.stringify(qianlinOptions.body), /yunnan-destination-test|fictional-shared-destination/);
   const sitemap = await request("/sitemap.xml");
   assert.equal(sitemap.response.status, 200);
   assert.doesNotMatch(String(sitemap.body), /yunnan-demo|configuring-test/);
@@ -743,6 +992,10 @@ try {
   assert.deepEqual(afterImageYunnanHeroes, originalYunnanHeroes);
   const afterYunnanTours = query("SELECT id, tenant_id, slug, title_zh, title_en, description_zh, description_en, duration_zh, duration_en, tag_zh, tag_en, price_text_zh, price_text_en, image_url, image_alt_zh, image_alt_en, featured, display_order, status, created_at, updated_at FROM tenant_tours WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id");
   assert.deepEqual(afterYunnanTours, originalYunnanTours);
+  const afterYunnanDestinations = query("SELECT id, tenant_id, province_code, slug, city_code, name_zh, name_en, description_zh, description_en, image_url, card_size, region_zh, region_en, route_order, overnight_zh, overnight_en, recommended_visit_hours, major_attraction, available_for_planning, show_on_homepage, display_order, status, created_at, updated_at FROM planner_destinations WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id");
+  assert.deepEqual(afterYunnanDestinations, originalYunnanDestinations);
+  const afterQianlinDestinationIdentities = query("SELECT id, tenant_id FROM planner_destinations WHERE tenant_id = 'qianlin-travel' ORDER BY id");
+  for (const originalDestination of originalQianlinDestinationIdentities) assert.ok(afterQianlinDestinationIdentities.some((destination) => destination.id === originalDestination.id && destination.tenant_id === originalDestination.tenant_id));
   const storedProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' LIMIT 1")[0];
   assert.equal(storedProfile.id, originalProfile.id);
   assert.equal(storedProfile.tenant_id, "qianlin-travel");

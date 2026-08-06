@@ -44,7 +44,7 @@ export async function getAdminDashboard(tenantId: string): Promise<AdminDashboar
     db.select({ type: tenantContactChannels.type, value: tenantContactChannels.value }).from(tenantContactChannels).where(and(eq(tenantContactChannels.tenantId, ADMIN_TENANT_ID), eq(tenantContactChannels.status, "published"), inArray(tenantContactChannels.type, ["phone", "email", "wechat"]))),
     db.select({ value: count() }).from(tenantHeroSlides).where(and(eq(tenantHeroSlides.tenantId, ADMIN_TENANT_ID), eq(tenantHeroSlides.status, "published"))),
     db.select({ value: count() }).from(tenantTours).where(eq(tenantTours.tenantId, ADMIN_TENANT_ID)),
-    db.select({ value: count() }).from(plannerDestinations).where(and(eq(plannerDestinations.tenantId, ADMIN_TENANT_ID), eq(plannerDestinations.status, "published"))),
+    db.select({ value: count() }).from(plannerDestinations).where(eq(plannerDestinations.tenantId, ADMIN_TENANT_ID)),
     db.select({ value: count() }).from(inquiries).where(eq(inquiries.tenantId, ADMIN_TENANT_ID)),
     db.select({ value: count() }).from(inquiries).where(and(eq(inquiries.tenantId, ADMIN_TENANT_ID), eq(inquiries.status, "new"))),
   ]);

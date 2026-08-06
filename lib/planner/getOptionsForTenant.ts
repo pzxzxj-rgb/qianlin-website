@@ -42,7 +42,7 @@ export async function getPlannerOptionsForTenant(tenant: TenantKey): Promise<Pla
       availableForPlanning: plannerDestinations.availableForPlanning,
       showOnHomepage: plannerDestinations.showOnHomepage,
       displayOrder: plannerDestinations.displayOrder,
-    }).from(plannerDestinations).where(and(eq(plannerDestinations.tenantId, tenant.id), eq(plannerDestinations.status, "published"))).orderBy(asc(plannerDestinations.displayOrder), asc(plannerDestinations.id)),
+    }).from(plannerDestinations).where(and(eq(plannerDestinations.tenantId, tenant.id), eq(plannerDestinations.provinceCode, "guizhou"), eq(plannerDestinations.status, "published"))).orderBy(asc(plannerDestinations.routeOrder), asc(plannerDestinations.displayOrder), asc(plannerDestinations.id)),
   ]);
   const provinceCodes = new Set([...cityRows.map((city) => city.provinceCode), ...destinationRows.map((destination) => destination.provinceCode)]);
   const provinceRows = provinceCodes.size === 0 ? [] : await db.select({

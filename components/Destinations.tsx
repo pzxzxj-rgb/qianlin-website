@@ -11,7 +11,7 @@ export function Destinations({ onSelectDestination }: DestinationsProps) {
   const { language, t } = useLanguage();
   const { status, destinations, error, retry } = usePlannerOptions();
   const [failedImageIds, setFailedImageIds] = useState<string[]>([]);
-  const homepageDestinations = destinations.filter((destination) => destination.showOnHomepage && destination.imageUrl.trim().length > 0 && !failedImageIds.includes(destination.id));
+  const homepageDestinations = destinations.filter((destination) => destination.showOnHomepage && destination.imageUrl.trim().length > 0 && !failedImageIds.includes(destination.id)).sort((left, right) => left.displayOrder - right.displayOrder || left.id.localeCompare(right.id));
 
   if (status === "idle" || status === "loading") return <section id="destinations" className="section section-destinations"><div className="container"><SectionHeading eyebrow={t.destinations.eyebrow} title={t.destinations.title} description={t.destinations.description} /><p className="planner-loading">{t.planner.loading}</p></div></section>;
   if (status === "error") return <section id="destinations" className="section section-destinations"><div className="container"><SectionHeading eyebrow={t.destinations.eyebrow} title={t.destinations.title} description={t.destinations.description} /><div className="planner-load-state"><p role="alert">{error}</p><button type="button" className="text-link" onClick={retry}>{t.planner.retry}</button></div></div></section>;

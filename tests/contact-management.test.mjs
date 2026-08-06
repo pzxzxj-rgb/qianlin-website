@@ -8,9 +8,10 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const read = (relativePath) => fs.readFile(path.join(projectRoot, relativePath), "utf8");
 
 test("keeps 3D contact management fixed to existing safe channels and qianlin-travel", async () => {
-  const [page, manager, route, service, dashboard, layout, http] = await Promise.all([
+  const [page, manager, guard, route, service, dashboard, layout, http] = await Promise.all([
     read("app/admin/contacts/page.tsx"),
     read("components/AdminContactManager.tsx"),
+    read("components/useAdminUnsavedChanges.ts"),
     read("app/api/admin/contacts/route.ts"),
     read("lib/admin/contacts.ts"),
     read("components/AdminDashboard.tsx"),
@@ -34,14 +35,16 @@ test("keeps 3D contact management fixed to existing safe channels and qianlin-tr
   assert.match(manager, /状态/);
   assert.match(manager, /正在保存联系方式/);
   assert.match(manager, /disabled=\{pending \|\| !isDirty\}/);
-  assert.match(manager, /window\.confirm/);
+  assert.match(guard, /window\.confirm/);
   assert.match(manager, /sessionExpired/);
   assert.match(manager, /<output/);
   assert.doesNotMatch(manager, /updateField\(index, "type"/);
   assert.match(manager, /AdminLogoutButton isDirty=\{isDirty\} disabled=\{pending\}/);
-  assert.match(manager, /popstate/);
-  assert.match(manager, /history\.pushState/);
-  assert.match(manager, /history\.back/);
+  assert.match(manager, /useAdminUnsavedChanges/);
+  assert.match(guard, /beforeunload/);
+  assert.match(guard, /popstate/);
+  assert.match(guard, /history\.pushState/);
+  assert.match(guard, /history\.back/);
   assert.doesNotMatch(manager, /dangerouslySetInnerHTML|localStorage|sessionStorage/);
   assert.doesNotMatch(manager, /tenantId|tenant_id|tenantSlug|ownerId|isDemo/);
   assert.match(route, /export async function GET/);

@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ChangeEvent, FormEvent, MouseEvent } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { getAdminImageOptions } from "../lib/admin/imageCatalog";
 import type { AdminTourFieldErrors, AdminTourInput, AdminTourStatus, AdminTourValues } from "../lib/admin/tours";
 import { AdminLogoutButton } from "./AdminDashboard";
 import { AdminImagePreview } from "./AdminImagePreview";
+import { confirmAdminNavigation, useAdminUnsavedChanges } from "./useAdminUnsavedChanges";
 
 type AdminTourResponse = {
   tour?: AdminTourValues;
@@ -100,7 +101,7 @@ function isAdminTourValues(value: unknown): value is AdminTourValues {
 }
 
 export function confirmAdminTourNavigation(isDirty: boolean) {
-  return !isDirty || window.confirm("有未保存的线路修改，确定离开旅游线路管理吗？");
+  return confirmAdminNavigation(isDirty, "有未保存的线路修改，确定离开旅游线路管理吗？");
 }
 
 export function AdminTourManager({ initialValues }: { initialValues: AdminTourValues[] }) {
@@ -120,33 +121,7 @@ export function AdminTourManager({ initialValues }: { initialValues: AdminTourVa
   const isDirty = isNewDirty || JSON.stringify(drafts) !== JSON.stringify(baselineDrafts);
   const pending = pendingKey !== null;
 
-  useEffect(() => {
-    if (!isDirty) return;
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isDirty]);
-
-  useEffect(() => {
-    if (!isDirty) return;
-    const guardedUrl = window.location.href;
-    let allowNavigation = false;
-    window.history.pushState({ ...window.history.state, adminTourGuard: true }, "", guardedUrl);
-    const handlePopState = () => {
-      if (allowNavigation) return;
-      if (window.confirm("有未保存的线路修改，确定离开旅游线路管理吗？")) {
-        allowNavigation = true;
-        window.history.back();
-      } else {
-        window.history.pushState({ ...window.history.state, adminTourGuard: true }, "", guardedUrl);
-      }
-    };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [isDirty]);
+  useAdminUnsavedChanges(isDirty, "有未保存的线路修改，确定离开旅游线路管理吗？");
 
   function setFormError(formKey: string, fieldErrors: AdminTourFieldErrors = {}) {
     setFormErrors((current) => ({ ...current, [formKey]: fieldErrors }));

@@ -7,7 +7,7 @@ import * as ts from "typescript";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => fs.readFile(path.join(projectRoot, file), "utf8");
-const [schema, migration, service, imageCatalog, page, api, updateApi, manager, resolver, types, home, dashboard, readme] = await Promise.all([
+const [schema, migration, service, imageCatalog, page, api, updateApi, manager, guard, resolver, types, home, dashboard, readme] = await Promise.all([
   read("db/schema.ts"),
   read("drizzle/0006_breezy_blink.sql"),
   read("lib/admin/tours.ts"),
@@ -16,6 +16,7 @@ const [schema, migration, service, imageCatalog, page, api, updateApi, manager, 
   read("app/api/admin/tours/route.ts"),
   read("app/api/admin/tours/[tourId]/route.ts"),
   read("components/AdminTourManager.tsx"),
+  read("components/useAdminUnsavedChanges.ts"),
   read("lib/tenancy/resolveTenant.ts"),
   read("lib/tenancy/types.ts"),
   read("components/TenantHomeClient.tsx"),
@@ -67,16 +68,17 @@ test("keeps the admin page private, separate, and protected from unsaved navigat
   assert.match(manager, /已有线路/);
   assert.match(manager, /线路数据已加载/);
   assert.match(manager, /保存中/);
-  assert.match(manager, /beforeunload/);
-  assert.match(manager, /popstate/);
-  assert.match(manager, /history\.pushState/);
+  assert.match(manager, /useAdminUnsavedChanges/);
+  assert.match(guard, /beforeunload/);
+  assert.match(guard, /popstate/);
+  assert.match(guard, /history\.pushState/);
   assert.match(manager, /AdminLogoutButton isDirty=\{isDirty\} disabled=\{pending\}/);
   assert.match(manager, /label htmlFor/);
   assert.doesNotMatch(manager, /tenantId|tenant_id|tenantSlug|localStorage|sessionStorage/);
 });
 
 test("limits image selection to the built-in tour whitelist", () => {
-  assert.match(imageCatalog, /AdminImageUsage = "hero" \| "about" \| "customize" \| "tour"/);
+  assert.match(imageCatalog, /AdminImageUsage = "hero" \| "about" \| "customize" \| "tour" \| "destination"/);
   assert.match(imageCatalog, /getAdminImageOptions/);
   assert.match(imageCatalog, /isAdminImagePathForUsage/);
   assert.match(manager, /getAdminImageOptions\("tour"\)/);
@@ -107,5 +109,5 @@ test("documents the deliberately excluded tour capabilities", () => {
   assert.match(readme, /线路管理已完成/);
   assert.match(readme, /图片只能选择项目内置白名单/);
   assert.match(readme, /不支持详细每日行程/);
-  assert.match(readme, /目的地和咨询管理仍未开放/);
+  assert.match(readme, /咨询管理仍未开放/);
 });

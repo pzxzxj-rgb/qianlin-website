@@ -11,7 +11,7 @@ export async function GET(_request: Request, context: { params: Promise<{ tenant
     const tenant = await resolveActiveTenantBySlug(tenantSlug);
     if (!tenant) return errorResponse(404);
     const response = await getPlannerOptionsForTenant(tenant);
-    return Response.json(response, { headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" } });
+    return Response.json(response, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Failed to load tenant planner options", error instanceof Error ? error.name : "UnknownError");
     return errorResponse();
