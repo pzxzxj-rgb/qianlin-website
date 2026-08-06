@@ -16,11 +16,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object";
 }
 
+function isPublicTour(value: unknown, tenantId: string) {
+  if (!isRecord(value)) return false;
+  return typeof value.id === "string" && value.tenantId === tenantId && typeof value.slug === "string" && isRecord(value.title) && typeof value.title.zh === "string" && typeof value.title.en === "string" && isRecord(value.description) && typeof value.description.zh === "string" && typeof value.description.en === "string" && typeof value.featured === "boolean" && Number.isInteger(value.displayOrder) && value.status === "published";
+}
+
 function isTenantSiteConfig(value: unknown, tenantSlug: string): value is TenantSiteConfig {
   if (!isRecord(value) || !isRecord(value.tenant) || !isRecord(value.profile)) return false;
   if (value.tenant.slug !== tenantSlug || typeof value.tenant.id !== "string") return false;
   if (value.tenant.siteStatus !== "configuring" && value.tenant.siteStatus !== "published") return false;
-  if (typeof value.isConfigured !== "boolean" || !Array.isArray(value.contacts) || !Array.isArray(value.heroSlides)) return false;
+  if (typeof value.isConfigured !== "boolean" || !Array.isArray(value.contacts) || !Array.isArray(value.tours) || !value.tours.every((tour) => isPublicTour(tour, value.tenant.id)) || !Array.isArray(value.heroSlides)) return false;
   return true;
 }
 

@@ -87,6 +87,37 @@ export const tenantContactChannels = sqliteTable("tenant_contact_channels", {
   statusCheck: check("ck_tenant_contact_channels_status", sql`${table.status} in ('draft', 'published', 'archived')`),
 }));
 
+export const tenantTours = sqliteTable("tenant_tours", {
+  id: text("id").primaryKey(),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  slug: text("slug").notNull(),
+  titleZh: text("title_zh").notNull(),
+  titleEn: text("title_en").notNull(),
+  descriptionZh: text("description_zh").notNull(),
+  descriptionEn: text("description_en").notNull(),
+  durationZh: text("duration_zh").notNull().default(""),
+  durationEn: text("duration_en").notNull().default(""),
+  tagZh: text("tag_zh").notNull().default(""),
+  tagEn: text("tag_en").notNull().default(""),
+  priceTextZh: text("price_text_zh").notNull().default(""),
+  priceTextEn: text("price_text_en").notNull().default(""),
+  imageUrl: text("image_url").notNull().default(""),
+  imageAltZh: text("image_alt_zh").notNull().default(""),
+  imageAltEn: text("image_alt_en").notNull().default(""),
+  featured: integer("featured", { mode: "boolean" }).notNull().default(false),
+  displayOrder: integer("display_order").notNull().default(0),
+  status: text("status").notNull().default("draft"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  tenantSlugUnique: uniqueIndex("uq_tenant_tours_tenant_slug").on(table.tenantId, table.slug),
+  tenantStatusFeaturedOrderIndex: index("idx_tenant_tours_tenant_status_featured_order").on(table.tenantId, table.status, table.featured, table.displayOrder),
+  tenantStatusOrderIndex: index("idx_tenant_tours_tenant_status_order").on(table.tenantId, table.status, table.displayOrder),
+  statusCheck: check("ck_tenant_tours_status", sql`${table.status} in ('draft', 'published', 'archived')`),
+  featuredCheck: check("ck_tenant_tours_featured", sql`${table.featured} in (0, 1)`),
+  displayOrderCheck: check("ck_tenant_tours_display_order", sql`${table.displayOrder} between 0 and 1000 and ${table.displayOrder} = cast(${table.displayOrder} as integer)`),
+}));
+
 export const tenantHeroSlides = sqliteTable("tenant_hero_slides", {
   id: text("id").primaryKey(),
   tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
@@ -176,6 +207,8 @@ export type TenantSiteProfile = typeof tenantSiteProfiles.$inferSelect;
 export type NewTenantSiteProfile = typeof tenantSiteProfiles.$inferInsert;
 export type TenantContactChannel = typeof tenantContactChannels.$inferSelect;
 export type NewTenantContactChannel = typeof tenantContactChannels.$inferInsert;
+export type TenantTour = typeof tenantTours.$inferSelect;
+export type NewTenantTour = typeof tenantTours.$inferInsert;
 export type TenantHeroSlide = typeof tenantHeroSlides.$inferSelect;
 export type NewTenantHeroSlide = typeof tenantHeroSlides.$inferInsert;
 export type PlannerProvince = typeof plannerProvinces.$inferSelect;

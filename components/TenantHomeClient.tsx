@@ -34,6 +34,7 @@ function emptySiteConfig(tenantSlug: string): TenantSiteConfig {
       images: { about: { src: "", alt: { zh: "", en: "" } }, customize: { src: "", alt: { zh: "", en: "" } } },
     },
     contacts: [],
+    tours: [],
     heroSlides: [],
   };
 }
@@ -44,7 +45,7 @@ function TenantHomeContent({ tenantSlug }: { tenantSlug: string }) {
   const siteConfig = config ?? emptySiteConfig(tenantSlug);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [inquiryPrefill, setInquiryPrefill] = useState<InquiryPrefill>({});
-  const visibleTours = useMemo(() => getVisibleTours([], siteConfig.tenant.id), [siteConfig.tenant.id]);
+  const visibleTours = useMemo(() => getVisibleTours(siteConfig.tours, siteConfig.tenant.id), [siteConfig.tours, siteConfig.tenant.id]);
   const hasVisibleTours = visibleTours.length > 0;
   const openCustomize = (prefill: InquiryPrefill = {}) => { setInquiryPrefill(prefill); setCustomizeOpen(true); };
   const openTourCustomize = (tourName: string) => openCustomize({ tourName });

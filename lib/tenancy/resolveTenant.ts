@@ -1,8 +1,10 @@
 import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "../../db";
-import { tenantContactChannels, tenantHeroSlides, tenantSiteProfiles, tenants } from "../../db/schema";
+import { tenantContactChannels, tenantHeroSlides, tenantSiteProfiles, tenantTours, tenants } from "../../db/schema";
+import { isAdminImagePathForUsage } from "../admin/imageCatalog";
 import { sanitizeContactHref } from "./sanitizeContactHref";
 import type { ResolvedTenant, TenantSiteConfig } from "./types";
+import type { Tour } from "../../types/tour";
 
 export const DEFAULT_TENANT_SLUG = "qianlin-travel";
 
@@ -60,7 +62,26 @@ function unconfiguredSiteConfig(tenant: ResolvedTenant): TenantSiteConfig {
       },
     },
     contacts: [],
+    tours: [],
     heroSlides: [],
+  };
+}
+
+function mapPublicTour(row: typeof tenantTours.$inferSelect): Tour {
+  const hasSafeImage = isAdminImagePathForUsage(row.imageUrl, "tour");
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    slug: row.slug,
+    title: { zh: row.titleZh, en: row.titleEn },
+    description: { zh: row.descriptionZh, en: row.descriptionEn },
+    ...(row.durationZh || row.durationEn ? { duration: { zh: row.durationZh, en: row.durationEn } } : {}),
+    ...(row.tagZh || row.tagEn ? { tag: { zh: row.tagZh, en: row.tagEn } } : {}),
+    ...(row.priceTextZh || row.priceTextEn ? { priceText: { zh: row.priceTextZh, en: row.priceTextEn } } : {}),
+    ...(hasSafeImage ? { image: row.imageUrl, imageAlt: { zh: row.imageAltZh, en: row.imageAltEn } } : {}),
+    featured: Boolean(row.featured),
+    displayOrder: row.displayOrder,
+    status: row.status === "published" || row.status === "archived" ? row.status : "draft",
   };
 }
 
@@ -72,9 +93,10 @@ export async function getTenantSiteConfig(tenant: ResolvedTenant): Promise<Tenan
   const profile = profileRows[0];
   if (!profile) return unconfiguredSiteConfig(tenant);
 
-  const [contactRows, heroRows] = await Promise.all([
+  const [contactRows, heroRows, tourRows] = await Promise.all([
     db.select().from(tenantContactChannels).where(and(eq(tenantContactChannels.tenantId, tenant.id), eq(tenantContactChannels.status, "published"))).orderBy(asc(tenantContactChannels.displayOrder), asc(tenantContactChannels.id)),
     db.select().from(tenantHeroSlides).where(and(eq(tenantHeroSlides.tenantId, tenant.id), eq(tenantHeroSlides.status, "published"))).orderBy(asc(tenantHeroSlides.displayOrder), asc(tenantHeroSlides.id)).limit(2),
+    db.select().from(tenantTours).where(and(eq(tenantTours.tenantId, tenant.id), eq(tenantTours.status, "published"))).orderBy(asc(tenantTours.displayOrder), asc(tenantTours.id)),
   ]);
 
   return {
@@ -105,6 +127,7 @@ export async function getTenantSiteConfig(tenant: ResolvedTenant): Promise<Tenan
       value: contact.value,
       ...(sanitizeContactHref(contact.href) ? { href: sanitizeContactHref(contact.href) } : {}),
     })),
+    tours: tourRows.map(mapPublicTour),
     heroSlides: heroRows.map((slide) => ({
       id: slide.id,
       src: slide.imageUrl,

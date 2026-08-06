@@ -1,3 +1,5 @@
+import type { Tour } from "../../types/tour";
+
 export type TenantLanguage = "zh" | "en";
 
 export type ResolvedTenant = {
@@ -38,6 +40,7 @@ export type TenantSiteConfig = {
     value: string;
     href?: string;
   }>;
+  tours: Tour[];
   heroSlides: Array<{
     id: string;
     src: string;

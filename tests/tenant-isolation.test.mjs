@@ -29,7 +29,7 @@ test("defines tenants before child tables and removes the inquiry default tenant
   assert.match(schema, /ck_tenants_status/);
   assert.match(schema, /ck_tenants_site_status/);
   assert.match(schema, /ck_tenants_default_language/);
-  for (const table of ["tenant_site_profiles", "tenant_contact_channels", "tenant_hero_slides", "planner_cities", "planner_destinations"]) {
+  for (const table of ["tenant_site_profiles", "tenant_contact_channels", "tenant_tours", "tenant_hero_slides", "planner_cities", "planner_destinations"]) {
     const start = schema.indexOf(`sqliteTable("${table}"`);
     const end = schema.indexOf("export const", start + 1);
     assert.match(schema.slice(start, end < 0 ? undefined : end), /references\(\(\) => tenants\.id, \{ onDelete: "restrict" \}\)/, table);

@@ -71,9 +71,10 @@ async function main() {
       "0003_early_bedlam.sql",
       "0004_numerous_captain_flint.sql",
       "0005_local_profile_images.sql",
+      "0006_breezy_blink.sql",
     ]);
 
-    const counts = query("SELECT (SELECT COUNT(*) FROM tenants WHERE status = 'active') AS active_tenants, (SELECT COUNT(*) FROM tenants WHERE site_status = 'published' AND id = 'qianlin-travel') AS qianlin_published, (SELECT COUNT(*) FROM tenants WHERE site_status = 'published' AND id = 'yunnan-demo') AS demo_published, (SELECT COUNT(*) FROM tenant_hero_slides WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_heroes, (SELECT COUNT(*) FROM tenant_hero_slides WHERE tenant_id = 'yunnan-demo' AND status = 'published') AS demo_heroes, (SELECT COUNT(*) FROM planner_cities WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_cities, (SELECT COUNT(*) FROM planner_destinations WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_destinations, (SELECT COUNT(*) FROM inquiries WHERE tenant_id IS NULL) AS null_inquiries", freshState);
+    const counts = query("SELECT (SELECT COUNT(*) FROM tenants WHERE status = 'active') AS active_tenants, (SELECT COUNT(*) FROM tenants WHERE site_status = 'published' AND id = 'qianlin-travel') AS qianlin_published, (SELECT COUNT(*) FROM tenants WHERE site_status = 'published' AND id = 'yunnan-demo') AS demo_published, (SELECT COUNT(*) FROM tenant_hero_slides WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_heroes, (SELECT COUNT(*) FROM tenant_hero_slides WHERE tenant_id = 'yunnan-demo' AND status = 'published') AS demo_heroes, (SELECT COUNT(*) FROM planner_cities WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_cities, (SELECT COUNT(*) FROM planner_destinations WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_destinations, (SELECT COUNT(*) FROM tenant_tours WHERE tenant_id = 'qianlin-travel') AS qianlin_tours, (SELECT COUNT(*) FROM tenant_tours WHERE tenant_id = 'yunnan-demo') AS demo_tours, (SELECT COUNT(*) FROM inquiries WHERE tenant_id IS NULL) AS null_inquiries", freshState);
     const countRow = counts[0];
     assert.equal(countRow.active_tenants, 2);
     assert.equal(countRow.qianlin_published, 1);
@@ -82,6 +83,8 @@ async function main() {
     assert.equal(countRow.demo_heroes, 0);
     assert.equal(countRow.qianlin_cities, 9);
     assert.equal(countRow.qianlin_destinations, 16);
+    assert.equal(countRow.qianlin_tours, 0);
+    assert.equal(countRow.demo_tours, 0);
     assert.equal(countRow.null_inquiries, 0);
     assert.equal(query("SELECT COUNT(*) AS count FROM tenants WHERE id = 'default' OR slug = 'default' OR slug = 'qianlin' ", freshState)[0].count, 0);
 
@@ -90,12 +93,25 @@ async function main() {
     assert.ok(query("PRAGMA foreign_key_list('inquiries')", freshState).some((row) => row.table === "tenants" && row.on_delete.toUpperCase() === "RESTRICT"));
     assert.equal(query("PRAGMA foreign_key_check", freshState).length, 0);
     assert.equal(query("SELECT COUNT(*) AS count FROM inquiries i LEFT JOIN tenants t ON t.id = i.tenant_id WHERE t.id IS NULL", freshState)[0].count, 0);
+    assert.ok(query("PRAGMA foreign_key_list('tenant_tours')", freshState).some((row) => row.table === "tenants" && row.on_delete.toUpperCase() === "RESTRICT"));
+    assert.equal(query("SELECT dflt_value FROM pragma_table_info('tenant_tours') WHERE name = 'tenant_id'", freshState)[0].dflt_value, null);
+    assert.ok(query("SELECT name FROM pragma_index_list('tenant_tours')", freshState).some((row) => row.name === "uq_tenant_tours_tenant_slug"));
+    assert.equal(query("PRAGMA foreign_key_check", freshState).length, 0);
 
     assert.throws(() => execute("INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent) VALUES ('missing-tenant', 'Test', '18900000000', '1', 1)", freshState));
     execute("INSERT INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('configuring-test', 'configuring-test', 'Configuring test', 'Configuring test', 'active', 'configuring', 'en', 0)", freshState);
     execute("INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent) VALUES ('yunnan-demo', 'Tenant test', '18900000000', '1', 1)", freshState);
     assert.equal(query("SELECT COUNT(*) AS count FROM inquiries WHERE tenant_id = 'yunnan-demo'", freshState)[0].count, 1);
     assert.equal(query("SELECT status, site_status, default_language FROM tenants WHERE id = 'configuring-test'", freshState)[0].site_status, "configuring");
+    const tourInsert = "('qianlin-tour-test','qianlin-travel','shared-slug','测试线路','Test tour','测试线路介绍','Test tour description','5天4晚','5 Days 4 Nights','','','价格请咨询','Contact us for price','/images/guizhou/huangguoshu.png','测试图片','Test image',1,10,'published')";
+    execute(`INSERT INTO tenant_tours (id, tenant_id, slug, title_zh, title_en, description_zh, description_en, duration_zh, duration_en, tag_zh, tag_en, price_text_zh, price_text_en, image_url, image_alt_zh, image_alt_en, featured, display_order, status) VALUES ${tourInsert}`, freshState);
+    execute("INSERT INTO tenant_tours (id, tenant_id, slug, title_zh, title_en, description_zh, description_en, featured, display_order, status) VALUES ('yunnan-tour-test','yunnan-demo','shared-slug','云南测试线路','Yunnan test tour','云南测试介绍','Yunnan test description',0,20,'draft')", freshState);
+    assert.throws(() => execute("INSERT INTO tenant_tours (id, tenant_id, slug, title_zh, title_en, description_zh, description_en, featured, display_order, status) VALUES ('qianlin-tour-duplicate','qianlin-travel','shared-slug','重复线路','Duplicate tour','重复介绍','Duplicate description',0,20,'draft')", freshState));
+    assert.throws(() => execute("INSERT INTO tenant_tours (id, tenant_id, slug, title_zh, title_en, description_zh, description_en, featured, display_order, status) VALUES ('invalid-tour-status','qianlin-travel','invalid-status','状态测试','Status test','介绍','Description',0,20,'invalid')", freshState));
+    assert.throws(() => execute("INSERT INTO tenant_tours (id, tenant_id, slug, title_zh, title_en, description_zh, description_en, featured, display_order, status) VALUES ('invalid-tour-featured','qianlin-travel','invalid-featured','推荐测试','Featured test','介绍','Description',2,20,'draft')", freshState));
+    assert.throws(() => execute("INSERT INTO tenant_tours (id, tenant_id, slug, title_zh, title_en, description_zh, description_en, featured, display_order, status) VALUES ('invalid-tour-order','qianlin-travel','invalid-order','顺序测试','Order test','介绍','Description',0,1.5,'draft')", freshState));
+    assert.equal(query("SELECT COUNT(*) AS count FROM tenant_tours WHERE tenant_id = 'qianlin-travel'", freshState)[0].count, 1);
+    assert.equal(query("SELECT COUNT(*) AS count FROM tenant_tours WHERE tenant_id = 'yunnan-demo'", freshState)[0].count, 1);
 
     await prepareLegacyMigrationConfig();
     applyMigrations(legacyState, legacyConfig);
@@ -116,10 +132,12 @@ async function main() {
       "0003_early_bedlam.sql",
       "0004_numerous_captain_flint.sql",
       "0005_local_profile_images.sql",
+      "0006_breezy_blink.sql",
     ]);
     assert.equal(query("SELECT customize_image_url FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel'", legacyState)[0].customize_image_url, "/images/guizhou/customize-mountains.png");
+    assert.equal(query("SELECT COUNT(*) AS count FROM tenant_tours", legacyState)[0].count, 0);
 
-    console.log("Local D1 integration passed: fresh 0000-0005 and existing 0000-0004 plus 0005 migration paths.");
+    console.log("Local D1 integration passed: fresh 0000-0006 and existing 0000-0004 plus 0005-0006 migration paths.");
   } finally {
     await fs.rm(freshState, { recursive: true, force: true });
     await fs.rm(legacyState, { recursive: true, force: true });
