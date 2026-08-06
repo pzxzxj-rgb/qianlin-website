@@ -73,7 +73,12 @@ test("keeps the admin destination page private and usable on mobile", () => {
   assert.match(manager, /状态筛选/);
   assert.match(manager, /hasHomepageImage/);
   assert.match(manager, /当前目的地没有首页图片，只能用于行程规划/);
-  assert.doesNotMatch(manager, /图片预览|AdminImagePreview|getAdminImageOptions|imageUrl/);
+  assert.match(manager, /destination\.nameZh/);
+  assert.match(manager, /destination\.nameEn/);
+  assert.match(manager, /首页/);
+  assert.match(manager, /规划/);
+  assert.match(manager, /编辑目的地/);
+  assert.doesNotMatch(manager, /admin-destination-summary-image|AdminImagePreview|getAdminImageOptions/);
   assert.match(manager, /贵州 \/ Guizhou/);
   assert.match(manager, /useAdminUnsavedChanges/);
   assert.match(manager, /AdminLogoutButton isDirty=\{isDirty\} disabled=\{pending\}/);

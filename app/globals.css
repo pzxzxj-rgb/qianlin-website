@@ -597,10 +597,7 @@ img { display: block; max-width: 100%; }
 .admin-destination-list-controls label { color: var(--muted); font-size: 10px; }
 .admin-destination-list-controls select { min-height: 34px; padding: 6px 9px; border: 1px solid var(--line); color: var(--ink); background: var(--sand); font: inherit; font-size: 11px; }
 .admin-destination-list { display: grid; gap: 16px; padding-top: 28px; }
-.admin-destination-summary { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 22px; padding: 18px; border: 1px solid var(--line); background: var(--sand); }
-.admin-destination-summary-image { display: grid; min-height: 150px; place-items: center; overflow: hidden; color: var(--muted); background: var(--forest); font-size: 11px; text-align: center; }
-.admin-destination-summary-image .admin-image-preview { width: 100%; min-height: 150px; }
-.admin-destination-summary-image .admin-image-preview img { height: 150px; }
+.admin-destination-summary { display: block; padding: 18px; border: 1px solid var(--line); background: var(--sand); }
 .admin-destination-summary-copy { display: grid; align-content: start; gap: 16px; min-width: 0; }
 .admin-destination-summary-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .admin-destination-summary-heading h3 { margin: 7px 0 0; font-family: Georgia, serif; font-size: 24px; font-weight: 400; }
@@ -612,7 +609,7 @@ img { display: block; max-width: 100%; }
 .admin-destination-summary-meta div { min-width: 0; }
 .admin-destination-summary-meta dt { color: var(--muted); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
 .admin-destination-summary-meta dd { margin: 6px 0 0; overflow-wrap: anywhere; color: var(--ink); font-size: 11px; }
-.admin-destination-edit { justify-self: start; }
+.admin-destination-edit { justify-self: end; }
 
 @media (max-width: 760px) {
   .admin-topbar { min-height: 72px; padding: 0 20px; }
@@ -661,7 +658,7 @@ img { display: block; max-width: 100%; }
   .admin-destination-form { grid-template-columns: 1fr; }
   .admin-destination-field-wide, .admin-destination-actions { grid-column: auto; }
   .admin-destination-list-controls { justify-content: flex-start; }
-  .admin-destination-summary { grid-template-columns: 1fr; gap: 16px; padding: 16px; }
+  .admin-destination-summary { padding: 16px; }
   .admin-destination-summary-heading { flex-direction: column; }
   .admin-destination-summary-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

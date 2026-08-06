@@ -406,8 +406,10 @@ try {
   assert.match(String(destinationsPage.body), /新增目的地/);
   assert.match(String(destinationsPage.body), /已有目的地/);
   assert.match(String(destinationsPage.body), /状态筛选/);
-  assert.match(String(destinationsPage.body), /已有首页图片|暂无首页图片/);
-  assert.doesNotMatch(String(destinationsPage.body), /AdminImagePreview|目的地图片|图片预览/);
+  assert.doesNotMatch(String(destinationsPage.body), /admin-destination-summary-image|暂无首页图片|AdminImagePreview|图片预览/);
+  assert.match(String(destinationsPage.body), /首页/);
+  assert.match(String(destinationsPage.body), /规划/);
+  assert.match(String(destinationsPage.body), /编辑目的地/);
   assert.match(String(destinationsPage.body), /黄果树瀑布/);
   assert.doesNotMatch(String(destinationsPage.body), /yunnan-demo|云南虚构目的地/);
   const toursRead = await getTours();
