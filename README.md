@@ -73,9 +73,43 @@ npx wrangler d1 execute <D1_DATABASE_NAME> --remote --command "SELECT id, tenant
 * 本地开发在两个 Turnstile 变量都为空时明确关闭校验。
 * 生产环境必须同时设置 `NEXT_PUBLIC_TURNSTILE_SITE_KEY` 和服务端专用的 `TURNSTILE_SECRET_KEY`。缺少配置时咨询提交会被拒绝。
 * Secret Key 只能放在服务端环境变量中，不能使用 `NEXT_PUBLIC_` 前缀，也不能提交到 GitHub。
-* 正式上线前还应在 Cloudflare 控制台配置访问频率限制。当前没有新增 KV、Durable Object 或 Rate Limiting 资源。
+* 正式上线前应在 Cloudflare 控制台配置 WAF Rate Limiting 规则。当前不新增 KV、Durable Object 或 Cloudflare Rate Limiting 资源。
 
-生产环境必须设置真实的 `NEXT_PUBLIC_SITE_URL`，例如 `https://www.example.com`。开发和测试环境可以回退到 `http://localhost:3000`。生产环境缺少该变量时，URL 工具会抛出明确配置错误，canonical、sitemap、robots 和 Open Graph 不会默默使用 localhost。
+## CI 与生产频率限制
+
+`.github/workflows/ci.yml` 使用 Node.js 22 和 npm 缓存，依次执行 `npm ci`、`npm run lint`、`npm run build`、`npm test` 和 `npm run test:integration:local`。这些步骤位于同一个必需的 CI Job 中，任一步失败都会使 Job 失败。GitHub 仓库的 main 分支规则还必须把 `lint, build, and tests` 设为 Required status check，并开启合并前必须通过检查。
+
+生产环境不要在应用内引入 KV 或 Durable Object 来实现频率限制。请在 Cloudflare 控制台的 WAF Rate Limiting rules 中创建以下规则，Host 条件替换为正式站点域名：
+
+1. 管理员登录失败限制
+
+   Matching expression：
+
+   ```text
+   http.request.uri.path eq "/api/admin/login" and http.request.method eq "POST"
+   ```
+
+   Counting expression：
+
+   ```text
+   http.request.uri.path eq "/api/admin/login" and http.request.method eq "POST" and http.response.code eq 401
+   ```
+
+   按 Source IP 计数，建议 5 次 / 10 分钟，触发后 Block 15 分钟。登录接口当前错误密码返回 401，因此该规则只累计连续失败登录，不累计成功登录。
+
+2. 公开咨询提交限制
+
+   Matching expression：
+
+   ```text
+   http.request.uri.path matches "^/api/t/[^/]+/inquiries$" and http.request.method eq "POST"
+   ```
+
+   按 Source IP 计数，建议 5 次 / 10 分钟，触发后 Block 10 分钟。该规则覆盖所有租户路径，避免攻击者通过切换 tenant slug 绕过限制。保留现有 Turnstile 和服务端校验作为第二层保护。
+
+   Cloudflare 文档说明了请求路径、方法、Source IP、响应码计数表达式以及周期和触发后的缓解时间配置，正式上线前应在 Request rate analysis 中根据真实流量复核阈值：[Rate limiting rules](https://developers.cloudflare.com/waf/rate-limiting-rules/)、[Rate limiting best practices](https://developers.cloudflare.com/waf/rate-limiting-rules/best-practices/)。
+
+生产环境必须设置真实的 `NEXT_PUBLIC_SITE_URL`，不能使用 `localhost`、`127.0.0.1` 或 `::1`。缺少配置或配置为本地地址时，生产 URL 工具会抛出明确错误，canonical 不会回退到本地地址。开发和测试环境可以使用 `http://localhost:3000`。
 
 ## 数据库迁移
 

@@ -31,19 +31,22 @@ function isTenantSiteConfig(value: unknown, tenantSlug: string): value is Tenant
 
 export function TenantSiteProvider({ tenantSlug, initialConfig, children }: { tenantSlug: string; initialConfig: TenantSiteConfig | null; children: React.ReactNode }) {
   const usableInitialConfig = initialConfig?.tenant.slug === tenantSlug ? initialConfig : null;
+  const hasInitialConfig = Boolean(usableInitialConfig);
   const [state, setState] = useState<{ status: TenantSiteState["status"]; config: TenantSiteConfig | null; isRefreshing: boolean }>({ status: usableInitialConfig ? "success" : "loading", config: usableInitialConfig, isRefreshing: false });
   const requestIdRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const lastRefreshAtRef = useRef(0);
 
   const loadConfig = useCallback(async () => {
     const requestId = ++requestIdRef.current;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    lastRefreshAtRef.current = Date.now();
     setState((current) => ({ status: current.config ? "success" : "loading", config: current.config, isRefreshing: Boolean(current.config) }));
 
     try {
-      const response = await fetch(`/api/t/${encodeURIComponent(tenantSlug)}/site-config`, { headers: { Accept: "application/json" }, signal: controller.signal });
+      const response = await fetch(`/api/t/${encodeURIComponent(tenantSlug)}/site-config`, { cache: "no-store", headers: { Accept: "application/json" }, signal: controller.signal });
       const payload: unknown = await response.json().catch(() => null);
       if (!response.ok || !isTenantSiteConfig(payload, tenantSlug)) throw new Error("SITE_CONFIG_UNAVAILABLE");
       if (requestId !== requestIdRef.current || controller.signal.aborted) return;
@@ -54,14 +57,28 @@ export function TenantSiteProvider({ tenantSlug, initialConfig, children }: { te
     }
   }, [tenantSlug]);
 
+  const refreshOnFocus = useCallback(() => {
+    if (document.visibilityState !== "visible" || Date.now() - lastRefreshAtRef.current < 30_000) return;
+    void loadConfig();
+  }, [loadConfig]);
+
   useEffect(() => {
-    const timer = window.setTimeout(() => { void loadConfig(); }, 0);
+    let initialLoadTimer: number | undefined;
+    if (!hasInitialConfig) {
+      initialLoadTimer = window.setTimeout(() => { void loadConfig(); }, 0);
+    } else {
+      lastRefreshAtRef.current = Date.now();
+      window.addEventListener("focus", refreshOnFocus);
+      document.addEventListener("visibilitychange", refreshOnFocus);
+    }
     return () => {
-      window.clearTimeout(timer);
+      if (initialLoadTimer !== undefined) window.clearTimeout(initialLoadTimer);
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
       requestIdRef.current += 1;
       abortRef.current?.abort();
     };
-  }, [loadConfig]);
+  }, [hasInitialConfig, loadConfig, refreshOnFocus]);
 
   const value = useMemo(() => ({ ...state, retry: loadConfig }), [loadConfig, state]);
   return <TenantSiteContext.Provider value={value}>{children}</TenantSiteContext.Provider>;

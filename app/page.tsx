@@ -4,6 +4,13 @@ import { DEFAULT_TENANT_SLUG, getDefaultTenant, getTenantSiteConfig } from "../l
 import { getSiteUrl } from "../lib/siteUrl";
 import type { TenantSiteConfig } from "../lib/tenancy/types";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
+const defaultTitle = "黔林旅行社｜贵州定制旅行";
+const defaultDescription = "黔林旅行社专注贵州目的地旅行，为你规划轻松、清晰、值得回味的旅程。";
+
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const tenant = await getDefaultTenant();
@@ -11,12 +18,14 @@ export async function generateMetadata(): Promise<Metadata> {
       const siteConfig = await getTenantSiteConfig(tenant);
       const isPublic = siteConfig.isConfigured && siteConfig.tenant.siteStatus === "published";
       const siteUrl = getSiteUrl();
-      return { title: siteConfig.profile.companyName.zh, description: siteConfig.profile.description.zh || siteConfig.profile.primaryRegion.zh, alternates: { canonical: siteUrl }, robots: isPublic && !siteConfig.tenant.isDemo ? undefined : { index: false, follow: false }, openGraph: { title: siteConfig.profile.companyName.en, description: siteConfig.profile.description.en, url: siteUrl, type: "website" }, twitter: { card: "summary_large_image", title: siteConfig.profile.companyName.en, description: siteConfig.profile.description.en } };
+      const title = siteConfig.profile.companyName.zh || defaultTitle;
+      const description = siteConfig.profile.description.zh || siteConfig.profile.primaryRegion.zh || defaultDescription;
+      return { title, description, alternates: { canonical: siteUrl }, robots: isPublic && !siteConfig.tenant.isDemo ? undefined : { index: false, follow: false }, openGraph: { title, description, url: siteUrl, type: "website", images: [{ url: "/og.png", width: 1792, height: 944, alt: "黔林旅行社贵州旅行视觉图" }] }, twitter: { card: "summary_large_image", title, description, images: ["/og.png"] } };
     }
   } catch {
     // Build and no-binding test environments use the generic root metadata.
   }
-  return { title: "Travel site", robots: { index: false, follow: false } };
+  return { title: defaultTitle, description: defaultDescription, robots: { index: false, follow: false }, openGraph: { title: defaultTitle, description: defaultDescription, images: ["/og.png"] }, twitter: { card: "summary_large_image", title: defaultTitle, description: defaultDescription, images: ["/og.png"] } };
 }
 
 export default async function Home() {

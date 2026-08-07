@@ -42,9 +42,58 @@ test("keeps the tenant homepage dynamic and configures language per tenant", asy
   assert.doesNotMatch(legal, /data\/siteConfig/);
 });
 
+test("uses formal Chinese release metadata and keeps the production URL boundary explicit", async () => {
+  const layout = await read("app/layout.tsx");
+  const home = await read("app/page.tsx");
+  const tenantPage = await read("app/t/[tenantSlug]/page.tsx");
+  const siteUrl = await read("lib/siteUrl.ts");
+  assert.match(layout, /黔林旅行社｜贵州定制旅行/);
+  assert.match(layout, /黔林旅行社专注贵州目的地旅行/);
+  assert.match(layout, /images: \[\{ url: "\/og\.png"/);
+  assert.match(layout, /twitter: \{[^\n]+images: \["\/og\.png"\]/);
+  assert.match(home, /openGraph: \{ title, description/);
+  assert.match(home, /images: \[\{ url: "\/og\.png"/);
+  assert.match(home, /twitter: \{ card: "summary_large_image", title, description, images: \["\/og\.png"\]/);
+  assert.match(tenantPage, /images: \[\{ url: "\/og\.png"/);
+  assert.match(tenantPage, /twitter: \{ card: "summary_large_image"/);
+  assert.match(siteUrl, /must not point to a local development host in production/);
+  assert.doesNotMatch(home, /alternates: \{ canonical: "http:\/\/localhost/);
+
+  const output = ts.transpileModule(siteUrl, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const siteUrlModule = await import(`data:text/javascript;base64,${Buffer.from(output).toString("base64")}`);
+  const previousNodeEnv = process.env.NODE_ENV;
+  const previousSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  try {
+    process.env.NODE_ENV = "production";
+    process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000";
+    assert.throws(() => siteUrlModule.getSiteUrl(), /local development host/);
+  } finally {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
+    if (previousSiteUrl === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+    else process.env.NEXT_PUBLIC_SITE_URL = previousSiteUrl;
+  }
+});
+
+test("keeps release checks and Cloudflare WAF guidance in the repository", async () => {
+  const workflow = await read(".github/workflows/ci.yml");
+  const readme = await read("README.md");
+  assert.match(workflow, /node-version: 22/);
+  assert.match(workflow, /cache: npm/);
+  for (const command of ["npm ci", "npm run lint", "npm run build", "npm test", "npm run test:integration:local"]) assert.match(workflow, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(readme, /\/api\/admin\/login/);
+  assert.match(readme, /\/api\/t\/\[\^\/\]\+\/inquiries/);
+  assert.match(readme, /按 Source IP 计数/);
+  assert.match(readme, /KV、Durable Object/);
+});
+
 test("keeps Hero controls accessible and motion-aware without static slide data", async () => {
   const hero = await read("components/Hero.tsx");
   const provider = await read("components/TenantSiteProvider.tsx");
+  const tours = await read("components/Tours.tsx");
+  const destinations = await read("components/Destinations.tsx");
+  const about = await read("components/About.tsx");
+  const customize = await read("components/CustomizeForm.tsx");
   const plannerProvider = await read("components/PlannerOptionsProvider.tsx");
   assert.match(hero, /AUTO_ADVANCE_MS = 6000/);
   assert.match(hero, /role="group"/);
@@ -55,8 +104,17 @@ test("keeps Hero controls accessible and motion-aware without static slide data"
   assert.match(provider, /AbortController/);
   assert.match(provider, /value\.tenant\.slug !== tenantSlug/);
   assert.match(provider, /isRefreshing/);
+  assert.match(provider, /cache: "no-store"/);
+  assert.match(provider, /visibilitychange/);
+  assert.match(provider, /if \(!hasInitialConfig\)/);
   assert.match(plannerProvider, /AbortController/);
   assert.match(plannerProvider, /value\.tenantSlug !== tenantSlug/);
+  for (const source of [hero, tours, destinations, about, customize]) {
+    assert.match(source, /width=\{/);
+    assert.match(source, /height=\{/);
+    assert.match(source, /sizes=/);
+    assert.match(source, /onError=/);
+  }
 });
 
 test("sanitizes contact links and keeps the honeypot server check", async () => {
@@ -207,7 +265,10 @@ test("rejects tampered, expired, and cross-tenant admin sessions", async () => {
 
     const validToken = await auth.createAdminSession();
     assert.ok(validToken);
-    const tamperedToken = `${validToken.slice(0, -1)}${validToken.endsWith("A") ? "B" : "A"}`;
+    const separator = validToken.lastIndexOf(".");
+    const signature = validToken.slice(separator + 1);
+    const tamperedSignature = `${signature[0] === "A" ? "B" : "A"}${signature.slice(1)}`;
+    const tamperedToken = `${validToken.slice(0, separator + 1)}${tamperedSignature}`;
     assert.equal(await auth.getAdminSessionFromCookie(`qianlin_admin_session=${tamperedToken}`), null);
     assert.equal(await auth.getAdminSessionFromCookie(signedCookie("qianlin-travel", Math.floor(Date.now() / 1000) - 1)), null);
     assert.equal(await auth.getAdminSessionFromCookie(signedCookie("yunnan-demo", Math.floor(Date.now() / 1000) + 3600)), null);

@@ -139,7 +139,7 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
           <button type="button" className="button button-light" onClick={onOpen}>{t.customize.button} <span aria-hidden="true">→</span></button>
         </div>
         <div className="customize-image-wrap">
-          {siteConfig.profile.images.customize.src ? <img src={siteConfig.profile.images.customize.src} alt={siteConfig.profile.images.customize.alt[language]} loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} /> : null}
+          {siteConfig.profile.images.customize.src ? <img src={siteConfig.profile.images.customize.src} alt={siteConfig.profile.images.customize.alt[language]} width={1200} height={800} sizes="(max-width: 760px) 100vw, 50vw" loading="lazy" decoding="async" onError={(event) => { event.currentTarget.hidden = true; }} /> : null}
           <span className="image-caption">{t.customize.imageCaption}<br /><em>{t.customize.imageChinese}</em></span>
         </div>
       </div>

@@ -56,7 +56,7 @@ export function Hero({ showTours, onCustomize, slides, region, demoName, demoDes
 
   return <section id="home" className="hero-section" onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
     <div className="hero-slides">
-      {visibleSlides.length === 0 ? <p className="hero-empty-state" role="status">{t.hero.empty}</p> : visibleSlides.map((slide, index) => <div className={`hero-slide${visibleIndex === index ? " hero-slide-active" : ""}`} key={slide.id} style={{ "--hero-desktop-position": slide.desktopPosition, "--hero-mobile-position": slide.mobilePosition } as CSSProperties}><img src={slide.src} alt={visibleIndex === index ? slide.alt[language] : ""} aria-hidden={visibleIndex === index ? undefined : true} loading={index === 0 ? "eager" : "lazy"} fetchPriority={index === 0 ? "high" : "low"} onError={() => markSlideFailed(slide.id)} /></div>)}
+      {visibleSlides.length === 0 ? <p className="hero-empty-state" role="status">{t.hero.empty}</p> : visibleSlides.map((slide, index) => <div className={`hero-slide${visibleIndex === index ? " hero-slide-active" : ""}`} key={slide.id} style={{ "--hero-desktop-position": slide.desktopPosition, "--hero-mobile-position": slide.mobilePosition } as CSSProperties}><img src={slide.src} alt={visibleIndex === index ? slide.alt[language] : ""} aria-hidden={visibleIndex === index ? undefined : true} width={1920} height={1080} sizes="100vw" loading={index === 0 ? "eager" : "lazy"} fetchPriority={index === 0 ? "high" : "low"} onError={() => markSlideFailed(slide.id)} /></div>)}
     </div>
     <div className="hero-overlay" aria-hidden="true" />
     <div className="container hero-content">
