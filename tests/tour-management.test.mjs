@@ -109,5 +109,5 @@ test("documents the deliberately excluded tour capabilities", () => {
   assert.match(readme, /线路管理已完成/);
   assert.match(readme, /图片只能选择项目内置白名单/);
   assert.match(readme, /不支持详细每日行程/);
-  assert.match(readme, /咨询管理仍未开放/);
+  assert.match(readme, /第三阶段 3G：后台咨询管理 MVP 已完成/);
 });

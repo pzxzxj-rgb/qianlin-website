@@ -39,7 +39,7 @@ export const inquiries = sqliteTable("inquiries", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => ({
   tenantStatusCreatedIndex: index("idx_inquiries_tenant_status_created").on(table.tenantId, table.status, table.createdAt),
-  statusCheck: check("ck_inquiries_status", sql`${table.status} in ('new', 'contacted', 'closed')`),
+  statusCheck: check("ck_inquiries_status", sql`${table.status} in ('new', 'contacted', 'following_up', 'completed', 'closed')`),
 }));
 
 export const tenantSiteProfiles = sqliteTable("tenant_site_profiles", {

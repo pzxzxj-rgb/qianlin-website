@@ -121,6 +121,6 @@ test("documents the deliberately excluded destination capabilities", () => {
   assert.match(readme, /建议游览时长目前仅作为参考资料/);
   assert.match(readme, /不支持省份和城市管理/);
   assert.match(readme, /地图、门票、开放时间、实时车程/);
-  assert.match(readme, /咨询管理仍未开放/);
+  assert.match(readme, /第三阶段 3G：后台咨询管理 MVP 已完成/);
   assert.match(packageJson, /destination-management\.test\.mjs/);
 });

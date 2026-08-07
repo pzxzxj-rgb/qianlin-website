@@ -144,7 +144,7 @@ test("documents the Mainland-only scope and production Turnstile requirements", 
   assert.match(demoRoute, /tenant\.isDemo \|\| tenant\.siteStatus !== "published"/);
   assert.match(readme, /当前版本先服务中国大陆用户/);
   assert.match(readme, /生产环境必须同时设置/);
-  assert.match(readme, /当前仍没有咨询列表/);
+  assert.match(readme, /后台咨询列表、详情和状态管理已在 3G MVP 中提供/);
   assert.doesNotMatch(readme, /data\/siteConfig\.ts/);
 });
 

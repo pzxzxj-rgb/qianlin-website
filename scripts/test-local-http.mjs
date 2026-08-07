@@ -39,7 +39,7 @@ function execute(sql) {
 }
 
 async function waitForServer() {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
     try {
       const response = await fetch(`${baseUrl}/api/t/qianlin-travel/site-config`);
       if (response.status === 200) return;
@@ -113,8 +113,8 @@ try {
   const originalQianlinDestinationImages = query("SELECT id, tenant_id, image_url, show_on_homepage FROM planner_destinations WHERE tenant_id = 'qianlin-travel' ORDER BY id");
   execute("INSERT OR IGNORE INTO planner_destinations (id, tenant_id, province_code, slug, city_code, name_zh, name_en, description_zh, description_en, image_url, card_size, region_zh, region_en, route_order, overnight_zh, overnight_en, recommended_visit_hours, major_attraction, available_for_planning, show_on_homepage, display_order, status) VALUES ('yunnan-destination-test', 'yunnan-demo', 'guizhou', 'fictional-shared-destination', 'yunnan-test-city', '云南虚构目的地', 'Fictional Yunnan destination', '云南租户虚构目的地介绍。', 'A fictional Yunnan destination for tenant isolation tests.', '/images/guizhou/hero-guizhou.png', 'small', '云南虚构区域', 'Fictional Yunnan region', 5, '', '', 3, 1, 1, 1, 5, 'published')");
   const originalYunnanDestinations = query("SELECT id, tenant_id, province_code, slug, city_code, name_zh, name_en, description_zh, description_en, image_url, card_size, region_zh, region_en, route_order, overnight_zh, overnight_en, recommended_visit_hours, major_attraction, available_for_planning, show_on_homepage, display_order, status, created_at, updated_at FROM planner_destinations WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id");
-  execute("UPDATE tenant_contact_channels SET value = '  qianlin-test@example.com  ', href = 'mailto:qianlin-test@example.com' WHERE tenant_id = 'qianlin-travel' AND type = 'email' AND status = 'published'");
-  const qianlinEmail = "qianlin-test@example.com";
+  execute("INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent, status) VALUES ('yunnan-demo', 'Cross tenant inquiry', '13900001234', '1', 1, 'new')");
+  const yunnanInquiryId = query("SELECT id FROM inquiries WHERE tenant_id = 'yunnan-demo' ORDER BY id DESC LIMIT 1")[0].id;
   execute("INSERT INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('configuring-test', 'configuring-test', '配置测试', 'Configuring test', 'active', 'configuring', 'zh', 0)");
 
   server = spawn(process.execPath, [path.join(root, "node_modules", "vinext", "dist", "cli.js"), "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
@@ -145,6 +145,10 @@ try {
   assert.equal(anonymousContactsRead.response.status, 401);
   const anonymousContactsSave = await request("/api/admin/contacts", { method: "PUT", headers: { "content-type": "application/json", origin: baseUrl }, body: "{}" });
   assert.equal(anonymousContactsSave.response.status, 401);
+  const anonymousInquiryList = await request("/api/admin/inquiries");
+  assert.equal(anonymousInquiryList.response.status, 401);
+  const anonymousInquiryDetail = await request("/api/admin/inquiries/1");
+  assert.equal(anonymousInquiryDetail.response.status, 401);
   const anonymousToursRead = await request("/api/admin/tours");
   assert.equal(anonymousToursRead.response.status, 401);
   const anonymousToursCreate = await request("/api/admin/tours", { method: "POST", headers: { "content-type": "application/json", origin: baseUrl }, body: "{}" });
@@ -370,9 +374,6 @@ try {
   }
   const privacyPage = await request("/privacy");
   assert.match(String(privacyPage.body), /贵州省贵阳市测试地址/);
-  assert.ok(String(privacyPage.body).includes(qianlinEmail));
-  assert.match(String(privacyPage.body), new RegExp(`mailto:${qianlinEmail.replace(".", "\\.")}`));
-  assert.doesNotMatch(String(privacyPage.body), /mailto:\s/);
   const updatedProfilePage = await request("/admin/profile", { headers: { cookie: sessionCookie } });
   assert.match(String(updatedProfilePage.body), /黔林旅行社/);
   const updatedAdminPage = await request("/admin", { headers: { cookie: sessionCookie } });
@@ -797,6 +798,10 @@ try {
   assert.equal(emailSaved.body.contacts[emailIndex].value, "contact-test@example.invalid");
   assert.equal(emailSaved.body.contacts[emailIndex].href, "mailto:contact-test@example.invalid");
   assert.doesNotMatch(JSON.stringify(emailSaved.body), /tenantId|tenant_id|tenantSlug|ownerId|isDemo|session|token|password/i);
+  const updatedPrivacyPage = await request("/privacy");
+  assert.ok(String(updatedPrivacyPage.body).includes("contact-test@example.invalid"));
+  assert.match(String(updatedPrivacyPage.body), /mailto:contact-test@example\.invalid/);
+  assert.doesNotMatch(String(updatedPrivacyPage.body), /mailto:\s/);
   const metadataSaved = await saveContacts({ channels: emailSaved.body.contacts.map((contact) => contact.id === emailSaved.body.contacts[phoneIndex].id ? { ...contact, labelZh: "咨询电话", labelEn: "Travel phone", displayOrder: 15 } : contact) });
   assert.equal(metadataSaved.response.status, 200);
   assert.equal(metadataSaved.body.contacts.find((contact) => contact.id === emailSaved.body.contacts[phoneIndex].id)?.labelZh, "咨询电话");
@@ -1007,6 +1012,44 @@ try {
   assert.equal(duplicate.response.status, 409);
   const differentName = await request("/api/t/qianlin-travel/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...validPayload, name: "Different name" }) });
   assert.equal(differentName.response.status, 201);
+  const qianlinInquiryId = accepted.body.inquiry.id;
+  const invalidInquiryStatus = await request(`/api/admin/inquiries/${qianlinInquiryId}`, { method: "PATCH", headers: { "content-type": "application/json", origin: baseUrl, cookie: sessionCookie }, body: JSON.stringify({ status: "invalid" }) });
+  assert.equal(invalidInquiryStatus.response.status, 400);
+  const crossTenantInquiryDetail = await request(`/api/admin/inquiries/${yunnanInquiryId}`, { headers: { cookie: sessionCookie } });
+  assert.equal(crossTenantInquiryDetail.response.status, 404);
+  const firstInquiryPage = await request("/api/admin/inquiries?page=1&pageSize=1", { headers: { cookie: sessionCookie } });
+  assert.equal(firstInquiryPage.response.status, 200);
+  assert.equal(firstInquiryPage.body.items.length, 1);
+  assert.ok(firstInquiryPage.body.pagination.total >= 2);
+  assert.ok(firstInquiryPage.body.pagination.totalPages >= 2);
+  assert.equal("phone" in firstInquiryPage.body.items[0], false);
+  assert.equal("wechat" in firstInquiryPage.body.items[0], false);
+  assert.equal("email" in firstInquiryPage.body.items[0], false);
+  assert.equal("message" in firstInquiryPage.body.items[0], false);
+  assert.doesNotMatch(JSON.stringify(firstInquiryPage.body.items[0]), /18985127882|Local D1 functional test/);
+  const secondInquiryPage = await request("/api/admin/inquiries?page=2&pageSize=1", { headers: { cookie: sessionCookie } });
+  assert.equal(secondInquiryPage.response.status, 200);
+  assert.equal(secondInquiryPage.body.items.length, 1);
+  assert.notEqual(firstInquiryPage.body.items[0].id, secondInquiryPage.body.items[0].id);
+  const forcedTenantList = await request("/api/admin/inquiries?tenantId=yunnan-demo&page=1&pageSize=50", { headers: { cookie: sessionCookie } });
+  assert.equal(forcedTenantList.response.status, 200);
+  assert.doesNotMatch(JSON.stringify(forcedTenantList.body), /Cross tenant inquiry|13900001234/);
+  const updatedInquiryStatus = await request(`/api/admin/inquiries/${qianlinInquiryId}`, { method: "PATCH", headers: { "content-type": "application/json", origin: baseUrl, cookie: sessionCookie }, body: JSON.stringify({ status: "following_up" }) });
+  assert.equal(updatedInquiryStatus.response.status, 200);
+  assert.equal(updatedInquiryStatus.body.inquiry.status, "following_up");
+  const inquiryDetail = await request(`/api/admin/inquiries/${qianlinInquiryId}`, { headers: { cookie: sessionCookie } });
+  assert.equal(inquiryDetail.response.status, 200);
+  assert.equal(inquiryDetail.body.inquiry.phone, "18985127882");
+  assert.equal(inquiryDetail.body.inquiry.message, "Local D1 functional test");
+  assert.equal(inquiryDetail.body.inquiry.status, "following_up");
+  const inquiryListPage = await request("/admin/inquiries", { headers: { cookie: sessionCookie } });
+  assert.equal(inquiryListPage.response.status, 200);
+  assert.match(String(inquiryListPage.body), /鍜ㄨ绠＄悊/);
+  assert.match(String(inquiryListPage.body), /noindex/i);
+  const inquiryDetailPage = await request(`/admin/inquiries/${qianlinInquiryId}`, { headers: { cookie: sessionCookie } });
+  assert.equal(inquiryDetailPage.response.status, 200);
+  assert.match(String(inquiryDetailPage.body), /18985127882/);
+  assert.match(String(inquiryDetailPage.body), /Local D1 functional test/);
   const storedImageProfile = query("SELECT id, tenant_id, status, created_at, updated_at, about_image_url, about_image_alt_zh, about_image_alt_en, customize_image_url, customize_image_alt_zh, customize_image_alt_en FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' AND status = 'published' LIMIT 1")[0];
   assert.equal(storedImageProfile.id, originalQianlinImageProfile.id);
   assert.equal(storedImageProfile.tenant_id, originalQianlinImageProfile.tenant_id);

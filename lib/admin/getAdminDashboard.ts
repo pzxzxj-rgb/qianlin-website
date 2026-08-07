@@ -2,6 +2,7 @@ import { and, count, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../db";
 import { inquiries, plannerDestinations, tenantContactChannels, tenantHeroSlides, tenantSiteProfiles, tenantTours, tenants } from "../../db/schema";
 import { ADMIN_TENANT_ID } from "./auth";
+import { getAdminInquiryStats } from "./inquiries";
 
 export type AdminDashboardData = {
   tenant: {
@@ -32,13 +33,15 @@ export type AdminDashboardData = {
     destinations: number;
     inquiries: number;
     newInquiries: number;
+    followingUpInquiries: number;
+    todayNewInquiries: number;
   };
 };
 
 export async function getAdminDashboard(tenantId: string): Promise<AdminDashboardData> {
   if (tenantId !== ADMIN_TENANT_ID) throw new Error("Invalid admin tenant boundary");
   const db = await getDb();
-  const [tenantRows, profileRows, contactRows, heroCountRows, tourCountRows, destinationCountRows, inquiryCountRows, newInquiryCountRows] = await Promise.all([
+  const [tenantRows, profileRows, contactRows, heroCountRows, tourCountRows, destinationCountRows, inquiryCountRows, newInquiryCountRows, inquiryStats] = await Promise.all([
     db.select({ id: tenants.id, slug: tenants.slug, nameZh: tenants.nameZh, nameEn: tenants.nameEn, siteStatus: tenants.siteStatus, defaultLanguage: tenants.defaultLanguage }).from(tenants).where(and(eq(tenants.id, ADMIN_TENANT_ID), eq(tenants.status, "active"))).limit(1),
     db.select({ companyNameZh: tenantSiteProfiles.companyNameZh, companyNameEn: tenantSiteProfiles.companyNameEn, descriptionZh: tenantSiteProfiles.descriptionZh, descriptionEn: tenantSiteProfiles.descriptionEn, addressZh: tenantSiteProfiles.addressZh, addressEn: tenantSiteProfiles.addressEn, logoMark: tenantSiteProfiles.logoMark }).from(tenantSiteProfiles).where(and(eq(tenantSiteProfiles.tenantId, ADMIN_TENANT_ID), eq(tenantSiteProfiles.status, "published"))).limit(1),
     db.select({ type: tenantContactChannels.type, value: tenantContactChannels.value }).from(tenantContactChannels).where(and(eq(tenantContactChannels.tenantId, ADMIN_TENANT_ID), eq(tenantContactChannels.status, "published"), inArray(tenantContactChannels.type, ["phone", "email", "wechat"]))),
@@ -47,6 +50,7 @@ export async function getAdminDashboard(tenantId: string): Promise<AdminDashboar
     db.select({ value: count() }).from(plannerDestinations).where(eq(plannerDestinations.tenantId, ADMIN_TENANT_ID)),
     db.select({ value: count() }).from(inquiries).where(eq(inquiries.tenantId, ADMIN_TENANT_ID)),
     db.select({ value: count() }).from(inquiries).where(and(eq(inquiries.tenantId, ADMIN_TENANT_ID), eq(inquiries.status, "new"))),
+    getAdminInquiryStats(ADMIN_TENANT_ID),
   ]);
 
   const tenant = tenantRows[0];
@@ -75,6 +79,8 @@ export async function getAdminDashboard(tenantId: string): Promise<AdminDashboar
       destinations: Number(destinationCountRows[0]?.value ?? 0),
       inquiries: Number(inquiryCountRows[0]?.value ?? 0),
       newInquiries: Number(newInquiryCountRows[0]?.value ?? 0),
+      followingUpInquiries: inquiryStats.followingUpInquiries,
+      todayNewInquiries: inquiryStats.todayNewInquiries,
     },
   };
 }
