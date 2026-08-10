@@ -1,6 +1,7 @@
-import { requireAdminSession, requireAdminTenant } from "../../../../lib/admin/auth";
 import { readAdminJsonRequest } from "../../../../lib/admin/imageRequest";
+import { getAdminRouteAccess } from "../../../../lib/admin/routeAccess";
 import { AdminContactConfigurationError, getAdminContacts, updateAdminContacts, validateAdminContactsPayload } from "../../../../lib/admin/contacts";
+import { recordAdminAudit } from "../../../../lib/admin/audit";
 
 const ADMIN_CONTACTS_BODY_MAX_BYTES = 24 * 1024;
 
@@ -9,13 +10,8 @@ function errorResponse(errorZh: string, errorEn: string, status: number, fieldEr
 }
 
 async function getTrustedAdminTenant(request: Request) {
-  const session = await requireAdminSession(request);
-  if (!session) return { response: errorResponse("登录状态已失效，请重新登录。", "Your admin session is invalid or expired.", 401) } as const;
-  try {
-    return { tenantId: requireAdminTenant(session) } as const;
-  } catch {
-    return { response: errorResponse("当前管理员没有权限操作该租户。", "You are not allowed to edit this tenant.", 403) } as const;
-  }
+  const trusted = await getAdminRouteAccess(request, undefined, "viewer");
+  return "response" in trusted ? trusted : trusted.access;
 }
 
 export async function GET(request: Request) {
@@ -42,6 +38,7 @@ export async function PUT(request: Request) {
 
   try {
     const contacts = await updateAdminContacts(parsed.tenantId, validation.values);
+    await recordAdminAudit({ tenantId: parsed.tenantId, userId: parsed.userId, action: "update", resourceType: "contact_channels", result: "success", metadata: { count: contacts.length } }).catch(() => undefined);
     return Response.json({ contacts }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof AdminContactConfigurationError) return errorResponse("联系方式配置已发生变化，请刷新后重试。", "The contact configuration changed. Refresh and try again.", 409);

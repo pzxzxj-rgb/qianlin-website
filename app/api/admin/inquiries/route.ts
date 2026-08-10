@@ -1,5 +1,5 @@
-import { requireAdminSession, requireAdminTenant } from "../../../../lib/admin/auth";
 import { ADMIN_INQUIRY_MAX_PAGE_SIZE, ADMIN_INQUIRY_STATUSES, getAdminInquiries, type AdminInquiryStatus } from "../../../../lib/admin/inquiries";
+import { getAdminRouteAccess } from "../../../../lib/admin/routeAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -19,15 +19,9 @@ function parseStatus(value: string | null): AdminInquiryStatus | undefined | nul
 }
 
 export async function GET(request: Request) {
-  const session = await requireAdminSession(request);
-  if (!session) return errorResponse("登录状态已失效，请重新登录。", "Your admin session is invalid or expired.", 401);
-
-  let tenantId: string;
-  try {
-    tenantId = requireAdminTenant(session);
-  } catch {
-    return errorResponse("当前管理员没有权限查看咨询。", "You are not allowed to view enquiries.", 403);
-  }
+  const trusted = await getAdminRouteAccess(request, undefined, "viewer");
+  if ("response" in trusted) return trusted.response;
+  const { tenantId } = trusted.access;
 
   const url = new URL(request.url);
   const status = parseStatus(url.searchParams.get("status"));

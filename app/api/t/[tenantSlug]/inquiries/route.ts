@@ -1,8 +1,11 @@
 import { handleInquiry } from "../../../../../lib/inquiries/handleInquiry";
 import { resolveActiveTenantBySlug } from "../../../../../lib/tenancy/resolveTenant";
+import { checkRateLimit, getRequestAddress } from "../../../../../lib/security/rateLimit";
 
 export async function POST(request: Request, context: { params: Promise<{ tenantSlug: string }> }) {
   const { tenantSlug } = await context.params;
+  const rateLimit = checkRateLimit(`inquiry:${tenantSlug}:${getRequestAddress(request)}`, 30, 10 * 60 * 1000);
+  if (!rateLimit.allowed) return Response.json({ errorZh: "提交过于频繁，请稍后重试。", errorEn: "Too many enquiries. Please try again later." }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": String(rateLimit.retryAfterSeconds) } });
   try {
     const tenant = await resolveActiveTenantBySlug(tenantSlug);
     if (!tenant) return Response.json({ errorZh: "网站不存在或已暂停。", errorEn: "This site does not exist or is not active." }, { status: 404 });

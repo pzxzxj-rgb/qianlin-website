@@ -6,6 +6,7 @@ import type { ChangeEvent, FormEvent, MouseEvent } from "react";
 import { useMemo, useState } from "react";
 import type { AdminCityOption, AdminDestinationCardSize, AdminDestinationFieldErrors, AdminDestinationInput, AdminDestinationStatus, AdminDestinationValues } from "../lib/admin/destinations";
 import { AdminLogoutButton } from "./AdminDashboard";
+import { adminApiPath, adminPagePath } from "./adminPaths";
 import { confirmAdminNavigation, useAdminUnsavedChanges } from "./useAdminUnsavedChanges";
 
 type AdminDestinationResponse = {
@@ -102,7 +103,7 @@ function cityLabel(city: AdminCityOption) {
   return `${city.nameZh} / ${city.nameEn}`;
 }
 
-export function AdminDestinationManager({ initialValues, cityOptions }: { initialValues: AdminDestinationValues[]; cityOptions: AdminCityOption[] }) {
+export function AdminDestinationManager({ initialValues, cityOptions, tenantSlug }: { initialValues: AdminDestinationValues[]; cityOptions: AdminCityOption[]; tenantSlug?: string }) {
   const router = useRouter();
   const initialDrafts = Object.fromEntries(initialValues.map((destination) => [destination.id, toDestinationInput(destination)]));
   const [destinations, setDestinations] = useState<AdminDestinationValues[]>(() => sortDestinations(initialValues));
@@ -194,7 +195,7 @@ export function AdminDestinationManager({ initialValues, cityOptions }: { initia
     setFormError("new");
     setSessionExpired(false);
     try {
-      const response = await fetch("/api/admin/destinations", { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify(newValues) });
+      const response = await fetch(adminApiPath(tenantSlug, "/destinations"), { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify(newValues) });
       const result = await readResponse(response);
       if (response.status === 401) {
         setSessionExpired(true);
@@ -234,7 +235,7 @@ export function AdminDestinationManager({ initialValues, cityOptions }: { initia
     setFormError(destinationId);
     setSessionExpired(false);
     try {
-      const response = await fetch(`/api/admin/destinations/${encodeURIComponent(destinationId)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify(values) });
+      const response = await fetch(`${adminApiPath(tenantSlug, "/destinations")}/${encodeURIComponent(destinationId)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify(values) });
       const result = await readResponse(response);
       if (response.status === 401) {
         setSessionExpired(true);
@@ -301,7 +302,7 @@ export function AdminDestinationManager({ initialValues, cityOptions }: { initia
   }
 
   return <main className="admin-page">
-    <header className="admin-topbar"><Link className="admin-brand" href="/admin" onClick={handleReturn}><span className="brand-mark">Q</span><span><strong>QIANLIN TRAVEL</strong><small>目的地管理</small></span></Link><div className="admin-topbar-actions"><Link className="admin-profile-back-link" href="/admin" onClick={handleReturn}>返回后台</Link><AdminLogoutButton isDirty={isDirty} disabled={pending} /></div></header>
+    <header className="admin-topbar"><Link className="admin-brand" href={adminPagePath(tenantSlug, "")} onClick={handleReturn}><span className="brand-mark">Q</span><span><strong>QIANLIN TRAVEL</strong><small>目的地管理</small></span></Link><div className="admin-topbar-actions"><Link className="admin-profile-back-link" href={adminPagePath(tenantSlug, "")} onClick={handleReturn}>返回后台</Link><AdminLogoutButton isDirty={isDirty} disabled={pending} /></div></header>
     <div className="admin-shell admin-destinations-shell">
       <div className="admin-heading"><div><span className="eyebrow">QIANLIN TRAVEL · DESTINATIONS</span><h1>目的地管理</h1><p>管理贵州目的地在首页和行程规划器中的展示方式。图片由网站图片管理能力统一维护，本页面只显示已有图片状态。</p></div></div>
       <p className="admin-tour-status" role="status" aria-live="polite">{pending ? "正在保存目的地……" : "目的地数据已加载"}{sessionExpired ? <Link href="/admin/login">重新登录</Link> : null}</p>

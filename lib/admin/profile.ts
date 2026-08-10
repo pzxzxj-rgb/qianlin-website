@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import { tenantSiteProfiles } from "../../db/schema";
-import { ADMIN_TENANT_ID } from "./auth";
+import { assertTenantScope } from "./tenantScope";
 
 export const ADMIN_PROFILE_FIELDS = [
   "companyNameZh",
@@ -113,15 +113,15 @@ const profileSelection = {
 };
 
 export async function getAdminProfile(tenantId: string): Promise<AdminProfileRow | null> {
-  if (tenantId !== ADMIN_TENANT_ID) throw new Error("Invalid admin tenant boundary");
+  assertTenantScope(tenantId);
   const db = await getDb();
-  const [profile] = await db.select(profileSelection).from(tenantSiteProfiles).where(and(eq(tenantSiteProfiles.tenantId, ADMIN_TENANT_ID), eq(tenantSiteProfiles.status, "published"))).limit(1);
+  const [profile] = await db.select(profileSelection).from(tenantSiteProfiles).where(and(eq(tenantSiteProfiles.tenantId, tenantId), eq(tenantSiteProfiles.status, "published"))).limit(1);
   return profile ?? null;
 }
 
 export async function updateAdminProfile(tenantId: string, values: AdminProfileValues): Promise<AdminProfileRow | null> {
-  if (tenantId !== ADMIN_TENANT_ID) throw new Error("Invalid admin tenant boundary");
+  assertTenantScope(tenantId);
   const db = await getDb();
-  const [profile] = await db.update(tenantSiteProfiles).set({ ...values, updatedAt: sql`CURRENT_TIMESTAMP` }).where(and(eq(tenantSiteProfiles.tenantId, ADMIN_TENANT_ID), eq(tenantSiteProfiles.status, "published"))).returning(profileSelection);
+  const [profile] = await db.update(tenantSiteProfiles).set({ ...values, updatedAt: sql`CURRENT_TIMESTAMP` }).where(and(eq(tenantSiteProfiles.tenantId, tenantId), eq(tenantSiteProfiles.status, "published"))).returning(profileSelection);
   return profile ?? null;
 }

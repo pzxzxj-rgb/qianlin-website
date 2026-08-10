@@ -27,7 +27,11 @@ function isLocalizedText(value: unknown): value is { zh: string; en: string } {
   return isRecord(value) && typeof value.zh === "string" && typeof value.en === "string";
 }
 
-function isPlannerDestination(value: unknown): boolean {
+function isIntegerInRange(value: unknown, minimum: number, maximum: number): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= minimum && value <= maximum;
+}
+
+function isPlannerDestination(value: unknown): value is PlannerDestinationOption {
   if (!isRecord(value)) return false;
   return typeof value.id === "string"
     && typeof value.provinceCode === "string"
@@ -40,19 +44,38 @@ function isPlannerDestination(value: unknown): boolean {
     && (value.cardSize === "small" || value.cardSize === "large")
     && isLocalizedText(value.region)
     && (value.overnightSuggestion === undefined || isLocalizedText(value.overnightSuggestion))
-    && Number.isInteger(value.routeOrder) && value.routeOrder >= 0 && value.routeOrder <= 1000
-    && (value.recommendedVisitHours === undefined || (Number.isInteger(value.recommendedVisitHours) && value.recommendedVisitHours >= 1 && value.recommendedVisitHours <= 48))
+    && isIntegerInRange(value.routeOrder, 0, 1000)
+    && (value.recommendedVisitHours === undefined || isIntegerInRange(value.recommendedVisitHours, 1, 48))
     && typeof value.majorAttraction === "boolean"
     && typeof value.availableForPlanning === "boolean"
     && typeof value.showOnHomepage === "boolean"
-    && Number.isInteger(value.displayOrder) && value.displayOrder >= 0 && value.displayOrder <= 1000;
+    && isIntegerInRange(value.displayOrder, 0, 1000);
+}
+
+function isPlannerProvince(value: unknown): value is PlannerProvinceOption {
+  return isRecord(value)
+    && typeof value.id === "string"
+    && typeof value.code === "string"
+    && isLocalizedText(value.name)
+    && Number.isInteger(value.displayOrder);
+}
+
+function isPlannerCity(value: unknown): value is PlannerCityOption {
+  return isRecord(value)
+    && typeof value.id === "string"
+    && typeof value.provinceCode === "string"
+    && typeof value.code === "string"
+    && isLocalizedText(value.name)
+    && typeof value.availableAsStart === "boolean"
+    && typeof value.availableAsEnd === "boolean"
+    && Number.isInteger(value.displayOrder);
 }
 
 function isPlannerOptionsResponse(value: unknown, tenantSlug: string): value is PlannerOptionsResponse {
   if (!isRecord(value) || value.tenantSlug !== tenantSlug || typeof value.tenantId !== "string") return false;
   if (!Array.isArray(value.provinces) || !Array.isArray(value.cities) || !Array.isArray(value.destinations)) return false;
-  return value.provinces.every((province) => isRecord(province) && typeof province.id === "string" && typeof province.code === "string" && isLocalizedText(province.name) && Number.isInteger(province.displayOrder))
-    && value.cities.every((city) => isRecord(city) && typeof city.id === "string" && typeof city.provinceCode === "string" && typeof city.code === "string" && isLocalizedText(city.name) && typeof city.availableAsStart === "boolean" && typeof city.availableAsEnd === "boolean" && Number.isInteger(city.displayOrder))
+  return value.provinces.every(isPlannerProvince)
+    && value.cities.every(isPlannerCity)
     && value.destinations.every(isPlannerDestination);
 }
 

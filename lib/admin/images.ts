@@ -1,9 +1,9 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import { tenantHeroSlides, tenantSiteProfiles } from "../../db/schema";
-import { ADMIN_TENANT_ID } from "./auth";
 import { HERO_IMAGE_POSITIONS } from "./imagePositions";
 import { isAdminImagePath } from "./imageCatalog";
+import { assertTenantScope } from "./tenantScope";
 
 export const ADMIN_PROFILE_IMAGE_FIELDS = [
   "aboutImageUrl",
@@ -215,20 +215,20 @@ type AdminHeroRow = {
 };
 
 function assertAdminTenant(tenantId: string) {
-  if (tenantId !== ADMIN_TENANT_ID) throw new Error("Invalid admin tenant boundary");
+  assertTenantScope(tenantId);
 }
 
 async function getPublishedHeroRows(tenantId: string, dbOverride?: Awaited<ReturnType<typeof getDb>>) {
   assertAdminTenant(tenantId);
   const db = dbOverride ?? await getDb();
-  return db.select(heroRowSelection).from(tenantHeroSlides).where(and(eq(tenantHeroSlides.tenantId, ADMIN_TENANT_ID), eq(tenantHeroSlides.status, "published"))).orderBy(asc(tenantHeroSlides.displayOrder), asc(tenantHeroSlides.id));
+  return db.select(heroRowSelection).from(tenantHeroSlides).where(and(eq(tenantHeroSlides.tenantId, tenantId), eq(tenantHeroSlides.status, "published"))).orderBy(asc(tenantHeroSlides.displayOrder), asc(tenantHeroSlides.id));
 }
 
 export async function getAdminImageSettings(tenantId: string): Promise<AdminImageSettings> {
   assertAdminTenant(tenantId);
   const db = await getDb();
   const heroRows = await getPublishedHeroRows(tenantId, db);
-  const profileRows = await db.select(profileImageSelection).from(tenantSiteProfiles).where(and(eq(tenantSiteProfiles.tenantId, ADMIN_TENANT_ID), eq(tenantSiteProfiles.status, "published"))).limit(1);
+  const profileRows = await db.select(profileImageSelection).from(tenantSiteProfiles).where(and(eq(tenantSiteProfiles.tenantId, tenantId), eq(tenantSiteProfiles.status, "published"))).limit(1);
   if (heroRows.length !== 2) throw new AdminImageConfigurationError("Published qianlin hero slide count is not two");
   if (!profileRows[0]) throw new AdminImageConfigurationError("Published qianlin site profile is missing");
   return {
@@ -240,7 +240,7 @@ export async function getAdminImageSettings(tenantId: string): Promise<AdminImag
 export async function updateAdminProfileImages(tenantId: string, values: AdminProfileImageValues): Promise<AdminProfileImageValues | null> {
   assertAdminTenant(tenantId);
   const db = await getDb();
-  const [profile] = await db.update(tenantSiteProfiles).set({ ...values, updatedAt: sql`CURRENT_TIMESTAMP` }).where(and(eq(tenantSiteProfiles.tenantId, ADMIN_TENANT_ID), eq(tenantSiteProfiles.status, "published"))).returning(profileImageSelection);
+  const [profile] = await db.update(tenantSiteProfiles).set({ ...values, updatedAt: sql`CURRENT_TIMESTAMP` }).where(and(eq(tenantSiteProfiles.tenantId, tenantId), eq(tenantSiteProfiles.status, "published"))).returning(profileImageSelection);
   return profile ?? null;
 }
 
@@ -255,7 +255,8 @@ export async function updateAdminHeroImages(tenantId: string, values: AdminHeroI
 
   const db = await getDb();
   // D1 batch executes both updates as one batch. The follow-up read verifies the complete result before success is returned.
-  await db.batch(rows.map((row, index) => db.update(tenantHeroSlides).set({ ...values[index], updatedAt: sql`CURRENT_TIMESTAMP` }).where(and(eq(tenantHeroSlides.id, row.id), eq(tenantHeroSlides.tenantId, ADMIN_TENANT_ID), eq(tenantHeroSlides.status, "published"), eq(tenantHeroSlides.displayOrder, row.displayOrder)))));
+  const statements = rows.map((row, index) => db.update(tenantHeroSlides).set({ ...values[index], updatedAt: sql`CURRENT_TIMESTAMP` }).where(and(eq(tenantHeroSlides.id, row.id), eq(tenantHeroSlides.tenantId, tenantId), eq(tenantHeroSlides.status, "published"), eq(tenantHeroSlides.displayOrder, row.displayOrder))));
+  await db.batch(statements as [typeof statements[number], ...typeof statements[number][]]);
 
   const savedRows = await getPublishedHeroRows(tenantId);
   if (savedRows.length !== 2 || savedRows.some((row, index) => !heroValuesMatch(row, values[index]))) throw new Error("Hero image update verification failed");

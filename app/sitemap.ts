@@ -14,7 +14,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const db = await getDb();
     const rows = await db.select({ slug: tenants.slug }).from(tenants).innerJoin(tenantSiteProfiles, eq(tenantSiteProfiles.tenantId, tenants.id)).where(and(eq(tenants.status, "active"), eq(tenants.siteStatus, "published"), eq(tenants.isDemo, false), eq(tenantSiteProfiles.status, "published"), ne(tenantSiteProfiles.companyNameZh, ""), ne(tenantSiteProfiles.companyNameEn, "")));
     const tenantPaths = rows.map((row) => row.slug === DEFAULT_TENANT_SLUG ? "/" : `/t/${row.slug}`);
-    return [...new Set([...tenantPaths, ...legalPaths])].map((path) => ({ url: `${siteUrl}${path}`, lastModified }));
+    const tenantLegalPaths = rows.flatMap((row) => legalPaths.map((path) => `/t/${row.slug}${path}`));
+    return [...new Set([...tenantPaths, ...legalPaths, ...tenantLegalPaths])].map((path) => ({ url: `${siteUrl}${path}`, lastModified }));
   } catch {
     return [];
   }

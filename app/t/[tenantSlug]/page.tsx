@@ -15,34 +15,24 @@ export async function generateMetadata({ params }: TenantPageProps): Promise<Met
   const { tenantSlug } = await params;
   try {
     const tenant = await resolveActiveTenantBySlug(tenantSlug);
-    if (!tenant) return { title: "Site unavailable", robots: { index: false, follow: false } };
+    if (!tenant) return { title: "网站不可用", robots: { index: false, follow: false } };
     const siteConfig = await getTenantSiteConfig(tenant);
     const isPublic = siteConfig.isConfigured && siteConfig.tenant.siteStatus === "published" && !siteConfig.tenant.isDemo;
     const siteUrl = getSiteUrl();
     const path = tenant.slug === DEFAULT_TENANT_SLUG ? "/" : `/t/${tenant.slug}`;
-    return {
-      title: siteConfig.profile.companyName.zh || tenant.name.zh,
-      description: siteConfig.profile.description.zh || siteConfig.profile.primaryRegion.zh || tenant.name.en,
-      alternates: { canonical: `${siteUrl}${path}` },
-      robots: isPublic ? undefined : { index: false, follow: false },
-      openGraph: { title: siteConfig.profile.companyName.en || tenant.name.en, description: siteConfig.profile.description.en || siteConfig.profile.primaryRegion.en, url: `${siteUrl}${path}`, type: "website", images: [{ url: "/og.png", width: 1792, height: 944, alt: "黔林旅行社贵州旅行视觉图" }] },
-      twitter: { card: "summary_large_image", title: siteConfig.profile.companyName.en || tenant.name.en, description: siteConfig.profile.description.en || siteConfig.profile.primaryRegion.en, images: ["/og.png"] },
-    };
+    const title = siteConfig.profile.companyName.zh || tenant.name.zh;
+    const description = siteConfig.profile.description.zh || siteConfig.profile.primaryRegion.zh || tenant.name.zh;
+    const image = siteConfig.profile.ogImageUrl || "/og.png";
+    return { title, description, alternates: { canonical: `${siteUrl}${path}` }, robots: isPublic ? undefined : { index: false, follow: false }, openGraph: { title, description, url: `${siteUrl}${path}`, type: "website", images: [{ url: image, width: 1792, height: 944, alt: `${title}视觉图` }] }, twitter: { card: "summary_large_image", title, description, images: [image] } };
   } catch {
-    return { title: "黔林旅行社｜贵州定制旅行", description: "黔林旅行社专注贵州目的地旅行，为你规划轻松、清晰、值得回味的旅程。", robots: { index: false, follow: false }, openGraph: { title: "黔林旅行社｜贵州定制旅行", description: "黔林旅行社专注贵州目的地旅行，为你规划轻松、清晰、值得回味的旅程。", images: ["/og.png"] }, twitter: { card: "summary_large_image", title: "黔林旅行社｜贵州定制旅行", description: "黔林旅行社专注贵州目的地旅行，为你规划轻松、清晰、值得回味的旅程。", images: ["/og.png"] } };
+    return { title: "黔林旅行社", description: "旅行网站暂时无法加载。", robots: { index: false, follow: false }, openGraph: { title: "黔林旅行社", description: "旅行网站暂时无法加载。", images: ["/og.png"] }, twitter: { card: "summary_large_image", title: "黔林旅行社", description: "旅行网站暂时无法加载。", images: ["/og.png"] } };
   }
 }
 
 export default async function TenantPage({ params }: TenantPageProps) {
   const { tenantSlug } = await params;
   if (tenantSlug === DEFAULT_TENANT_SLUG) redirect("/");
-  let tenant = null;
-  try {
-    tenant = await resolveActiveTenantBySlug(tenantSlug);
-  } catch (error) {
-    console.error("Failed to load tenant page", error instanceof Error ? error.name : "UnknownError");
-    return <TenantHomeClient tenantSlug={tenantSlug} initialSiteConfig={null} />;
-  }
+  const tenant = await resolveActiveTenantBySlug(tenantSlug).catch(() => null);
   if (!tenant) notFound();
   let siteConfig: TenantSiteConfig | null = null;
   try {

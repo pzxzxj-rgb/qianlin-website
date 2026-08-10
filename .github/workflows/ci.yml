@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   ci:
-    name: lint, build, and tests
+    name: lint, typecheck, build, and tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -31,6 +31,9 @@ jobs:
       - name: Run lint
         run: npm run lint
 
+      - name: Run TypeScript typecheck
+        run: npm run typecheck
+
       - name: Build production bundle
         run: npm run build
 
@@ -39,3 +42,6 @@ jobs:
 
       - name: Run local D1 and HTTP integration tests
         run: npm run test:integration:local
+
+      - name: Audit production dependencies
+        run: npm audit --registry=https://registry.npmjs.org --omit=dev --audit-level=high

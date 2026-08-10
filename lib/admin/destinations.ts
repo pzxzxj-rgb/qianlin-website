@@ -1,12 +1,11 @@
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import { plannerCities, plannerDestinations } from "../../db/schema";
-import { ADMIN_TENANT_ID } from "./auth";
 import { isAdminImagePathForUsage } from "./imageCatalog";
+import { assertTenantScope } from "./tenantScope";
 
 export const ADMIN_DESTINATION_STATUSES = ["draft", "published", "archived"] as const;
 export const ADMIN_DESTINATION_CARD_SIZES = ["small", "large"] as const;
-export const ADMIN_DESTINATION_PROVINCE_CODE = "guizhou" as const;
 export const ADMIN_DESTINATION_FIELDS = [
   "slug",
   "cityCode",
@@ -288,7 +287,7 @@ export function validateAdminDestinationPayload(body: unknown): AdminDestination
 }
 
 function assertAdminTenant(tenantId: string) {
-  if (tenantId !== ADMIN_TENANT_ID) throw new Error("Invalid admin tenant boundary");
+  assertTenantScope(tenantId);
 }
 
 type AdminDestinationRow = {
@@ -316,7 +315,7 @@ type AdminDestinationRow = {
 };
 
 function mapDestinationRow(row: AdminDestinationRow, cityByCode: Map<string, AdminCityOption>): AdminDestinationValues {
-  if (row.provinceCode !== ADMIN_DESTINATION_PROVINCE_CODE || !ADMIN_DESTINATION_CARD_SIZES.includes(row.cardSize as AdminDestinationCardSize) || !ADMIN_DESTINATION_STATUSES.includes(row.status as AdminDestinationStatus)) throw new AdminDestinationConfigurationError();
+  if (!ADMIN_DESTINATION_CARD_SIZES.includes(row.cardSize as AdminDestinationCardSize) || !ADMIN_DESTINATION_STATUSES.includes(row.status as AdminDestinationStatus)) throw new AdminDestinationConfigurationError();
   const city = row.cityCode ? cityByCode.get(row.cityCode) : undefined;
   const hasHomepageImage = Boolean(row.imageUrl && isAdminImagePathForUsage(row.imageUrl, "destination"));
   return {
@@ -350,7 +349,7 @@ async function getAdminCityRows(tenantId: string) {
   const db = await getDb();
   return db.select({ code: plannerCities.code, nameZh: plannerCities.nameZh, nameEn: plannerCities.nameEn })
     .from(plannerCities)
-    .where(and(eq(plannerCities.tenantId, tenantId), eq(plannerCities.provinceCode, ADMIN_DESTINATION_PROVINCE_CODE), eq(plannerCities.status, "published")))
+    .where(and(eq(plannerCities.tenantId, tenantId), eq(plannerCities.status, "published")))
     .orderBy(asc(plannerCities.displayOrder), asc(plannerCities.code));
 }
 
@@ -369,7 +368,7 @@ export async function getAdminDestinationBundle(tenantId: string) {
 async function assertCityBelongsToTenant(tenantId: string, cityCode: string) {
   if (!cityCode) return;
   const db = await getDb();
-  const rows = await db.select({ code: plannerCities.code }).from(plannerCities).where(and(eq(plannerCities.tenantId, tenantId), eq(plannerCities.provinceCode, ADMIN_DESTINATION_PROVINCE_CODE), eq(plannerCities.code, cityCode), eq(plannerCities.status, "published"))).limit(1);
+  const rows = await db.select({ code: plannerCities.code }).from(plannerCities).where(and(eq(plannerCities.tenantId, tenantId), eq(plannerCities.code, cityCode), eq(plannerCities.status, "published"))).limit(1);
   if (!rows[0]) throw new AdminDestinationCityError();
 }
 
@@ -419,11 +418,14 @@ export async function createAdminDestination(tenantId: string, values: AdminDest
   assertAdminTenant(tenantId);
   await assertCityBelongsToTenant(tenantId, values.cityCode);
   const db = await getDb();
+  const [tenantProvince] = await db.select({ provinceCode: plannerCities.provinceCode }).from(plannerCities).where(and(eq(plannerCities.tenantId, tenantId), eq(plannerCities.status, "published"))).orderBy(asc(plannerCities.displayOrder), asc(plannerCities.code)).limit(1);
+  const provinceCode = tenantProvince?.provinceCode ?? (await db.select({ provinceCode: plannerDestinations.provinceCode }).from(plannerDestinations).where(eq(plannerDestinations.tenantId, tenantId)).orderBy(asc(plannerDestinations.displayOrder), asc(plannerDestinations.id)).limit(1))[0]?.provinceCode;
+  if (!provinceCode) throw new AdminDestinationConfigurationError("当前租户尚未配置规划区域");
   const existing = await db.select({ id: plannerDestinations.id }).from(plannerDestinations).where(and(eq(plannerDestinations.tenantId, tenantId), eq(plannerDestinations.slug, values.slug))).limit(1);
   if (existing[0]) throw new AdminDestinationConflictError();
   const id = globalThis.crypto.randomUUID();
   try {
-    await db.insert(plannerDestinations).values({ id, tenantId, provinceCode: ADMIN_DESTINATION_PROVINCE_CODE, ...destinationWriteValues(values, "", false) });
+    await db.insert(plannerDestinations).values({ id, tenantId, provinceCode, ...destinationWriteValues(values, "", false) });
   } catch (error) {
     if (isUniqueViolation(error)) throw new AdminDestinationConflictError();
     throw error;
@@ -434,7 +436,7 @@ export async function createAdminDestination(tenantId: string, values: AdminDest
 export async function updateAdminDestination(tenantId: string, destinationId: string, values: AdminDestinationInput) {
   assertAdminTenant(tenantId);
   const current = await getDestinationForAdmin(tenantId, destinationId);
-  if (!current || current.provinceCode !== ADMIN_DESTINATION_PROVINCE_CODE) throw new AdminDestinationNotFoundError();
+  if (!current) throw new AdminDestinationNotFoundError();
   await assertCityBelongsToTenant(tenantId, values.cityCode);
   const db = await getDb();
   const duplicate = await db.select({ id: plannerDestinations.id }).from(plannerDestinations).where(and(eq(plannerDestinations.tenantId, tenantId), eq(plannerDestinations.slug, values.slug), ne(plannerDestinations.id, destinationId))).limit(1);

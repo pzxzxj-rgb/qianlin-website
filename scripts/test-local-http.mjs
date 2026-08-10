@@ -1,30 +1,29 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { createHmac, pbkdf2Sync } from "node:crypto";
+import { createHash, pbkdf2Sync, randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
+import { createServer } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const wrangler = path.join(root, "node_modules", "wrangler", "bin", "wrangler.js");
-const statePath = path.resolve(root, ".wrangler", "http-test-state");
+const testRunId = `http-test-${Date.now()}-${process.pid}`;
+const testRunPath = path.resolve(root, ".wrangler", testRunId);
+const statePath = path.join(testRunPath, "state");
 const configPath = path.resolve(root, "wrangler.local.jsonc");
 const devVarsPath = path.resolve(root, ".dev.vars");
-const port = 8790;
-const baseUrl = `http://127.0.0.1:${port}`;
+const testLogsPath = path.join(testRunPath, "logs");
+const testRegistryPath = path.join(testRunPath, "registry");
+let port;
+let baseUrl;
+let readinessToken;
 const adminTestUsername = "admin-test";
 const adminTestPassword = "TestPassword!123";
 const adminIterations = 600_000;
 const adminSalt = Buffer.from("qianlin-admin-test-salt");
 const adminSessionSecret = "local-admin-session-secret-for-tests-only";
 const adminPasswordHash = `pbkdf2-sha256$${adminIterations}$${adminSalt.toString("base64url")}$${pbkdf2Sync(adminTestPassword, adminSalt, adminIterations, 32, "sha256").toString("base64url")}`;
-
-function signedAdminCookie({ tenantId, expiresAt }) {
-  const payload = JSON.stringify({ tenantId, expiresAt });
-  const encodedPayload = Buffer.from(payload, "utf8").toString("base64url");
-  const signature = createHmac("sha256", adminSessionSecret).update(payload).digest("base64url");
-  return `qianlin_admin_session=${encodedPayload}.${signature}`;
-}
 
 function runWrangler(args) {
   return execFileSync(process.execPath, [wrangler, ...args], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -39,16 +38,38 @@ function execute(sql) {
 }
 
 async function waitForServer() {
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+  for (let attempt = 0; attempt < 300; attempt += 1) {
+    if (server?.exitCode !== null || server?.signalCode) {
+      throw new Error(`Local HTTP server exited before readiness (code=${server.exitCode ?? "none"}, signal=${server.signalCode ?? "none"}).\n${serverOutput.join("").slice(-4000)}`);
+    }
     try {
       const response = await fetch(`${baseUrl}/api/t/qianlin-travel/site-config`);
-      if (response.status === 200) return;
+      if (response.status === 200 && response.headers.get("x-qianlin-readiness") === readinessToken) return;
     } catch {
       // The server is still starting.
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  throw new Error("Local HTTP server did not become ready.");
+  throw new Error(`Local HTTP server did not become ready with the expected readiness token.\n${serverOutput.join("").slice(-8000)}`);
+}
+
+function cookieToken(cookieHeader) {
+  return cookieHeader.split("=", 2)[1] ?? "";
+}
+
+async function findFreePort() {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address();
+      if (!address || typeof address === "string") {
+        probe.close(() => reject(new Error("Could not determine a free local port.")));
+        return;
+      }
+      probe.close((error) => error ? reject(error) : resolve(address.port));
+    });
+  });
 }
 
 async function request(pathname, init) {
@@ -82,20 +103,30 @@ const validPayload = {
   message: "Local D1 functional test",
   website: "",
   privacyConsent: true,
-  tenantId: "yunnan-demo",
   turnstileToken: "",
 };
 
 let server;
 let createdDevVars = false;
+let originalDevVarsContent = null;
+let hadDevVars = false;
+const serverOutput = [];
 try {
-  await fs.rm(statePath, { recursive: true, force: true });
+  port = await findFreePort();
+  baseUrl = `http://127.0.0.1:${port}`;
+  readinessToken = randomBytes(24).toString("base64url");
+  const removeOptions = { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 };
+  await fs.rm(statePath, removeOptions);
+  await fs.rm(testLogsPath, removeOptions);
+  await fs.rm(testRegistryPath, removeOptions);
   try {
-    await fs.access(devVarsPath);
+    originalDevVarsContent = await fs.readFile(devVarsPath, "utf8");
+    hadDevVars = true;
   } catch {
-    await fs.writeFile(devVarsPath, `ADMIN_USERNAME=${adminTestUsername}\nADMIN_PASSWORD_HASH=${adminPasswordHash}\nADMIN_SESSION_SECRET=local-admin-session-secret-for-tests-only\n`);
-    createdDevVars = true;
+    originalDevVarsContent = null;
   }
+  await fs.writeFile(devVarsPath, `ADMIN_USERNAME=${adminTestUsername}\nADMIN_PASSWORD_HASH=${adminPasswordHash}\nADMIN_SESSION_SECRET=local-admin-session-secret-for-tests-only\nADMIN_TENANT_ID=qianlin-travel\nHTTP_TEST_READINESS_TOKEN=${readinessToken}\n`);
+  createdDevVars = true;
   runWrangler(["d1", "migrations", "apply", "DB", "--local", "--config", configPath, "--persist-to", statePath]);
   execute("UPDATE tenant_site_profiles SET updated_at = '2000-01-01 00:00:00' WHERE tenant_id = 'qianlin-travel' AND status = 'published'");
   execute("UPDATE tenant_hero_slides SET updated_at = '2000-01-01 00:00:00' WHERE tenant_id = 'qianlin-travel' AND status = 'published'");
@@ -111,17 +142,23 @@ try {
   const originalYunnanTours = query("SELECT id, tenant_id, slug, title_zh, title_en, description_zh, description_en, duration_zh, duration_en, tag_zh, tag_en, price_text_zh, price_text_en, image_url, image_alt_zh, image_alt_en, featured, display_order, status, created_at, updated_at FROM tenant_tours WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id");
   const originalQianlinDestinationIdentities = query("SELECT id, tenant_id FROM planner_destinations WHERE tenant_id = 'qianlin-travel' ORDER BY id");
   const originalQianlinDestinationImages = query("SELECT id, tenant_id, image_url, show_on_homepage FROM planner_destinations WHERE tenant_id = 'qianlin-travel' ORDER BY id");
-  execute("INSERT OR IGNORE INTO planner_destinations (id, tenant_id, province_code, slug, city_code, name_zh, name_en, description_zh, description_en, image_url, card_size, region_zh, region_en, route_order, overnight_zh, overnight_en, recommended_visit_hours, major_attraction, available_for_planning, show_on_homepage, display_order, status) VALUES ('yunnan-destination-test', 'yunnan-demo', 'guizhou', 'fictional-shared-destination', 'yunnan-test-city', '云南虚构目的地', 'Fictional Yunnan destination', '云南租户虚构目的地介绍。', 'A fictional Yunnan destination for tenant isolation tests.', '/images/guizhou/hero-guizhou.png', 'small', '云南虚构区域', 'Fictional Yunnan region', 5, '', '', 3, 1, 1, 1, 5, 'published')");
+  execute("INSERT OR IGNORE INTO planner_destinations (id, tenant_id, province_code, slug, city_code, name_zh, name_en, description_zh, description_en, image_url, card_size, region_zh, region_en, route_order, overnight_zh, overnight_en, recommended_visit_hours, major_attraction, available_for_planning, show_on_homepage, display_order, status) VALUES ('yunnan-destination-test', 'yunnan-demo', 'yunnan', 'fictional-shared-destination', 'yunnan-test-city', '云南虚构目的地', 'Fictional Yunnan destination', '云南租户虚构目的地介绍。', 'A fictional Yunnan destination for tenant isolation tests.', '/images/guizhou/hero-guizhou.png', 'small', '云南虚构区域', 'Fictional Yunnan region', 5, '', '', 3, 1, 1, 1, 5, 'published')");
   const originalYunnanDestinations = query("SELECT id, tenant_id, province_code, slug, city_code, name_zh, name_en, description_zh, description_en, image_url, card_size, region_zh, region_en, route_order, overnight_zh, overnight_en, recommended_visit_hours, major_attraction, available_for_planning, show_on_homepage, display_order, status, created_at, updated_at FROM planner_destinations WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id");
   execute("INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent, status) VALUES ('yunnan-demo', 'Cross tenant inquiry', '13900001234', '1', 1, 'new')");
   const yunnanInquiryId = query("SELECT id FROM inquiries WHERE tenant_id = 'yunnan-demo' ORDER BY id DESC LIMIT 1")[0].id;
   execute("INSERT INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('configuring-test', 'configuring-test', '配置测试', 'Configuring test', 'active', 'configuring', 'zh', 0)");
+  execute("INSERT OR IGNORE INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('yunnan-travel-test', 'yunnan-travel-test', '云南测试旅行社', 'Yunnan Test Travel', 'active', 'configuring', 'zh', 0)");
+  execute(`INSERT OR IGNORE INTO users (id, username, password_hash, display_name_zh, display_name_en, status) VALUES ('user-yunnan-admin', 'yunnan-admin', '${adminPasswordHash}', '云南测试管理员', 'Yunnan test admin', 'active')`);
+  execute("INSERT OR IGNORE INTO tenant_memberships (id, tenant_id, user_id, role, status) VALUES ('membership-yunnan-admin', 'yunnan-travel-test', 'user-yunnan-admin', 'admin', 'active')");
+  execute("INSERT OR IGNORE INTO planner_cities (id, tenant_id, province_code, code, name_zh, name_en, available_as_start, available_as_end, display_order, status) VALUES ('yunnan-test-city', 'yunnan-demo', 'yunnan', 'yunnan-test-city', '云南测试城市', 'Yunnan Test City', 1, 1, 1, 'published')");
 
   server = spawn(process.execPath, [path.join(root, "node_modules", "vinext", "dist", "cli.js"), "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
     cwd: root,
-    env: { ...process.env, NODE_ENV: "test", NEXT_PUBLIC_SITE_URL: baseUrl, ADMIN_USERNAME: adminTestUsername, ADMIN_PASSWORD_HASH: adminPasswordHash, ADMIN_SESSION_SECRET: adminSessionSecret, CLOUDFLARE_PERSIST_STATE_PATH: ".wrangler/http-test-state", WRANGLER_WRITE_LOGS: "false", WRANGLER_LOG_PATH: ".wrangler/http-test-logs", MINIFLARE_REGISTRY_PATH: ".wrangler/http-test-registry" },
-    stdio: "ignore",
+    env: { ...process.env, NODE_ENV: "test", NEXT_PUBLIC_SITE_URL: baseUrl, ADMIN_USERNAME: adminTestUsername, ADMIN_PASSWORD_HASH: adminPasswordHash, ADMIN_SESSION_SECRET: adminSessionSecret, ADMIN_TENANT_ID: "qianlin-travel", HTTP_TEST_READINESS_TOKEN: readinessToken, CLOUDFLARE_PERSIST_STATE_PATH: statePath, WRANGLER_WRITE_LOGS: "false", WRANGLER_LOG_PATH: testLogsPath, MINIFLARE_REGISTRY_PATH: testRegistryPath },
+    stdio: ["ignore", "pipe", "pipe"],
   });
+  server.stdout.on("data", (chunk) => serverOutput.push(String(chunk)));
+  server.stderr.on("data", (chunk) => serverOutput.push(String(chunk)));
   await waitForServer();
 
   const anonymousAdmin = await request("/admin", { redirect: "manual" });
@@ -170,7 +207,7 @@ try {
   assert.equal(nonJsonLogin.response.status, 415);
   const tooLargeLogin = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: adminTestUsername, password: "x".repeat(9_000) }) });
   assert.equal(tooLargeLogin.response.status, 413);
-  const login = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: adminTestUsername, password: adminTestPassword, tenantId: "yunnan-demo" }) });
+  const login = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: adminTestUsername, password: adminTestPassword }) });
   assert.equal(login.response.status, 200);
   assert.deepEqual(login.body, { ok: true });
   assert.match(login.response.headers.get("cache-control") ?? "", /no-store/i);
@@ -181,6 +218,21 @@ try {
   const sessionCookie = setCookie.split(";", 1)[0];
   assert.match(sessionCookie, /^qianlin_admin_session=.+/);
   const tamperedCookie = `${sessionCookie.slice(0, -1)}${sessionCookie.endsWith("A") ? "B" : "A"}`;
+  const expiredLogin = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: adminTestUsername, password: adminTestPassword }) });
+  const expiredSessionCookie = (expiredLogin.response.headers.get("set-cookie") ?? "").split(";", 1)[0];
+  const expiredTokenHash = createHash("sha256").update(cookieToken(expiredSessionCookie)).digest("base64url");
+  execute(`UPDATE sessions SET expires_at = 1 WHERE token_hash = '${expiredTokenHash}'`);
+  const yunnanLogin = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: "yunnan-admin", password: adminTestPassword }) });
+  assert.equal(yunnanLogin.response.status, 200);
+  const yunnanSessionCookie = (yunnanLogin.response.headers.get("set-cookie") ?? "").split(";", 1)[0];
+  const yunnanOwnInquiries = await request("/api/admin/t/yunnan-travel-test/inquiries", { headers: { cookie: yunnanSessionCookie } });
+  assert.equal(yunnanOwnInquiries.response.status, 200);
+  const yunnanCrossTenant = await request("/api/admin/t/qianlin-travel/contacts", { headers: { cookie: yunnanSessionCookie } });
+  assert.equal(yunnanCrossTenant.response.status, 403);
+  const qianlinCrossTenant = await request("/api/admin/t/yunnan-travel-test/contacts", { headers: { cookie: sessionCookie } });
+  assert.equal(qianlinCrossTenant.response.status, 403);
+  const qianlinSessionCheck = await request("/api/admin/t/qianlin-travel/contacts", { headers: { cookie: sessionCookie } });
+  assert.equal(qianlinSessionCheck.response.status, 200);
   const saveProfile = (payload, options = {}) => request("/api/admin/profile", {
     method: "PUT",
     headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
@@ -291,7 +343,7 @@ try {
   assert.equal(invalidHeroStatus.response.status, 400);
   const invalidHeroOrder = await saveHeroImages({ ...validHeroImages, slides: validHeroImages.slides.map((slide, index) => index === 0 ? { ...slide, displayOrder: 999 } : slide) });
   assert.equal(invalidHeroOrder.response.status, 400);
-  for (const invalidCookie of [tamperedCookie, signedAdminCookie({ tenantId: "qianlin-travel", expiresAt: Math.floor(Date.now() / 1000) - 1 }), signedAdminCookie({ tenantId: "yunnan-demo", expiresAt: Math.floor(Date.now() / 1000) + 3600 })]) {
+  for (const invalidCookie of [tamperedCookie, "qianlin_admin_session=invalid-opaque-token", expiredSessionCookie]) {
     assert.equal((await saveProfileImages(validProfileImages, { cookie: invalidCookie })).response.status, 401);
     assert.equal((await saveHeroImages(validHeroImages, { cookie: invalidCookie })).response.status, 401);
   }
@@ -357,10 +409,10 @@ try {
   assert.equal(invalidOriginWithSession.response.status, 403);
   const tamperedProfile = await saveProfile(validProfile, { cookie: tamperedCookie });
   assert.equal(tamperedProfile.response.status, 401);
-  const expiredProfile = await saveProfile(validProfile, { cookie: signedAdminCookie({ tenantId: "qianlin-travel", expiresAt: Math.floor(Date.now() / 1000) - 1 }) });
+  const expiredProfile = await saveProfile(validProfile, { cookie: expiredSessionCookie });
   assert.equal(expiredProfile.response.status, 401);
-  const wrongTenantProfile = await saveProfile(validProfile, { cookie: signedAdminCookie({ tenantId: "yunnan-demo", expiresAt: Math.floor(Date.now() / 1000) + 3600 }) });
-  assert.equal(wrongTenantProfile.response.status, 401);
+  const wrongTenantProfile = await request("/api/admin/t/yunnan-travel-test/profile", { method: "PUT", headers: { "content-type": "application/json", origin: baseUrl, cookie: sessionCookie }, body: JSON.stringify(validProfile) });
+  assert.equal(wrongTenantProfile.response.status, 403);
   const savedProfile = await saveProfile(validProfile);
   assert.equal(savedProfile.response.status, 200);
   assert.match(savedProfile.response.headers.get("cache-control") ?? "", /no-store/i);
@@ -864,7 +916,7 @@ try {
   assert.deepEqual(query("SELECT id, tenant_id, type, label_zh, label_en, value, href, display_order, status, created_at, updated_at FROM tenant_contact_channels WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id"), originalYunnanContacts);
   assert.deepEqual(query("SELECT id, tenant_id, type, label_zh, label_en, value, href, display_order, status FROM tenant_contact_channels WHERE tenant_id = 'qianlin-travel' ORDER BY display_order, id"), updatedContactPayload.channels.map((contact) => ({ id: contact.id, tenant_id: "qianlin-travel", type: contact.type, label_zh: contact.labelZh, label_en: contact.labelEn, value: contact.value, href: contact.href || null, display_order: contact.displayOrder, status: contact.status })));
 
-  for (const invalidCookie of [tamperedCookie, signedAdminCookie({ tenantId: "qianlin-travel", expiresAt: Math.floor(Date.now() / 1000) - 1 }), signedAdminCookie({ tenantId: "yunnan-demo", expiresAt: Math.floor(Date.now() / 1000) + 3600 })]) {
+  for (const invalidCookie of [tamperedCookie, "qianlin_admin_session=invalid-opaque-token", expiredSessionCookie]) {
     assert.equal((await getContacts({ cookie: invalidCookie })).response.status, 401);
     assert.equal((await saveContacts(updatedContactPayload, { cookie: invalidCookie })).response.status, 401);
     assert.equal((await getTours({ cookie: invalidCookie })).response.status, 401);
@@ -876,9 +928,9 @@ try {
   }
   const tamperedSession = await request("/admin", { headers: { cookie: tamperedCookie }, redirect: "manual" });
   assert.ok([302, 303, 307, 308].includes(tamperedSession.response.status));
-  const expiredSession = await request("/admin", { headers: { cookie: signedAdminCookie({ tenantId: "qianlin-travel", expiresAt: Math.floor(Date.now() / 1000) - 1 }) }, redirect: "manual" });
+  const expiredSession = await request("/admin", { headers: { cookie: expiredSessionCookie }, redirect: "manual" });
   assert.ok([302, 303, 307, 308].includes(expiredSession.response.status));
-  const wrongTenantSession = await request("/admin", { headers: { cookie: signedAdminCookie({ tenantId: "yunnan-demo", expiresAt: Math.floor(Date.now() / 1000) + 3600 }) }, redirect: "manual" });
+  const wrongTenantSession = await request("/admin/t/yunnan-travel-test", { headers: { cookie: sessionCookie }, redirect: "manual" });
   assert.ok([302, 303, 307, 308].includes(wrongTenantSession.response.status));
   const adminLoginPage = await request("/admin/login");
   assert.equal(adminLoginPage.response.status, 200);
@@ -1013,11 +1065,14 @@ try {
   const differentName = await request("/api/t/qianlin-travel/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...validPayload, name: "Different name" }) });
   assert.equal(differentName.response.status, 201);
   const qianlinInquiryId = accepted.body.inquiry.id;
-  const invalidInquiryStatus = await request(`/api/admin/inquiries/${qianlinInquiryId}`, { method: "PATCH", headers: { "content-type": "application/json", origin: baseUrl, cookie: sessionCookie }, body: JSON.stringify({ status: "invalid" }) });
+  const statusLogin = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: adminTestUsername, password: adminTestPassword }) });
+  assert.equal(statusLogin.response.status, 200);
+  const statusSessionCookie = (statusLogin.response.headers.get("set-cookie") ?? "").split(";", 1)[0];
+  const invalidInquiryStatus = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}`, { method: "PATCH", headers: { "content-type": "application/json", origin: baseUrl, cookie: statusSessionCookie }, body: JSON.stringify({ status: "invalid" }) });
   assert.equal(invalidInquiryStatus.response.status, 400);
-  const crossTenantInquiryDetail = await request(`/api/admin/inquiries/${yunnanInquiryId}`, { headers: { cookie: sessionCookie } });
+  const crossTenantInquiryDetail = await request(`/api/admin/t/qianlin-travel/inquiries/${yunnanInquiryId}`, { headers: { cookie: statusSessionCookie } });
   assert.equal(crossTenantInquiryDetail.response.status, 404);
-  const firstInquiryPage = await request("/api/admin/inquiries?page=1&pageSize=1", { headers: { cookie: sessionCookie } });
+  const firstInquiryPage = await request("/api/admin/t/qianlin-travel/inquiries?page=1&pageSize=1", { headers: { cookie: statusSessionCookie } });
   assert.equal(firstInquiryPage.response.status, 200);
   assert.equal(firstInquiryPage.body.items.length, 1);
   assert.ok(firstInquiryPage.body.pagination.total >= 2);
@@ -1027,26 +1082,26 @@ try {
   assert.equal("email" in firstInquiryPage.body.items[0], false);
   assert.equal("message" in firstInquiryPage.body.items[0], false);
   assert.doesNotMatch(JSON.stringify(firstInquiryPage.body.items[0]), /18985127882|Local D1 functional test/);
-  const secondInquiryPage = await request("/api/admin/inquiries?page=2&pageSize=1", { headers: { cookie: sessionCookie } });
+  const secondInquiryPage = await request("/api/admin/t/qianlin-travel/inquiries?page=2&pageSize=1", { headers: { cookie: statusSessionCookie } });
   assert.equal(secondInquiryPage.response.status, 200);
   assert.equal(secondInquiryPage.body.items.length, 1);
   assert.notEqual(firstInquiryPage.body.items[0].id, secondInquiryPage.body.items[0].id);
-  const forcedTenantList = await request("/api/admin/inquiries?tenantId=yunnan-demo&page=1&pageSize=50", { headers: { cookie: sessionCookie } });
+  const forcedTenantList = await request("/api/admin/t/qianlin-travel/inquiries?tenantId=yunnan-demo&page=1&pageSize=50", { headers: { cookie: statusSessionCookie } });
   assert.equal(forcedTenantList.response.status, 200);
   assert.doesNotMatch(JSON.stringify(forcedTenantList.body), /Cross tenant inquiry|13900001234/);
-  const updatedInquiryStatus = await request(`/api/admin/inquiries/${qianlinInquiryId}`, { method: "PATCH", headers: { "content-type": "application/json", origin: baseUrl, cookie: sessionCookie }, body: JSON.stringify({ status: "following_up" }) });
+  const updatedInquiryStatus = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}`, { method: "PATCH", headers: { "content-type": "application/json", origin: baseUrl, cookie: statusSessionCookie }, body: JSON.stringify({ status: "following_up" }) });
   assert.equal(updatedInquiryStatus.response.status, 200);
   assert.equal(updatedInquiryStatus.body.inquiry.status, "following_up");
-  const inquiryDetail = await request(`/api/admin/inquiries/${qianlinInquiryId}`, { headers: { cookie: sessionCookie } });
+  const inquiryDetail = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}`, { headers: { cookie: statusSessionCookie } });
   assert.equal(inquiryDetail.response.status, 200);
   assert.equal(inquiryDetail.body.inquiry.phone, "18985127882");
   assert.equal(inquiryDetail.body.inquiry.message, "Local D1 functional test");
   assert.equal(inquiryDetail.body.inquiry.status, "following_up");
-  const inquiryListPage = await request("/admin/inquiries", { headers: { cookie: sessionCookie } });
+  const inquiryListPage = await request("/admin/inquiries", { headers: { cookie: statusSessionCookie } });
   assert.equal(inquiryListPage.response.status, 200);
-  assert.match(String(inquiryListPage.body), /鍜ㄨ绠＄悊/);
+  assert.match(String(inquiryListPage.body), /咨询管理/);
   assert.match(String(inquiryListPage.body), /noindex/i);
-  const inquiryDetailPage = await request(`/admin/inquiries/${qianlinInquiryId}`, { headers: { cookie: sessionCookie } });
+  const inquiryDetailPage = await request(`/admin/inquiries/${qianlinInquiryId}`, { headers: { cookie: statusSessionCookie } });
   assert.equal(inquiryDetailPage.response.status, 200);
   assert.match(String(inquiryDetailPage.body), /18985127882/);
   assert.match(String(inquiryDetailPage.body), /Local D1 functional test/);
@@ -1107,6 +1162,12 @@ try {
       try { execFileSync("taskkill", ["/pid", String(server.pid), "/t", "/f"], { stdio: "ignore" }); } catch {}
     } else server.kill("SIGTERM");
   }
-  await fs.rm(statePath, { recursive: true, force: true });
-  if (createdDevVars) await fs.rm(devVarsPath, { force: true });
+  const removeOptions = { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 };
+  await fs.rm(testRunPath, removeOptions);
+  await fs.rm(testLogsPath, removeOptions);
+  await fs.rm(testRegistryPath, removeOptions);
+  if (createdDevVars) {
+    if (hadDevVars && originalDevVarsContent !== null) await fs.writeFile(devVarsPath, originalDevVarsContent);
+    else await fs.rm(devVarsPath, { force: true });
+  }
 }

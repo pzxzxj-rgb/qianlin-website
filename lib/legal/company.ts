@@ -1,11 +1,10 @@
 import { DEFAULT_LEGAL_COMPANY, type LegalCompanyProfile } from "../../data/legal";
-import { ADMIN_TENANT_ID } from "../admin/auth";
 import { DEFAULT_TENANT_SLUG, getDefaultTenant, getTenantSiteConfig } from "../tenancy/resolveTenant";
 
 export async function getCurrentLegalCompany(): Promise<LegalCompanyProfile> {
   try {
     const tenant = await getDefaultTenant();
-    if (!tenant || tenant.id !== ADMIN_TENANT_ID || tenant.slug !== DEFAULT_TENANT_SLUG || tenant.isDemo || tenant.siteStatus !== "published") {
+    if (!tenant || tenant.slug !== DEFAULT_TENANT_SLUG || tenant.isDemo || tenant.siteStatus !== "published") {
       return DEFAULT_LEGAL_COMPANY;
     }
 

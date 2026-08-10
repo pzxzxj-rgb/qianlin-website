@@ -1,8 +1,9 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
 import { getDb } from "../../db";
-import { inquiries } from "../../db/schema";
+import { inquiries, tenantLegalPages, tenantQuotas } from "../../db/schema";
 import { verifyTurnstileToken } from "../security/turnstile";
 import { isValidMainlandPhone, normalizeMainlandPhone } from "./validateMainlandPhone";
+import { createInquirySyncJob, syncInquiryJob } from "./syncService";
 import type { ResolvedTenant } from "../tenancy/types";
 
 type InquiryPayload = Record<string, unknown>;
@@ -25,11 +26,11 @@ const travelerValues = new Set(["1", "2", "3-5", "6+"]);
 const durationValues = new Set(["", "3-4", "5-6", "7-10", "10+"]);
 
 function responseError(errorZh: string, errorEn: string, status: number) {
-  return Response.json({ error: errorEn, errorZh, errorEn }, { status });
+  return Response.json({ error: errorEn, errorZh, errorEn }, { status, headers: { "Cache-Control": "no-store" } });
 }
 
 function unavailableResponse() {
-  return responseError("咨询暂时无法保存，请稍后重试。", "We could not save your enquiry. Please try again later.", 500);
+  return responseError("咨询暂时无法保存，请稍后重试。", "We could not save your enquiry. Please try again later.", 503);
 }
 
 function readText(payload: InquiryPayload, key: string, maxLength: number): string | null {
@@ -113,6 +114,8 @@ export async function handleInquiry(request: Request, tenant: ResolvedTenant | n
   if (!body || typeof body !== "object" || Array.isArray(body)) return responseError("请求内容不正确，请检查后重试。", "Invalid request body.", 400);
 
   const payload = body as InquiryPayload;
+  const allowedFields = new Set(["name", "phone", "wechat", "email", "location", "travelDate", "travelers", "duration", "tourName", "places", "message", "website", "privacyConsent", "turnstileToken"]);
+  if (Object.keys(payload).some((key) => !allowedFields.has(key))) return responseError("请求包含不支持的字段。", "The enquiry contains unsupported fields.", 400);
   const name = readText(payload, "name", 80);
   const rawPhone = readText(payload, "phone", 20);
   const wechat = readText(payload, "wechat", 80);
@@ -162,9 +165,25 @@ export async function handleInquiry(request: Request, tenant: ResolvedTenant | n
 
   try {
     const db = await getDb();
+    const [quota] = await db.select({ inquiryLimit: tenantQuotas.inquiryLimit }).from(tenantQuotas).where(eq(tenantQuotas.tenantId, tenant.id)).limit(1);
+    if (quota) {
+      const [usage] = await db.select({ value: count(inquiries.id) }).from(inquiries).where(and(eq(inquiries.tenantId, tenant.id), isNull(inquiries.anonymizedAt)));
+      if (Number(usage?.value ?? 0) >= quota.inquiryLimit) return responseError("当前网站已达到咨询接收额度，请稍后再试。", "This site has reached its enquiry limit. Please try again later.", 429);
+    }
     if (await hasRecentDuplicate(db, tenant.id, phone, normalizedValues)) return responseError("相同咨询刚刚已经提交，请稍后再试。", "The same enquiry was submitted recently. Please wait before trying again.", 409);
-    const [inquiry] = await db.insert(inquiries).values({ tenantId: tenant.id, phone, ...normalizedValues, privacyConsent: true }).returning({ id: inquiries.id, createdAt: inquiries.createdAt });
-    return Response.json({ inquiry }, { status: 201 });
+    const [policy] = await db.select({ policyVersion: tenantLegalPages.policyVersion }).from(tenantLegalPages).where(eq(tenantLegalPages.tenantId, tenant.id)).limit(1);
+    const retentionDate = new Date();
+    retentionDate.setUTCDate(retentionDate.getUTCDate() + 180);
+    const [inquiry] = await db.insert(inquiries).values({ tenantId: tenant.id, phone, ...normalizedValues, privacyConsent: true, privacyConsentAt: new Date().toISOString(), privacyPolicyVersion: policy?.policyVersion ?? "v1", retentionUntil: retentionDate.toISOString() }).returning({ id: inquiries.id, createdAt: inquiries.createdAt });
+    if (!inquiry) return unavailableResponse();
+    let latestJob: Awaited<ReturnType<typeof createInquirySyncJob>> | null = null;
+    try {
+      await syncInquiryJob(tenant.id, inquiry.id);
+      latestJob = await createInquirySyncJob(tenant.id, inquiry.id);
+    } catch (syncError) {
+      console.error("Failed to create inquiry sync state", syncError instanceof Error ? syncError.name : "UnknownError");
+    }
+    return Response.json({ inquiry, sync: latestJob ? { status: latestJob.status, provider: latestJob.provider } : { status: "pending", provider: "disabled" } }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Failed to save inquiry", error instanceof Error ? error.name : "UnknownError");
     return unavailableResponse();

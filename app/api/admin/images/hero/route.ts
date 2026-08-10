@@ -1,5 +1,6 @@
 import { readAdminJsonRequest } from "../../../../../lib/admin/imageRequest";
 import { AdminImageConfigurationError, updateAdminHeroImages, validateAdminHeroImagesPayload } from "../../../../../lib/admin/images";
+import { recordAdminAudit } from "../../../../../lib/admin/audit";
 
 const ADMIN_HERO_IMAGES_BODY_MAX_BYTES = 24 * 1024;
 
@@ -18,6 +19,7 @@ export async function PUT(request: Request) {
 
   try {
     const heroSlides = await updateAdminHeroImages(parsed.tenantId, validation.values.slides);
+    await recordAdminAudit({ tenantId: parsed.tenantId, userId: parsed.userId, action: "update", resourceType: "hero_images", result: "success", metadata: { count: heroSlides.length } }).catch(() => undefined);
     return Response.json({ heroSlides }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof AdminImageConfigurationError) return errorResponse("Hero 图片配置必须正好包含两张已发布图片。", "The published Hero configuration must contain exactly two images.", 409);

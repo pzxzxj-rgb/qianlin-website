@@ -1,7 +1,7 @@
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import { tenantTours } from "../../db/schema";
-import { ADMIN_TENANT_ID } from "./auth";
+import { assertTenantScope } from "./tenantScope";
 import { isAdminImagePathForUsage } from "./imageCatalog";
 
 export const ADMIN_TOUR_STATUSES = ["draft", "published", "archived"] as const;
@@ -250,7 +250,7 @@ export function validateAdminTourPayload(body: unknown): AdminTourValidation {
 }
 
 function assertAdminTenant(tenantId: string) {
-  if (tenantId !== ADMIN_TENANT_ID) throw new Error("Invalid admin tenant boundary");
+  assertTenantScope(tenantId);
 }
 
 function mapTourRow(row: AdminTourRow): AdminTourValues {

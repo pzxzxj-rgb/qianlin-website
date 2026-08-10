@@ -3,6 +3,10 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 export function AdminLoginForm() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -19,8 +23,8 @@ export function AdminLoginForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: formData.get("username"), password: formData.get("password") }),
       });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(typeof result.errorZh === "string" ? result.errorZh : "登录失败，请稍后重试。");
+      const result: unknown = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(isRecord(result) && typeof result.errorZh === "string" ? result.errorZh : "登录失败，请稍后重试。");
       window.location.assign("/admin");
     } catch (requestError) {
       setError(requestError instanceof Error && requestError.message ? requestError.message : "登录失败，请稍后重试。");

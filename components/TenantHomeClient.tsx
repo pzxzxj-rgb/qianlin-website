@@ -31,6 +31,7 @@ function emptySiteConfig(tenantSlug: string): TenantSiteConfig {
       primaryRegion: { zh: "", en: "" },
       address: { zh: "", en: "" },
       logo: { mark: "", imageUrl: "" },
+      ogImageUrl: "",
       images: { about: { src: "", alt: { zh: "", en: "" } }, customize: { src: "", alt: { zh: "", en: "" } } },
     },
     contacts: [],

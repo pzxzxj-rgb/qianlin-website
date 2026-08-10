@@ -23,9 +23,11 @@ function isPublicTour(value: unknown, tenantId: string) {
 
 function isTenantSiteConfig(value: unknown, tenantSlug: string): value is TenantSiteConfig {
   if (!isRecord(value) || !isRecord(value.tenant) || !isRecord(value.profile)) return false;
-  if (value.tenant.slug !== tenantSlug || typeof value.tenant.id !== "string") return false;
-  if (value.tenant.siteStatus !== "configuring" && value.tenant.siteStatus !== "published") return false;
-  if (typeof value.isConfigured !== "boolean" || !Array.isArray(value.contacts) || !Array.isArray(value.tours) || !value.tours.every((tour) => isPublicTour(tour, value.tenant.id)) || !Array.isArray(value.heroSlides)) return false;
+  const tenant = value.tenant;
+  const tenantId = tenant.id;
+  if (typeof tenant.slug !== "string" || typeof tenantId !== "string" || tenant.slug !== tenantSlug) return false;
+  if (tenant.siteStatus !== "configuring" && tenant.siteStatus !== "published") return false;
+  if (typeof value.isConfigured !== "boolean" || !Array.isArray(value.contacts) || !Array.isArray(value.tours) || !value.tours.every((tour) => isPublicTour(tour, tenantId)) || !Array.isArray(value.heroSlides)) return false;
   return true;
 }
 

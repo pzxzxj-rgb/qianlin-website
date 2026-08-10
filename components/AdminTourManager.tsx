@@ -7,6 +7,7 @@ import { useState } from "react";
 import { getAdminImageOptions } from "../lib/admin/imageCatalog";
 import type { AdminTourFieldErrors, AdminTourInput, AdminTourStatus, AdminTourValues } from "../lib/admin/tours";
 import { AdminLogoutButton } from "./AdminDashboard";
+import { adminApiPath, adminPagePath } from "./adminPaths";
 import { AdminImagePreview } from "./AdminImagePreview";
 import { confirmAdminNavigation, useAdminUnsavedChanges } from "./useAdminUnsavedChanges";
 
@@ -104,7 +105,7 @@ export function confirmAdminTourNavigation(isDirty: boolean) {
   return confirmAdminNavigation(isDirty, "有未保存的线路修改，确定离开旅游线路管理吗？");
 }
 
-export function AdminTourManager({ initialValues }: { initialValues: AdminTourValues[] }) {
+export function AdminTourManager({ initialValues, tenantSlug }: { initialValues: AdminTourValues[]; tenantSlug?: string }) {
   const router = useRouter();
   const initialDrafts = Object.fromEntries(initialValues.map((tour) => [tour.id, toTourInput(tour)]));
   const [tours, setTours] = useState<AdminTourValues[]>(() => sortTours(initialValues));
@@ -172,7 +173,7 @@ export function AdminTourManager({ initialValues }: { initialValues: AdminTourVa
     setFormError("new");
     setSessionExpired(false);
     try {
-      const response = await fetch("/api/admin/tours", { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify(newValues) });
+      const response = await fetch(adminApiPath(tenantSlug, "/tours"), { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify(newValues) });
       const result = await readResponse(response);
       if (response.status === 401) {
         setSessionExpired(true);
@@ -212,7 +213,7 @@ export function AdminTourManager({ initialValues }: { initialValues: AdminTourVa
     setFormError(tourId);
     setSessionExpired(false);
     try {
-      const response = await fetch(`/api/admin/tours/${encodeURIComponent(tourId)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify(values) });
+      const response = await fetch(`${adminApiPath(tenantSlug, "/tours")}/${encodeURIComponent(tourId)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify(values) });
       const result = await readResponse(response);
       if (response.status === 401) {
         setSessionExpired(true);
@@ -272,7 +273,7 @@ export function AdminTourManager({ initialValues }: { initialValues: AdminTourVa
   }
 
   return <main className="admin-page">
-    <header className="admin-topbar"><Link className="admin-brand" href="/admin" onClick={handleReturn}><span className="brand-mark">Q</span><span><strong>QIANLIN TRAVEL</strong><small>旅游线路管理</small></span></Link><div className="admin-topbar-actions"><Link className="admin-profile-back-link" href="/admin" onClick={handleReturn}>返回后台</Link><AdminLogoutButton isDirty={isDirty} disabled={pending} /></div></header>
+    <header className="admin-topbar"><Link className="admin-brand" href={adminPagePath(tenantSlug, "")} onClick={handleReturn}><span className="brand-mark">Q</span><span><strong>QIANLIN TRAVEL</strong><small>旅游线路管理</small></span></Link><div className="admin-topbar-actions"><Link className="admin-profile-back-link" href={adminPagePath(tenantSlug, "")} onClick={handleReturn}>返回后台</Link><AdminLogoutButton isDirty={isDirty} disabled={pending} /></div></header>
     <div className="admin-shell admin-tours-shell">
       <div className="admin-heading"><div><span className="eyebrow">QIANLIN TRAVEL · TOURS</span><h1>旅游线路管理</h1><p>新增或编辑官网线路。价格、时长和标签均为展示文字，线路图片只能从项目内置白名单中选择。</p></div></div>
       <p className="admin-tour-status" role="status" aria-live="polite">{pending ? "正在保存线路……" : "线路数据已加载"}{sessionExpired ? <Link href="/admin/login">重新登录</Link> : null}</p>

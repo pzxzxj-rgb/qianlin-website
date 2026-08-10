@@ -20,10 +20,11 @@ export async function generateMetadata(): Promise<Metadata> {
       const siteUrl = getSiteUrl();
       const title = siteConfig.profile.companyName.zh || defaultTitle;
       const description = siteConfig.profile.description.zh || siteConfig.profile.primaryRegion.zh || defaultDescription;
-      return { title, description, alternates: { canonical: siteUrl }, robots: isPublic && !siteConfig.tenant.isDemo ? undefined : { index: false, follow: false }, openGraph: { title, description, url: siteUrl, type: "website", images: [{ url: "/og.png", width: 1792, height: 944, alt: "黔林旅行社贵州旅行视觉图" }] }, twitter: { card: "summary_large_image", title, description, images: ["/og.png"] } };
+      const image = siteConfig.profile.ogImageUrl || "/og.png";
+      return { title, description, alternates: { canonical: siteUrl }, robots: isPublic && !siteConfig.tenant.isDemo ? undefined : { index: false, follow: false }, openGraph: { title, description, url: siteUrl, type: "website", images: [{ url: image, width: 1792, height: 944, alt: "黔林旅行社贵州旅行视觉图" }] }, twitter: { card: "summary_large_image", title, description, images: [image] } };
     }
   } catch {
-    // Build and no-binding test environments use the generic root metadata.
+    // Missing local bindings or an invalid production URL must not create public metadata.
   }
   return { title: defaultTitle, description: defaultDescription, robots: { index: false, follow: false }, openGraph: { title: defaultTitle, description: defaultDescription, images: ["/og.png"] }, twitter: { card: "summary_large_image", title: defaultTitle, description: defaultDescription, images: ["/og.png"] } };
 }

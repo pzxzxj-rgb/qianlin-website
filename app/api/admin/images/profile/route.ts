@@ -1,5 +1,6 @@
 import { readAdminJsonRequest } from "../../../../../lib/admin/imageRequest";
 import { updateAdminProfileImages, validateAdminProfileImagesPayload } from "../../../../../lib/admin/images";
+import { recordAdminAudit } from "../../../../../lib/admin/audit";
 
 const ADMIN_PROFILE_IMAGES_BODY_MAX_BYTES = 16 * 1024;
 
@@ -18,6 +19,7 @@ export async function PUT(request: Request) {
 
   try {
     const profile = await updateAdminProfileImages(parsed.tenantId, validation.values);
+    if (profile) await recordAdminAudit({ tenantId: parsed.tenantId, userId: parsed.userId, action: "update", resourceType: "profile_images", resourceId: parsed.tenantId, result: "success" }).catch(() => undefined);
     if (!profile) return errorResponse("黔林旅行社正式资料不存在。", "The published Qianlin profile was not found.", 404);
     return Response.json({ profile }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

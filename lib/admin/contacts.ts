@@ -1,7 +1,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import { tenantContactChannels } from "../../db/schema";
-import { ADMIN_TENANT_ID } from "./auth";
+import { assertTenantScope } from "./tenantScope";
 
 export const ADMIN_CONTACT_TYPES = ["phone", "wechat", "email"] as const;
 export const ADMIN_CONTACT_STATUSES = ["draft", "published", "archived"] as const;
@@ -252,7 +252,7 @@ export function validateAdminContactsPayload(body: unknown): AdminContactValidat
 }
 
 function assertAdminTenant(tenantId: string) {
-  if (tenantId !== ADMIN_TENANT_ID) throw new Error("Invalid admin tenant boundary");
+  assertTenantScope(tenantId);
 }
 
 type AdminContactRow = {

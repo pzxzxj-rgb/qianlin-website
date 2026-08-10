@@ -1,7 +1,7 @@
 import { and, count, desc, eq, gte } from "drizzle-orm";
 import { getDb } from "../../db";
 import { inquiries } from "../../db/schema";
-import { ADMIN_TENANT_ID } from "./auth";
+import { assertTenantScope } from "./tenantScope";
 
 export const ADMIN_INQUIRY_STATUSES = ["new", "contacted", "following_up", "completed", "closed"] as const;
 export type AdminInquiryStatus = typeof ADMIN_INQUIRY_STATUSES[number];
@@ -50,7 +50,7 @@ export type AdminInquiryStats = {
 };
 
 function assertAdminTenant(tenantId: string) {
-  if (tenantId !== ADMIN_TENANT_ID) throw new Error("Invalid admin tenant boundary");
+  assertTenantScope(tenantId);
 }
 
 function maskPhone(value: string) {
@@ -93,17 +93,17 @@ function normalizePageSize(value: number) {
   return Math.min(value, ADMIN_INQUIRY_MAX_PAGE_SIZE);
 }
 
-function inquiryFilters(status?: AdminInquiryStatus) {
+function inquiryFilters(tenantId: string, status?: AdminInquiryStatus) {
   return status
-    ? and(eq(inquiries.tenantId, ADMIN_TENANT_ID), eq(inquiries.status, status))
-    : eq(inquiries.tenantId, ADMIN_TENANT_ID);
+    ? and(eq(inquiries.tenantId, tenantId), eq(inquiries.status, status))
+    : eq(inquiries.tenantId, tenantId);
 }
 
 export async function getAdminInquiries(tenantId: string, input: { status?: AdminInquiryStatus; page?: number; pageSize?: number } = {}): Promise<AdminInquiryListResponse> {
   assertAdminTenant(tenantId);
   const page = normalizePage(input.page ?? 1);
   const pageSize = normalizePageSize(input.pageSize ?? ADMIN_INQUIRY_PAGE_SIZE);
-  const where = inquiryFilters(input.status);
+  const where = inquiryFilters(tenantId, input.status);
   const db = await getDb();
   const [rows, totalRows] = await Promise.all([
     db.select({ id: inquiries.id, createdAt: inquiries.createdAt, name: inquiries.name, phone: inquiries.phone, wechat: inquiries.wechat, email: inquiries.email, travelers: inquiries.travelers, travelDate: inquiries.travelDate, status: inquiries.status }).from(inquiries).where(where).orderBy(desc(inquiries.createdAt), desc(inquiries.id)).limit(pageSize).offset((page - 1) * pageSize),
@@ -120,7 +120,7 @@ export async function getAdminInquiries(tenantId: string, input: { status?: Admi
 export async function getAdminInquiryDetail(tenantId: string, inquiryId: number): Promise<AdminInquiryDetail | null> {
   assertAdminTenant(tenantId);
   const db = await getDb();
-  const rows = await db.select({ id: inquiries.id, name: inquiries.name, phone: inquiries.phone, wechat: inquiries.wechat, email: inquiries.email, travelDate: inquiries.travelDate, travelers: inquiries.travelers, message: inquiries.message, createdAt: inquiries.createdAt, status: inquiries.status }).from(inquiries).where(and(eq(inquiries.tenantId, ADMIN_TENANT_ID), eq(inquiries.id, inquiryId))).limit(1);
+  const rows = await db.select({ id: inquiries.id, name: inquiries.name, phone: inquiries.phone, wechat: inquiries.wechat, email: inquiries.email, travelDate: inquiries.travelDate, travelers: inquiries.travelers, message: inquiries.message, createdAt: inquiries.createdAt, status: inquiries.status }).from(inquiries).where(and(eq(inquiries.tenantId, tenantId), eq(inquiries.id, inquiryId))).limit(1);
   const row = rows[0];
   return row ? { ...row, status: row.status as AdminInquiryStatus } : null;
 }
@@ -128,7 +128,7 @@ export async function getAdminInquiryDetail(tenantId: string, inquiryId: number)
 export async function updateAdminInquiryStatus(tenantId: string, inquiryId: number, status: AdminInquiryStatus) {
   assertAdminTenant(tenantId);
   const db = await getDb();
-  const rows = await db.update(inquiries).set({ status }).where(and(eq(inquiries.tenantId, ADMIN_TENANT_ID), eq(inquiries.id, inquiryId))).returning({ id: inquiries.id, status: inquiries.status, createdAt: inquiries.createdAt });
+  const rows = await db.update(inquiries).set({ status }).where(and(eq(inquiries.tenantId, tenantId), eq(inquiries.id, inquiryId))).returning({ id: inquiries.id, status: inquiries.status, createdAt: inquiries.createdAt });
   const row = rows[0];
   return row ? { ...row, status: row.status as AdminInquiryStatus } : null;
 }
@@ -143,9 +143,9 @@ export async function getAdminInquiryStats(tenantId: string): Promise<AdminInqui
   const db = await getDb();
   const todayStartUtc = getChinaDayStartUtc();
   const [newRows, followingUpRows, todayRows] = await Promise.all([
-    db.select({ value: count() }).from(inquiries).where(and(eq(inquiries.tenantId, ADMIN_TENANT_ID), eq(inquiries.status, "new"))),
-    db.select({ value: count() }).from(inquiries).where(and(eq(inquiries.tenantId, ADMIN_TENANT_ID), eq(inquiries.status, "following_up"))),
-    db.select({ value: count() }).from(inquiries).where(and(eq(inquiries.tenantId, ADMIN_TENANT_ID), gte(inquiries.createdAt, todayStartUtc))),
+    db.select({ value: count() }).from(inquiries).where(and(eq(inquiries.tenantId, tenantId), eq(inquiries.status, "new"))),
+    db.select({ value: count() }).from(inquiries).where(and(eq(inquiries.tenantId, tenantId), eq(inquiries.status, "following_up"))),
+    db.select({ value: count() }).from(inquiries).where(and(eq(inquiries.tenantId, tenantId), gte(inquiries.createdAt, todayStartUtc))),
   ]);
   return { newInquiries: Number(newRows[0]?.value ?? 0), followingUpInquiries: Number(followingUpRows[0]?.value ?? 0), todayNewInquiries: Number(todayRows[0]?.value ?? 0) };
 }

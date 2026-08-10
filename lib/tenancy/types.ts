@@ -28,6 +28,7 @@ export type TenantSiteConfig = {
     primaryRegion: { zh: string; en: string };
     address: { zh: string; en: string };
     logo: { mark: string; imageUrl: string };
+    ogImageUrl: string;
     images: {
       about: { src: string; alt: { zh: string; en: string } };
       customize: { src: string; alt: { zh: string; en: string } };

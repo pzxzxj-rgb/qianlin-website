@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import type { AdminInquiryListResponse, AdminInquiryStatus } from "../lib/admin/inquiries";
+import { adminApiPath } from "./adminPaths";
 
 const STATUS_LABELS: Record<AdminInquiryStatus, string> = {
   new: "新咨询",
@@ -21,6 +22,10 @@ const STATUS_OPTIONS: Array<{ value: "" | AdminInquiryStatus; label: string }> =
   { value: "closed", label: STATUS_LABELS.closed },
 ];
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 function formatDate(value: string) {
   return value ? value.replace("T", " ").replace("Z", "") : "未填写";
 }
@@ -29,7 +34,7 @@ function statusClass(status: AdminInquiryStatus) {
   return `admin-inquiry-status admin-inquiry-status-${status}`;
 }
 
-export function AdminInquiryManager({ initialData }: { initialData: AdminInquiryListResponse }) {
+export function AdminInquiryManager({ initialData, tenantSlug }: { initialData: AdminInquiryListResponse; tenantSlug?: string }) {
   const [data, setData] = useState(initialData);
   const [filterStatus, setFilterStatus] = useState<"" | AdminInquiryStatus>(initialData.status ?? "");
   const [pending, setPending] = useState(false);
@@ -41,16 +46,16 @@ export function AdminInquiryManager({ initialData }: { initialData: AdminInquiry
     const params = new URLSearchParams({ page: String(nextPage), pageSize: String(data.pagination.pageSize) });
     if (nextStatus) params.set("status", nextStatus);
     try {
-      const response = await fetch(`/api/admin/inquiries?${params.toString()}`, { cache: "no-store", headers: { Accept: "application/json" } });
-      const result = await response.json().catch(() => null);
-      if (!response.ok || !result || !Array.isArray(result.items) || !result.pagination) throw new Error(typeof result?.errorZh === "string" ? result.errorZh : "咨询列表暂时无法加载，请稍后重试。");
+      const response = await fetch(`${adminApiPath(tenantSlug, "/inquiries")}?${params.toString()}`, { cache: "no-store", headers: { Accept: "application/json" } });
+      const result: unknown = await response.json().catch(() => null);
+      if (!isRecord(result) || !response.ok || !Array.isArray(result.items) || !isRecord(result.pagination)) throw new Error(isRecord(result) && typeof result.errorZh === "string" ? result.errorZh : "咨询列表暂时无法加载，请稍后重试。");
       setData(result as AdminInquiryListResponse);
     } catch (requestError) {
       setError(requestError instanceof Error && requestError.message ? requestError.message : "咨询列表暂时无法加载，请稍后重试。");
     } finally {
       setPending(false);
     }
-  }, [data.pagination.pageSize]);
+  }, [data.pagination.pageSize, tenantSlug]);
 
   const handleFilterChange = (value: "" | AdminInquiryStatus) => {
     setFilterStatus(value);

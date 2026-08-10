@@ -56,9 +56,13 @@ export function getAdminImageOption(path: string) {
 }
 
 export function getAdminImageOptions(usage: AdminImageUsage) {
-  return ADMIN_IMAGE_CATALOG.filter((image) => image.recommendedFor.includes(usage));
+  return ADMIN_IMAGE_CATALOG.filter((image) => image.recommendedFor.some((candidate) => candidate === usage));
 }
 
 export function isAdminImagePathForUsage(value: unknown, usage: AdminImageUsage): value is string {
-  return isAdminImagePath(value) && Boolean(getAdminImageOption(value)?.recommendedFor.includes(usage));
+  return isAdminImagePath(value) && Boolean(getAdminImageOption(value)?.recommendedFor.some((candidate) => candidate === usage));
+}
+
+export function isSafeOgImagePath(value: unknown): value is string {
+  return value === "/og.png" || isAdminImagePathForUsage(value, "hero");
 }

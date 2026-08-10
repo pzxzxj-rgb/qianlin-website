@@ -1,6 +1,7 @@
-import { requireAdminSession, requireAdminTenant } from "../../../../../lib/admin/auth";
 import { getAdminInquiryDetail, updateAdminInquiryStatus, ADMIN_INQUIRY_STATUSES, type AdminInquiryStatus } from "../../../../../lib/admin/inquiries";
 import { readRequestBodyWithinLimit, verifySameOriginRequest } from "../../../../../lib/admin/requestSecurity";
+import { getAdminRouteAccess } from "../../../../../lib/admin/routeAccess";
+import { recordAdminAudit } from "../../../../../lib/admin/audit";
 
 const ADMIN_INQUIRY_STATUS_BODY_MAX_BYTES = 4 * 1024;
 
@@ -17,18 +18,13 @@ function isAdminInquiryStatus(value: unknown): value is AdminInquiryStatus {
   return typeof value === "string" && ADMIN_INQUIRY_STATUSES.includes(value as AdminInquiryStatus);
 }
 
-async function getTenantId(request: Request) {
-  const session = await requireAdminSession(request);
-  if (!session) return { error: errorResponse("登录状态已失效，请重新登录。", "Your admin session is invalid or expired.", 401) } as const;
-  try {
-    return { tenantId: requireAdminTenant(session) } as const;
-  } catch {
-    return { error: errorResponse("当前管理员没有权限查看咨询。", "You are not allowed to view enquiries.", 403) } as const;
-  }
+async function getTenantId(request: Request, minimumRole: "viewer" | "editor") {
+  const trusted = await getAdminRouteAccess(request, undefined, minimumRole);
+  return "response" in trusted ? { error: trusted.response } as const : { tenantId: trusted.access.tenantId, userId: trusted.access.userId } as const;
 }
 
 export async function GET(request: Request, context: { params: Promise<{ inquiryId: string }> }) {
-  const access = await getTenantId(request);
+  const access = await getTenantId(request, "viewer");
   if ("error" in access) return access.error;
   const { inquiryId: rawInquiryId } = await context.params;
   const inquiryId = parseInquiryId(rawInquiryId);
@@ -44,7 +40,7 @@ export async function GET(request: Request, context: { params: Promise<{ inquiry
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ inquiryId: string }> }) {
-  const access = await getTenantId(request);
+  const access = await getTenantId(request, "editor");
   if ("error" in access) return access.error;
   if (!verifySameOriginRequest(request)) return errorResponse("请求来源无效。", "Invalid request origin.", 403);
 
@@ -68,6 +64,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ inqui
 
   try {
     const inquiry = await updateAdminInquiryStatus(access.tenantId, inquiryId, payload.status);
+    if (inquiry) await recordAdminAudit({ tenantId: access.tenantId, userId: access.userId, action: "update", resourceType: "inquiry", resourceId: String(inquiryId), result: "success", metadata: { status: payload.status } }).catch(() => undefined);
     return inquiry ? Response.json({ inquiry }, { headers: { "Cache-Control": "no-store" } }) : errorResponse("咨询不存在。", "The enquiry was not found.", 404);
   } catch (error) {
     console.error("Failed to update admin inquiry status", error instanceof Error ? error.name : "UnknownError");

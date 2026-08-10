@@ -73,6 +73,9 @@ async function main() {
       "0005_local_profile_images.sql",
       "0006_breezy_blink.sql",
       "0007_yielding_deathstrike.sql",
+      "0008_saas_identity_and_tenant_governance.sql",
+      "0009_tenant_inquiry_sync_jobs.sql",
+      "0010_add_tenant_province_catalog.sql",
     ]);
 
     const counts = query("SELECT (SELECT COUNT(*) FROM tenants WHERE status = 'active') AS active_tenants, (SELECT COUNT(*) FROM tenants WHERE site_status = 'published' AND id = 'qianlin-travel') AS qianlin_published, (SELECT COUNT(*) FROM tenants WHERE site_status = 'published' AND id = 'yunnan-demo') AS demo_published, (SELECT COUNT(*) FROM tenant_hero_slides WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_heroes, (SELECT COUNT(*) FROM tenant_hero_slides WHERE tenant_id = 'yunnan-demo' AND status = 'published') AS demo_heroes, (SELECT COUNT(*) FROM planner_cities WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_cities, (SELECT COUNT(*) FROM planner_destinations WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_destinations, (SELECT COUNT(*) FROM tenant_tours WHERE tenant_id = 'qianlin-travel') AS qianlin_tours, (SELECT COUNT(*) FROM tenant_tours WHERE tenant_id = 'yunnan-demo') AS demo_tours, (SELECT COUNT(*) FROM inquiries WHERE tenant_id IS NULL) AS null_inquiries", freshState);
@@ -87,6 +90,12 @@ async function main() {
     assert.equal(countRow.qianlin_tours, 0);
     assert.equal(countRow.demo_tours, 0);
     assert.equal(countRow.null_inquiries, 0);
+    assert.equal(query("SELECT COUNT(*) AS count FROM tenant_legal_pages WHERE tenant_id IN ('qianlin-travel', 'yunnan-demo')", freshState)[0].count, 2);
+    assert.equal(query("SELECT COUNT(*) AS count FROM tenant_quotas WHERE tenant_id IN ('qianlin-travel', 'yunnan-demo')", freshState)[0].count, 2);
+    assert.equal(query("SELECT COUNT(*) AS count FROM users", freshState)[0].count, 0);
+    assert.equal(query("SELECT COUNT(*) AS count FROM tenant_memberships", freshState)[0].count, 0);
+    assert.equal(query("SELECT COUNT(*) AS count FROM sessions", freshState)[0].count, 0);
+    assert.equal(query("SELECT COUNT(*) AS count FROM admin_audit_logs", freshState)[0].count, 0);
     assert.equal(query("SELECT COUNT(*) AS count FROM tenants WHERE id = 'default' OR slug = 'default' OR slug = 'qianlin' ", freshState)[0].count, 0);
 
     const inquiryColumns = query("SELECT name, dflt_value FROM pragma_table_info('inquiries') WHERE name = 'tenant_id'", freshState)[0];
@@ -138,11 +147,14 @@ async function main() {
       "0005_local_profile_images.sql",
       "0006_breezy_blink.sql",
       "0007_yielding_deathstrike.sql",
+      "0008_saas_identity_and_tenant_governance.sql",
+      "0009_tenant_inquiry_sync_jobs.sql",
+      "0010_add_tenant_province_catalog.sql",
     ]);
     assert.equal(query("SELECT customize_image_url FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel'", legacyState)[0].customize_image_url, "/images/guizhou/customize-mountains.png");
     assert.equal(query("SELECT COUNT(*) AS count FROM tenant_tours", legacyState)[0].count, 0);
 
-    console.log("Local D1 integration passed: fresh 0000-0007 and existing 0000-0004 plus 0005-0007 migration paths.");
+    console.log("Local D1 integration passed: fresh 0000-0010 and existing 0000-0004 plus 0005-0010 migration paths.");
   } finally {
     await fs.rm(freshState, { recursive: true, force: true });
     await fs.rm(legacyState, { recursive: true, force: true });

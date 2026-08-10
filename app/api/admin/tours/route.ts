@@ -1,6 +1,7 @@
-import { requireAdminSession, requireAdminTenant } from "../../../../lib/admin/auth";
 import { readAdminJsonRequest } from "../../../../lib/admin/imageRequest";
+import { getAdminRouteAccess } from "../../../../lib/admin/routeAccess";
 import { AdminTourConflictError, createAdminTour, getAdminTours, validateAdminTourPayload } from "../../../../lib/admin/tours";
+import { recordAdminAudit } from "../../../../lib/admin/audit";
 
 const ADMIN_TOURS_BODY_MAX_BYTES = 48 * 1024;
 
@@ -9,13 +10,8 @@ function errorResponse(errorZh: string, errorEn: string, status: number, fieldEr
 }
 
 async function getTrustedAdminTenant(request: Request) {
-  const session = await requireAdminSession(request);
-  if (!session) return { response: errorResponse("登录状态已失效，请重新登录。", "Your admin session is invalid or expired.", 401) } as const;
-  try {
-    return { tenantId: requireAdminTenant(session) } as const;
-  } catch {
-    return { response: errorResponse("当前管理员没有权限操作该租户。", "You are not allowed to edit this tenant.", 403) } as const;
-  }
+  const trusted = await getAdminRouteAccess(request, undefined, "viewer");
+  return "response" in trusted ? trusted : { tenantId: trusted.access.tenantId };
 }
 
 export async function GET(request: Request) {
@@ -42,6 +38,7 @@ export async function POST(request: Request) {
 
   try {
     const tour = await createAdminTour(parsed.tenantId, validation.values);
+    await recordAdminAudit({ tenantId: parsed.tenantId, userId: parsed.userId, action: "create", resourceType: "tour", resourceId: tour.id, result: "success" }).catch(() => undefined);
     return Response.json({ tour }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof AdminTourConflictError) return errorResponse("当前租户已经存在相同 slug 的线路。", "This tenant already has a tour with the same slug.", 409);

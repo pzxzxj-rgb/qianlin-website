@@ -1,7 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "../../db";
 import { tenantContactChannels, tenantHeroSlides, tenantSiteProfiles, tenantTours, tenants } from "../../db/schema";
-import { isAdminImagePathForUsage } from "../admin/imageCatalog";
+import { isAdminImagePathForUsage, isSafeOgImagePath } from "../admin/imageCatalog";
 import { sanitizeContactHref } from "./sanitizeContactHref";
 import type { ResolvedTenant, TenantSiteConfig } from "./types";
 import type { Tour } from "../../types/tour";
@@ -56,6 +56,7 @@ function unconfiguredSiteConfig(tenant: ResolvedTenant): TenantSiteConfig {
       primaryRegion: { zh: "", en: "" },
       address: { zh: "", en: "" },
       logo: { mark: "", imageUrl: "" },
+      ogImageUrl: "/og.png",
       images: {
         about: { src: "", alt: { zh: "", en: "" } },
         customize: { src: "", alt: { zh: "", en: "" } },
@@ -115,6 +116,7 @@ export async function getTenantSiteConfig(tenant: ResolvedTenant): Promise<Tenan
       primaryRegion: { zh: profile?.primaryRegionZh ?? "", en: profile?.primaryRegionEn ?? "" },
       address: { zh: profile?.addressZh ?? "", en: profile?.addressEn ?? "" },
       logo: { mark: profile?.logoMark ?? "", imageUrl: profile?.logoImageUrl ?? "" },
+      ogImageUrl: isSafeOgImagePath(profile?.ogImageUrl) ? profile.ogImageUrl : "/og.png",
       images: {
         about: { src: profile?.aboutImageUrl ?? "", alt: { zh: profile?.aboutImageAltZh ?? "", en: profile?.aboutImageAltEn ?? "" } },
         customize: { src: profile?.customizeImageUrl ?? "", alt: { zh: profile?.customizeImageAltZh ?? "", en: profile?.customizeImageAltEn ?? "" } },

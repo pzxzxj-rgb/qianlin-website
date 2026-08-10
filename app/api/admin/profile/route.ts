@@ -1,6 +1,7 @@
-import { requireAdminSession, requireAdminTenant } from "../../../../lib/admin/auth";
 import { readRequestBodyWithinLimit, verifySameOriginRequest } from "../../../../lib/admin/requestSecurity";
 import { updateAdminProfile, validateAdminProfilePayload } from "../../../../lib/admin/profile";
+import { getAdminRouteAccess } from "../../../../lib/admin/routeAccess";
+import { recordAdminAudit } from "../../../../lib/admin/audit";
 
 const ADMIN_PROFILE_BODY_MAX_BYTES = 16 * 1024;
 
@@ -9,15 +10,9 @@ function errorResponse(errorZh: string, errorEn: string, status: number, fieldEr
 }
 
 export async function PUT(request: Request) {
-  const session = await requireAdminSession(request);
-  if (!session) return errorResponse("登录状态已失效，请重新登录。", "Your admin session is invalid or expired.", 401);
-
-  let tenantId: string;
-  try {
-    tenantId = requireAdminTenant(session);
-  } catch {
-    return errorResponse("当前管理员没有权限操作该租户。", "You are not allowed to edit this tenant.", 403);
-  }
+  const trusted = await getAdminRouteAccess(request, undefined, "editor");
+  if ("response" in trusted) return trusted.response;
+  const { tenantId, userId } = trusted.access;
 
   if (!verifySameOriginRequest(request)) return errorResponse("请求来源无效。", "Invalid request origin.", 403);
 
@@ -46,6 +41,7 @@ export async function PUT(request: Request) {
 
   try {
     const profile = await updateAdminProfile(tenantId, validation.values);
+    if (profile) await recordAdminAudit({ tenantId, userId, action: "update", resourceType: "site_profile", resourceId: tenantId, result: "success" }).catch(() => undefined);
     if (!profile) return errorResponse("黔林旅行社正式资料不存在。", "The published Qianlin profile was not found.", 404);
     return Response.json({ profile }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

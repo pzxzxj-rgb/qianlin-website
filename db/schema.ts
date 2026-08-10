@@ -20,6 +20,66 @@ export const tenants = sqliteTable("tenants", {
   languageCheck: check("ck_tenants_default_language", sql`${table.defaultLanguage} in ('zh', 'en')`),
 }));
 
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  username: text("username").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  displayNameZh: text("display_name_zh").notNull().default(""),
+  displayNameEn: text("display_name_en").notNull().default(""),
+  status: text("status").notNull().default("active"),
+  lastLoginAt: text("last_login_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  usernameUnique: uniqueIndex("uq_users_username").on(table.username),
+  statusIndex: index("idx_users_status").on(table.status),
+  statusCheck: check("ck_users_status", sql`${table.status} in ('active', 'suspended', 'disabled')`),
+}));
+
+export const tenantMemberships = sqliteTable("tenant_memberships", {
+  id: text("id").primaryKey(),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  role: text("role").notNull().default("viewer"),
+  status: text("status").notNull().default("active"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  tenantUserUnique: uniqueIndex("uq_tenant_memberships_tenant_user").on(table.tenantId, table.userId),
+  tenantStatusIndex: index("idx_tenant_memberships_tenant_status").on(table.tenantId, table.status),
+  roleCheck: check("ck_tenant_memberships_role", sql`${table.role} in ('owner', 'admin', 'editor', 'viewer')`),
+  statusCheck: check("ck_tenant_memberships_status", sql`${table.status} in ('active', 'suspended', 'revoked')`),
+}));
+
+export const sessions = sqliteTable("sessions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  revokedAt: integer("revoked_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  lastUsedAt: text("last_used_at"),
+}, (table) => ({
+  tokenUnique: uniqueIndex("uq_sessions_token_hash").on(table.tokenHash),
+  userExpiryIndex: index("idx_sessions_user_expiry").on(table.userId, table.expiresAt),
+}));
+
+export const adminAuditLogs = sqliteTable("admin_audit_logs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  action: text("action").notNull(),
+  resourceType: text("resource_type").notNull(),
+  resourceId: text("resource_id"),
+  result: text("result").notNull().default("success"),
+  metadata: text("metadata").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  tenantCreatedIndex: index("idx_admin_audit_logs_tenant_created").on(table.tenantId, table.createdAt),
+  userCreatedIndex: index("idx_admin_audit_logs_user_created").on(table.userId, table.createdAt),
+  resultCheck: check("ck_admin_audit_logs_result", sql`${table.result} in ('success', 'failure')`),
+}));
+
 export const inquiries = sqliteTable("inquiries", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
@@ -35,11 +95,40 @@ export const inquiries = sqliteTable("inquiries", {
   places: text("places").notNull().default(""),
   message: text("message").notNull().default(""),
   privacyConsent: integer("privacy_consent", { mode: "boolean" }).notNull().default(false),
+  privacyConsentAt: text("privacy_consent_at"),
+  privacyPolicyVersion: text("privacy_policy_version").notNull().default("v1"),
+  retentionUntil: text("retention_until"),
+  anonymizedAt: text("anonymized_at"),
   status: text("status").notNull().default("new"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => ({
   tenantStatusCreatedIndex: index("idx_inquiries_tenant_status_created").on(table.tenantId, table.status, table.createdAt),
   statusCheck: check("ck_inquiries_status", sql`${table.status} in ('new', 'contacted', 'following_up', 'completed', 'closed')`),
+}));
+
+export const tenantInquirySyncJobs = sqliteTable("tenant_inquiry_sync_jobs", {
+  id: text("id").primaryKey(),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  inquiryId: integer("inquiry_id").notNull().references(() => inquiries.id, { onDelete: "restrict" }),
+  provider: text("provider").notNull().default("disabled"),
+  status: text("status").notNull().default("pending"),
+  externalRecordId: text("external_record_id"),
+  idempotencyKey: text("idempotency_key").notNull(),
+  retryCount: integer("retry_count").notNull().default(0),
+  lastErrorCode: text("last_error_code"),
+  lastErrorMessage: text("last_error_message"),
+  lastAttemptAt: text("last_attempt_at"),
+  syncedAt: text("synced_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  tenantInquiryProviderUnique: uniqueIndex("uq_tenant_inquiry_sync_jobs_tenant_inquiry_provider").on(table.tenantId, table.inquiryId, table.provider),
+  idempotencyUnique: uniqueIndex("uq_tenant_inquiry_sync_jobs_idempotency_key").on(table.idempotencyKey),
+  tenantStatusIndex: index("idx_tenant_inquiry_sync_jobs_tenant_status").on(table.tenantId, table.status, table.updatedAt),
+  providerCheck: check("ck_tenant_inquiry_sync_jobs_provider", sql`${table.provider} in ('disabled', 'mock', 'zhilv')`),
+  statusCheck: check("ck_tenant_inquiry_sync_jobs_status", sql`${table.status} in ('pending', 'processing', 'synced', 'failed', 'not_configured')`),
+  retryCheck: check("ck_tenant_inquiry_sync_jobs_retry_count", sql`${table.retryCount} >= 0 and ${table.retryCount} <= 1000`),
 }));
 
 export const tenantSiteProfiles = sqliteTable("tenant_site_profiles", {
@@ -61,6 +150,7 @@ export const tenantSiteProfiles = sqliteTable("tenant_site_profiles", {
   customizeImageUrl: text("customize_image_url").notNull().default(""),
   customizeImageAltZh: text("customize_image_alt_zh").notNull().default(""),
   customizeImageAltEn: text("customize_image_alt_en").notNull().default(""),
+  ogImageUrl: text("og_image_url").notNull().default(""),
   status: text("status").notNull().default("published"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -68,6 +158,33 @@ export const tenantSiteProfiles = sqliteTable("tenant_site_profiles", {
   tenantUnique: uniqueIndex("uq_tenant_site_profiles_tenant").on(table.tenantId),
   tenantStatusIndex: index("idx_tenant_site_profiles_tenant_status").on(table.tenantId, table.status),
   statusCheck: check("ck_tenant_site_profiles_status", sql`${table.status} in ('draft', 'published', 'archived')`),
+}));
+
+export const tenantLegalPages = sqliteTable("tenant_legal_pages", {
+  id: text("id").primaryKey(),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  privacyZh: text("privacy_zh").notNull().default(""),
+  privacyEn: text("privacy_en").notNull().default(""),
+  termsZh: text("terms_zh").notNull().default(""),
+  termsEn: text("terms_en").notNull().default(""),
+  refundZh: text("refund_zh").notNull().default(""),
+  refundEn: text("refund_en").notNull().default(""),
+  policyVersion: text("policy_version").notNull().default("v1"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  tenantUnique: uniqueIndex("uq_tenant_legal_pages_tenant").on(table.tenantId),
+}));
+
+export const tenantQuotas = sqliteTable("tenant_quotas", {
+  tenantId: text("tenant_id").primaryKey().references(() => tenants.id, { onDelete: "restrict" }),
+  inquiryLimit: integer("inquiry_limit").notNull().default(1000),
+  adminLimit: integer("admin_limit").notNull().default(10),
+  imageLimit: integer("image_limit").notNull().default(100),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  limitsCheck: check("ck_tenant_quotas_limits", sql`${table.inquiryLimit} > 0 and ${table.adminLimit} > 0 and ${table.imageLimit} > 0`),
 }));
 
 export const tenantContactChannels = sqliteTable("tenant_contact_channels", {
@@ -201,10 +318,24 @@ export const plannerDestinations = sqliteTable("planner_destinations", {
 
 export type Tenant = typeof tenants.$inferSelect;
 export type NewTenant = typeof tenants.$inferInsert;
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type TenantMembership = typeof tenantMemberships.$inferSelect;
+export type NewTenantMembership = typeof tenantMemberships.$inferInsert;
+export type Session = typeof sessions.$inferSelect;
+export type NewSession = typeof sessions.$inferInsert;
+export type AdminAuditLog = typeof adminAuditLogs.$inferSelect;
+export type NewAdminAuditLog = typeof adminAuditLogs.$inferInsert;
 export type Inquiry = typeof inquiries.$inferSelect;
 export type NewInquiry = typeof inquiries.$inferInsert;
+export type TenantInquirySyncJob = typeof tenantInquirySyncJobs.$inferSelect;
+export type NewTenantInquirySyncJob = typeof tenantInquirySyncJobs.$inferInsert;
 export type TenantSiteProfile = typeof tenantSiteProfiles.$inferSelect;
 export type NewTenantSiteProfile = typeof tenantSiteProfiles.$inferInsert;
+export type TenantLegalPage = typeof tenantLegalPages.$inferSelect;
+export type NewTenantLegalPage = typeof tenantLegalPages.$inferInsert;
+export type TenantQuota = typeof tenantQuotas.$inferSelect;
+export type NewTenantQuota = typeof tenantQuotas.$inferInsert;
 export type TenantContactChannel = typeof tenantContactChannels.$inferSelect;
 export type NewTenantContactChannel = typeof tenantContactChannels.$inferInsert;
 export type TenantTour = typeof tenantTours.$inferSelect;

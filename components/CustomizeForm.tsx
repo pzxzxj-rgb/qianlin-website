@@ -22,6 +22,10 @@ function getChinaDate() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date());
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", initialMessage = "", onOpen, onClose, tenantSlug, siteConfig }: CustomizeFormProps) {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -112,9 +116,9 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const result = await response.json().catch(() => ({}));
+      const result: unknown = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const serverMessage = language === "zh" ? result.errorZh : result.errorEn;
+        const serverMessage = isRecord(result) ? (language === "zh" ? result.errorZh : result.errorEn) : undefined;
         throw new Error(typeof serverMessage === "string" ? serverMessage : t.customize.submitError);
       }
       setSubmitted(true);
@@ -167,7 +171,7 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
           <div className="honeypot-field" aria-hidden="true"><label htmlFor="inquiry-website">{t.customize.honeypotLabel}<input id="inquiry-website" name="website" tabIndex={-1} autoComplete="off" /></label></div>
           <TurnstileWidget siteKey={turnstileSiteKey} onToken={handleTurnstileToken} resetKey={turnstileResetKey} />
           <input type="hidden" name="turnstileToken" value={turnstileToken} readOnly />
-          <label className="privacy-consent" htmlFor="privacy-consent"><input id="privacy-consent" type="checkbox" name="privacyConsent" value="true" required /><span>{t.customize.privacyBefore}<a href="/privacy" target="_blank" rel="noreferrer">{t.customize.privacyLink}</a>{t.customize.privacyAfter}</span></label>
+          <label className="privacy-consent" htmlFor="privacy-consent"><input id="privacy-consent" type="checkbox" name="privacyConsent" value="true" required /><span>{t.customize.privacyBefore}<a href={`/t/${encodeURIComponent(tenantSlug)}/privacy`} target="_blank" rel="noreferrer">{t.customize.privacyLink}</a>{t.customize.privacyAfter}</span></label>
           <div className="form-actions">{turnstileSiteKey && !turnstileToken ? <p className="form-error" role="status">{language === "zh" ? "请先完成人机验证" : "Please complete the human verification first."}</p> : submitError ? <p className="form-error" role="alert">{submitError}</p> : <p>{t.customize.note}</p>}<button type="submit" className="button button-dark" disabled={submitting || (Boolean(turnstileSiteKey) && !turnstileToken)}>{submitting ? t.customize.submitting : t.customize.submit} <span aria-hidden="true">→</span></button></div>
         </form>}
       </div>

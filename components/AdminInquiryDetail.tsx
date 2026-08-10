@@ -4,14 +4,19 @@ import Link from "next/link";
 import { useState } from "react";
 import type { AdminInquiryDetail as AdminInquiryDetailData, AdminInquiryStatus } from "../lib/admin/inquiries";
 import { STATUS_LABELS } from "./AdminInquiryManager";
+import { adminApiPath } from "./adminPaths";
 
 const STATUS_OPTIONS: AdminInquiryStatus[] = ["new", "contacted", "following_up", "completed", "closed"];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
 
 function DetailRow({ label, value, preserveWhitespace = false }: { label: string; value: string; preserveWhitespace?: boolean }) {
   return <div className="admin-inquiry-detail-row"><dt>{label}</dt><dd className={preserveWhitespace ? "admin-inquiry-message" : undefined}>{value || "未填写"}</dd></div>;
 }
 
-export function AdminInquiryDetail({ initialInquiry }: { initialInquiry: AdminInquiryDetailData }) {
+export function AdminInquiryDetail({ initialInquiry, tenantSlug }: { initialInquiry: AdminInquiryDetailData; tenantSlug?: string }) {
   const [inquiry, setInquiry] = useState(initialInquiry);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -21,10 +26,11 @@ export function AdminInquiryDetail({ initialInquiry }: { initialInquiry: AdminIn
     setPending(true);
     setError("");
     try {
-      const response = await fetch(`/api/admin/inquiries/${inquiry.id}`, { method: "PATCH", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
-      const result = await response.json().catch(() => null);
-      if (!response.ok || !result?.inquiry) throw new Error(typeof result?.errorZh === "string" ? result.errorZh : "咨询状态暂时无法更新，请稍后重试。");
-      setInquiry((current) => ({ ...current, status: result.inquiry.status as AdminInquiryStatus }));
+      const response = await fetch(`${adminApiPath(tenantSlug, "/inquiries")}/${inquiry.id}`, { method: "PATCH", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+      const result: unknown = await response.json().catch(() => null);
+      if (!isRecord(result) || !response.ok || !isRecord(result.inquiry)) throw new Error(isRecord(result) && typeof result.errorZh === "string" ? result.errorZh : "咨询状态暂时无法更新，请稍后重试。");
+      const inquiryResult = result.inquiry;
+      setInquiry((current) => ({ ...current, status: inquiryResult.status as AdminInquiryStatus }));
     } catch (requestError) {
       setError(requestError instanceof Error && requestError.message ? requestError.message : "咨询状态暂时无法更新，请稍后重试。");
     } finally {

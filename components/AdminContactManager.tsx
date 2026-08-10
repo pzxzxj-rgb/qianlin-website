@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { adminApiPath, adminPagePath } from "./adminPaths";
 import type { ChangeEvent, FormEvent, MouseEvent } from "react";
 import { useState } from "react";
 import { AdminLogoutButton } from "./AdminDashboard";
@@ -47,7 +48,7 @@ export function confirmAdminContactNavigation(isDirty: boolean) {
 
 type EditableContactField = Exclude<keyof AdminContactChannelValues, "id" | "type">;
 
-export function AdminContactManager({ initialValues }: { initialValues: AdminContactChannelValues[] }) {
+export function AdminContactManager({ initialValues, tenantSlug }: { initialValues: AdminContactChannelValues[]; tenantSlug?: string }) {
   const router = useRouter();
   const [values, setValues] = useState<AdminContactChannelValues[]>(() => cloneValues(initialValues));
   const [baseline, setBaseline] = useState<AdminContactChannelValues[]>(() => cloneValues(initialValues));
@@ -88,7 +89,7 @@ export function AdminContactManager({ initialValues }: { initialValues: AdminCon
 
     const payload = { channels: values.map(({ id, type, labelZh, labelEn, value, href, displayOrder, status }) => ({ id, type, labelZh, labelEn, value, href, displayOrder, status })) };
     try {
-      const response = await fetch("/api/admin/contacts", { method: "PUT", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify(payload) });
+      const response = await fetch(adminApiPath(tenantSlug, "/contacts"), { method: "PUT", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify(payload) });
       const result = await response.json().catch(() => ({})) as AdminContactResponse;
       if (response.status === 401) {
         setSessionExpired(true);
@@ -122,7 +123,7 @@ export function AdminContactManager({ initialValues }: { initialValues: AdminCon
   }
 
   return <main className="admin-page">
-    <header className="admin-topbar"><Link className="admin-brand" href="/admin" onClick={handleReturn}><span className="brand-mark">Q</span><span><strong>QIANLIN TRAVEL</strong><small>联系方式管理</small></span></Link><div className="admin-topbar-actions"><Link className="admin-profile-back-link" href="/admin" onClick={handleReturn}>返回后台</Link><AdminLogoutButton isDirty={isDirty} disabled={pending} /></div></header>
+    <header className="admin-topbar"><Link className="admin-brand" href={adminPagePath(tenantSlug, "")} onClick={handleReturn}><span className="brand-mark">Q</span><span><strong>QIANLIN TRAVEL</strong><small>联系方式管理</small></span></Link><div className="admin-topbar-actions"><Link className="admin-profile-back-link" href={adminPagePath(tenantSlug, "")} onClick={handleReturn}>返回后台</Link><AdminLogoutButton isDirty={isDirty} disabled={pending} /></div></header>
     <div className="admin-shell admin-contacts-shell">
       <div className="admin-heading"><div><span className="eyebrow">QIANLIN TRAVEL · CONTACTS</span><h1>联系方式管理</h1><p>编辑官网公开展示的电话、微信和邮箱。当前页面只管理黔林旅行社已有记录。</p></div></div>
       <section className="admin-card admin-contacts-card">
@@ -132,7 +133,7 @@ export function AdminContactManager({ initialValues }: { initialValues: AdminCon
           {error ? <div className="admin-form-error" role="alert">{error}{sessionExpired ? <Link href="/admin/login">重新登录</Link> : null}</div> : null}
           {success ? <p className="admin-save-success" role="status">{success}</p> : null}
           <div className="admin-contact-list">{values.map((contact, index) => <article className="admin-contact-card" key={contact.id}><div className="admin-contact-card-heading"><div><span className="eyebrow">CHANNEL {index + 1}</span><h3>{TYPE_LABELS[contact.type]}</h3></div><span className="admin-contact-id">已有记录</span></div><div className="admin-contact-fields"><div className="admin-contact-field"><label htmlFor={`type-${index}`}>类型</label><output id={`type-${index}`} className="admin-contact-readonly">{TYPE_LABELS[contact.type]}</output></div>{renderField(index, "labelZh")}{renderField(index, "labelEn")}{renderField(index, "value")}{renderField(index, "href")}{renderField(index, "displayOrder")}<div className="admin-contact-field"><label htmlFor={`status-${index}`}>状态</label><select id={`status-${index}`} name={`status-${index}`} value={contact.status} disabled={pending} aria-invalid={Boolean(fieldErrors[`channels.${index}.status`])} aria-describedby={fieldErrors[`channels.${index}.status`] ? `status-${index}-error` : undefined} onChange={(event) => updateField(index, "status", event)}>{ADMIN_CONTACT_STATUSES.map((status) => <option value={status} key={status}>{STATUS_LABELS[status]}</option>)}</select>{fieldErrors[`channels.${index}.status`] ? <p id={`status-${index}-error`} className="admin-field-error" role="alert">{fieldErrors[`channels.${index}.status`]}</p> : null}</div></div></article>)}</div>
-          <div className="admin-profile-actions"><button className="button button-dark" type="submit" disabled={pending || !isDirty}>{pending ? "保存中……" : "保存联系方式"}</button><button className="button button-light" type="button" disabled={pending} onClick={() => { if (confirmAdminContactNavigation(isDirty)) router.push("/admin"); }}>取消</button></div>
+          <div className="admin-profile-actions"><button className="button button-dark" type="submit" disabled={pending || !isDirty}>{pending ? "保存中……" : "保存联系方式"}</button><button className="button button-light" type="button" disabled={pending} onClick={() => { if (confirmAdminContactNavigation(isDirty)) router.push(adminPagePath(tenantSlug, "")); }}>取消</button></div>
         </form>
       </section>
     </div>
