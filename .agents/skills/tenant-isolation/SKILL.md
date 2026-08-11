@@ -50,22 +50,16 @@ qianlin-travel
 yunnan-demo
 ```
 
-当前管理员后台只允许管理：
+当前生产后台仍只允许管理：
 
 ```text
 qianlin-travel
 ```
 
-当前尚未建立完整的：
+仓库已经具备 User、Session、Tenant Membership 和集中式 RBAC 基础；这些身份上下文
+必须在每次请求中由服务端验证，不能仅凭客户端或 Session 中可篡改的 `tenantId`。
 
-- 用户系统
-- 组织成员关系
-- RBAC 权限系统
-- 多租户管理员账号体系
-
-在完成上述系统之前，不得擅自把当前后台改成通用多租户后台。
-
-不得仅通过修改 Session 中的 `tenantId`，就宣称已经支持多个商家后台。
+在 MFA、成员生命周期和生产运维门禁全部完成并验证之前，不得开放第二个生产租户。
 
 ---
 
@@ -814,7 +808,7 @@ npm run test:integration:local
 当仓库中已经存在对应 Skill 时：
 
 - 部署任务同时遵守 `deployment-operations`
-- 用户和权限任务同时遵守 `auth-org-rbac`
+- 用户和权限任务同时遵守 `identity-tenant-rbac`
 
 如果对应 Skill 尚不存在，不得假装已经读取，也不得自行编造其具体规则。
 

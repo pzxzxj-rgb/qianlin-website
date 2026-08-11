@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useState } from "react";
-import type { AdminInquiryListResponse, AdminInquiryStatus } from "../lib/admin/inquiries";
+import type { AdminInquiryListResponse, AdminInquiryStatus, AdminInquirySync } from "../lib/admin/inquiries";
 import { adminApiPath } from "./adminPaths";
 
 const STATUS_LABELS: Record<AdminInquiryStatus, string> = {
@@ -21,6 +21,14 @@ const STATUS_OPTIONS: Array<{ value: "" | AdminInquiryStatus; label: string }> =
   { value: "completed", label: STATUS_LABELS.completed },
   { value: "closed", label: STATUS_LABELS.closed },
 ];
+
+const SYNC_STATUS_LABELS: Record<AdminInquirySync["status"], string> = {
+  not_configured: "未配置",
+  pending: "待同步",
+  processing: "同步中",
+  synced: "已同步",
+  failed: "同步失败",
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -76,12 +84,17 @@ export function AdminInquiryManager({ initialData, tenantSlug }: { initialData: 
         <div className="admin-inquiry-toolbar"><label htmlFor="inquiry-status-filter">状态筛选<select id="inquiry-status-filter" value={filterStatus} onChange={(event) => handleFilterChange(event.target.value as "" | AdminInquiryStatus)} disabled={pending}>{STATUS_OPTIONS.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label><span className="admin-inquiry-order">按最新提交排序</span></div>
         {error ? <p className="admin-form-error" role="alert">{error}</p> : null}
         <div className="admin-inquiry-table-wrap">
-          <table className="admin-inquiry-table"><caption className="sr-only">咨询列表</caption><thead><tr><th scope="col">ID</th><th scope="col">提交时间</th><th scope="col">联系人</th><th scope="col">联系方式摘要</th><th scope="col">出行人数</th><th scope="col">出发日期</th><th scope="col">状态</th><th scope="col"><span className="sr-only">操作</span></th></tr></thead><tbody>{data.items.length === 0 ? <tr><td colSpan={8} className="admin-inquiry-empty">暂无符合条件的咨询</td></tr> : data.items.map((item) => <tr key={item.id}><td>#{item.id}</td><td>{formatDate(item.createdAt)}</td><td>{item.name}</td><td>{item.contactSummary}</td><td>{item.travelers || "未填写"}</td><td>{item.travelDate || "未填写"}</td><td><span className={statusClass(item.status)}>{STATUS_LABELS[item.status]}</span></td><td><Link className="text-link" href={`/admin/inquiries/${item.id}`}>查看详情 <span aria-hidden="true">→</span></Link></td></tr>)}</tbody></table>
+          <table className="admin-inquiry-table"><caption className="sr-only">咨询列表</caption><thead><tr><th scope="col">ID</th><th scope="col">提交时间</th><th scope="col">联系人</th><th scope="col">联系方式摘要</th><th scope="col">出行人数</th><th scope="col">出发日期</th><th scope="col">咨询状态</th><th scope="col">同步状态</th><th scope="col"><span className="sr-only">操作</span></th></tr></thead><tbody>{data.items.length === 0 ? <tr><td colSpan={9} className="admin-inquiry-empty">暂无符合条件的咨询</td></tr> : data.items.map((item) => <tr key={item.id}><td>#{item.id}</td><td>{formatDate(item.createdAt)}</td><td>{item.name}</td><td>{item.contactSummary}</td><td>{item.travelers || "未填写"}</td><td>{item.travelDate || "未填写"}</td><td><span className={statusClass(item.status)}>{STATUS_LABELS[item.status]}</span></td><td><SyncStatus sync={item.sync} /></td><td><Link className="text-link" href={`/admin/inquiries/${item.id}`}>查看详情 <span aria-hidden="true">→</span></Link></td></tr>)}</tbody></table>
         </div>
         <div className="admin-inquiry-pagination"><span>第 {data.pagination.page} / {data.pagination.totalPages} 页</span><div><button type="button" className="button button-light" onClick={() => handlePageChange(data.pagination.page - 1)} disabled={pending || data.pagination.page <= 1}>上一页</button><button type="button" className="button button-light" onClick={() => handlePageChange(data.pagination.page + 1)} disabled={pending || data.pagination.page >= data.pagination.totalPages}>下一页</button></div></div>
       </section>
     </div>
   </main>;
+}
+
+function SyncStatus({ sync }: { sync: AdminInquirySync | null }) {
+  if (!sync) return <span className="admin-inquiry-sync admin-inquiry-sync-missing">待建立任务</span>;
+  return <span className={`admin-inquiry-sync admin-inquiry-sync-${sync.status}`} title={sync.status === "failed" ? sync.message ?? undefined : undefined}>{SYNC_STATUS_LABELS[sync.status]}{sync.status === "synced" && sync.externalRecordId ? ` · ${sync.externalRecordId}` : sync.status === "failed" && sync.errorCode ? ` · ${sync.errorCode}` : ""}</span>;
 }
 
 export { STATUS_LABELS };

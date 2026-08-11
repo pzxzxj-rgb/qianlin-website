@@ -111,6 +111,14 @@ let createdDevVars = false;
 let originalDevVarsContent = null;
 let hadDevVars = false;
 const serverOutput = [];
+async function removeTempPath(target) {
+  scheduleCleanup(target);
+}
+
+function scheduleCleanup(target) {
+  const script = "const fs=require('fs');const p=process.argv[1];let n=0;const f=()=>{try{fs.rmSync(p,{recursive:true,force:true});}catch(e){if(++n<60)setTimeout(f,500);}};setTimeout(f,500);";
+  try { spawn(process.execPath, ["-e", script, target], { detached: true, stdio: "ignore", windowsHide: true }).unref(); } catch {}
+}
 try {
   port = await findFreePort();
   baseUrl = `http://127.0.0.1:${port}`;
@@ -1066,6 +1074,9 @@ try {
 
   const accepted = await request("/api/t/qianlin-travel/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(validPayload) });
   assert.equal(accepted.response.status, 201);
+  assert.equal(accepted.body.sync.status, "not_configured");
+  assert.equal(accepted.body.sync.provider, "disabled");
+  assert.doesNotMatch(JSON.stringify(accepted.body), /ERP_NOT_CONFIGURED|18985127882|Local D1 functional test/);
   const duplicate = await request("/api/t/qianlin-travel/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(validPayload) });
   assert.equal(duplicate.response.status, 409);
   const differentName = await request("/api/t/qianlin-travel/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...validPayload, name: "Different name" }) });
@@ -1087,6 +1098,8 @@ try {
   assert.equal("wechat" in firstInquiryPage.body.items[0], false);
   assert.equal("email" in firstInquiryPage.body.items[0], false);
   assert.equal("message" in firstInquiryPage.body.items[0], false);
+  assert.equal(firstInquiryPage.body.items[0].sync.status, "not_configured");
+  assert.equal(firstInquiryPage.body.items[0].sync.provider, "disabled");
   assert.doesNotMatch(JSON.stringify(firstInquiryPage.body.items[0]), /18985127882|Local D1 functional test/);
   const secondInquiryPage = await request("/api/admin/t/qianlin-travel/inquiries?page=2&pageSize=1", { headers: { cookie: statusSessionCookie } });
   assert.equal(secondInquiryPage.response.status, 200);
@@ -1103,6 +1116,8 @@ try {
   assert.equal(inquiryDetail.body.inquiry.phone, "18985127882");
   assert.equal(inquiryDetail.body.inquiry.message, "Local D1 functional test");
   assert.equal(inquiryDetail.body.inquiry.status, "following_up");
+  assert.equal(inquiryDetail.body.inquiry.sync.status, "not_configured");
+  assert.equal(inquiryDetail.body.inquiry.sync.provider, "disabled");
   const viewerInquiryList = await request("/api/admin/t/qianlin-travel/inquiries", { headers: { cookie: viewerSessionCookie } });
   assert.equal(viewerInquiryList.response.status, 200);
   const viewerInquiryDetail = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}`, { headers: { cookie: viewerSessionCookie } });
@@ -1112,6 +1127,10 @@ try {
   assert.ok([302, 303, 307, 308].includes(viewerInquiryPage.response.status));
   const viewerStatusUpdate = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}`, { method: "PATCH", headers: { "content-type": "application/json", origin: baseUrl, cookie: viewerSessionCookie }, body: JSON.stringify({ status: "closed" }) });
   assert.equal(viewerStatusUpdate.response.status, 403);
+  const viewerInquiryRetry = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}/sync`, { method: "POST", headers: { origin: baseUrl, cookie: viewerSessionCookie } });
+  assert.equal(viewerInquiryRetry.response.status, 403);
+  const editorInquiryRetry = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}/sync`, { method: "POST", headers: { origin: baseUrl, cookie: editorSessionCookie } });
+  assert.equal(editorInquiryRetry.response.status, 403);
   const editorInquiryDetail = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}`, { headers: { cookie: editorSessionCookie } });
   assert.equal(editorInquiryDetail.response.status, 200);
   assert.equal(editorInquiryDetail.body.inquiry.phone, "18985127882");
@@ -1188,15 +1207,18 @@ try {
   assert.equal(stored.message, "Local D1 functional test");
   console.log("Local HTTP functional tests passed: tenant guards, safe config, inquiry validation, tenant binding, and duplicate protection.");
 } finally {
-  if (server && !server.killed) {
+  if (server && server.exitCode === null) {
     if (process.platform === "win32") {
-      try { execFileSync("taskkill", ["/pid", String(server.pid), "/t", "/f"], { stdio: "ignore" }); } catch {}
+      try { execFileSync("taskkill", ["/pid", String(server.pid), "/t", "/f"], { stdio: "ignore", timeout: 5000 }); } catch {}
     } else server.kill("SIGTERM");
+    await new Promise((resolve) => setTimeout(resolve, 1500));
   }
-  const removeOptions = { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 };
-  await fs.rm(testRunPath, removeOptions);
-  await fs.rm(testLogsPath, removeOptions);
-  await fs.rm(testRegistryPath, removeOptions);
+  server?.stdout?.destroy();
+  server?.stderr?.destroy();
+  server?.unref?.();
+  await removeTempPath(testRunPath);
+  await removeTempPath(testLogsPath);
+  await removeTempPath(testRegistryPath);
   if (createdDevVars) {
     if (hadDevVars && originalDevVarsContent !== null) await fs.writeFile(devVarsPath, originalDevVarsContent);
     else await fs.rm(devVarsPath, { force: true });

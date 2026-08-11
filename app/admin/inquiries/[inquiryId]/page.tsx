@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminInquiryDetailPage({ params, tenantSlug }: AdminInquiryDetailPageProps) {
-  const access = await getAdminPageAccess(tenantSlug, "editor");
+  const access = await getAdminPageAccess(tenantSlug, "editor", "inquiry:read_sensitive");
   const { inquiryId: rawInquiryId } = await params;
   const inquiryId = Number(rawInquiryId);
   if (!Number.isSafeInteger(inquiryId) || inquiryId <= 0) notFound();

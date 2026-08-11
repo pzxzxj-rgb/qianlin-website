@@ -3,7 +3,7 @@ import { getDb } from "../../db";
 import { inquiries, tenantLegalPages, tenantQuotas } from "../../db/schema";
 import { verifyTurnstileToken } from "../security/turnstile";
 import { isValidMainlandPhone, normalizeMainlandPhone } from "./validateMainlandPhone";
-import { createInquirySyncJob, syncInquiryJob } from "./syncService";
+import { createInquirySyncJob } from "./syncService";
 import type { ResolvedTenant } from "../tenancy/types";
 
 type InquiryPayload = Record<string, unknown>;
@@ -178,12 +178,11 @@ export async function handleInquiry(request: Request, tenant: ResolvedTenant | n
     if (!inquiry) return unavailableResponse();
     let latestJob: Awaited<ReturnType<typeof createInquirySyncJob>> | null = null;
     try {
-      await syncInquiryJob(tenant.id, inquiry.id);
       latestJob = await createInquirySyncJob(tenant.id, inquiry.id);
     } catch (syncError) {
       console.error("Failed to create inquiry sync state", syncError instanceof Error ? syncError.name : "UnknownError");
     }
-    return Response.json({ inquiry, sync: latestJob ? { status: latestJob.status, provider: latestJob.provider } : { status: "pending", provider: "disabled" } }, { status: 201, headers: { "Cache-Control": "no-store" } });
+    return Response.json({ inquiry, sync: latestJob ? { status: latestJob.status, provider: latestJob.provider } : null }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Failed to save inquiry", error instanceof Error ? error.name : "UnknownError");
     return unavailableResponse();

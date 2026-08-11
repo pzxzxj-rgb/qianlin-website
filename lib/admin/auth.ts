@@ -1,6 +1,7 @@
 import { and, eq, gt, isNull, ne } from "drizzle-orm";
 import { getDb } from "../../db";
 import { sessions, tenantMemberships, tenants, users } from "../../db/schema";
+import { hasAdminPermission, type AdminPermission } from "./permissions";
 
 const ADMIN_SESSION_COOKIE = "qianlin_admin_session";
 const ADMIN_SESSION_TTL_SECONDS = 8 * 60 * 60;
@@ -231,7 +232,7 @@ export async function requireAdminSession(request: Request) {
   return getAdminSessionFromCookie(request.headers.get("cookie"));
 }
 
-export async function requireAdminAccess(request: Request, tenantSlug: string, minimumRole: AdminRole = "viewer"): Promise<AdminAccessContext | null> {
+export async function requireAdminAccess(request: Request, tenantSlug: string, minimumRole: AdminRole = "viewer", requiredPermission?: AdminPermission): Promise<AdminAccessContext | null> {
   const session = await requireAdminSession(request);
   if (!session || session.tenantId !== SUPPORTED_ADMIN_TENANT_ID || !tenantSlug || tenantSlug !== SUPPORTED_ADMIN_TENANT_ID || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(tenantSlug)) return null;
   const db = await getDb();
@@ -249,6 +250,7 @@ export async function requireAdminAccess(request: Request, tenantSlug: string, m
   if (!row || !isAdminRole(row.role)) return null;
   const roleRank: Record<AdminRole, number> = { viewer: 1, editor: 2, admin: 3, owner: 4 };
   if (roleRank[row.role] < roleRank[minimumRole]) return null;
+  if (requiredPermission && !hasAdminPermission(row.role, requiredPermission)) return null;
   return { ...session, tenantId: row.tenantId, tenantSlug: row.tenantSlug, role: row.role, tenantNameZh: row.tenantNameZh, tenantNameEn: row.tenantNameEn };
 }
 

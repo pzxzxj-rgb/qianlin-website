@@ -5,8 +5,17 @@ import { useState } from "react";
 import type { AdminInquiryDetail as AdminInquiryDetailData, AdminInquiryStatus } from "../lib/admin/inquiries";
 import { STATUS_LABELS } from "./AdminInquiryManager";
 import { adminApiPath } from "./adminPaths";
+import type { InquirySyncStatus } from "../lib/integrations/erp/types";
 
 const STATUS_OPTIONS: AdminInquiryStatus[] = ["new", "contacted", "following_up", "completed", "closed"];
+
+const SYNC_STATUS_LABELS: Record<InquirySyncStatus, string> = {
+  not_configured: "ERP 未配置",
+  pending: "等待同步",
+  processing: "同步中",
+  synced: "已同步",
+  failed: "同步失败",
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -43,7 +52,7 @@ export function AdminInquiryDetail({ initialInquiry, tenantSlug }: { initialInqu
     <div className="admin-shell admin-inquiries-shell">
       <div className="admin-heading"><div><span className="eyebrow">INQUIRY #{inquiry.id}</span><h1>咨询详情</h1><p>仅登录管理员可以查看完整联系方式和留言。</p></div><Link className="button button-light admin-site-link" href="/admin/inquiries">返回列表</Link></div>
       <section className="admin-card admin-inquiry-detail-card">
-        <div className="admin-card-heading"><div><span className="eyebrow">DETAIL</span><h2>{inquiry.name || "未填写姓名"}</h2></div><span className={statusClass(inquiry.status)}>{STATUS_LABELS[inquiry.status]}</span></div>
+        <div className="admin-card-heading"><div><span className="eyebrow">DETAIL</span><h2>{inquiry.name || "未填写姓名"}</h2></div><div><span className={statusClass(inquiry.status)}>{STATUS_LABELS[inquiry.status]}</span><SyncStatus sync={inquiry.sync} /></div></div>
         {error ? <p className="admin-form-error" role="alert">{error}</p> : null}
         <dl className="admin-inquiry-detail-grid"><DetailRow label="姓名" value={inquiry.name} /><DetailRow label="手机" value={inquiry.phone} /><DetailRow label="微信" value={inquiry.wechat} /><DetailRow label="邮箱" value={inquiry.email} /><DetailRow label="出发日期" value={inquiry.travelDate} /><DetailRow label="出行人数" value={inquiry.travelers} /><DetailRow label="创建时间" value={inquiry.createdAt} /><DetailRow label="留言" value={inquiry.message} preserveWhitespace /></dl>
         <div className="admin-inquiry-status-editor"><label htmlFor="inquiry-detail-status">当前状态<select id="inquiry-detail-status" value={inquiry.status} onChange={(event) => void updateStatus(event.target.value as AdminInquiryStatus)} disabled={pending}>{STATUS_OPTIONS.map((status) => <option value={status} key={status}>{STATUS_LABELS[status]}</option>)}</select></label><span>{pending ? "正在保存……" : "状态修改会立即生效"}</span></div>
@@ -54,4 +63,9 @@ export function AdminInquiryDetail({ initialInquiry, tenantSlug }: { initialInqu
 
 function statusClass(status: AdminInquiryStatus) {
   return `admin-inquiry-status admin-inquiry-status-${status}`;
+}
+
+function SyncStatus({ sync }: { sync: AdminInquiryDetailData["sync"] }) {
+  if (!sync) return <span className="admin-inquiry-sync admin-inquiry-sync-missing">同步任务待建立</span>;
+  return <span className={`admin-inquiry-sync admin-inquiry-sync-${sync.status}`}>{SYNC_STATUS_LABELS[sync.status]}{sync.status === "synced" && sync.externalRecordId ? ` · ${sync.externalRecordId}` : sync.status === "failed" && sync.errorCode ? ` · ${sync.errorCode}` : ""}</span>;
 }

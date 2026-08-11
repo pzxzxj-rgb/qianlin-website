@@ -1,7 +1,10 @@
-import { and, count, desc, eq, gte } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray } from "drizzle-orm";
 import { getDb } from "../../db";
-import { inquiries } from "../../db/schema";
+import { inquiries, tenantInquirySyncJobs } from "../../db/schema";
 import { assertTenantScope } from "./tenantScope";
+import { configuredProviderName } from "../integrations/erp/providerFactory";
+import { safeSyncError } from "../integrations/erp/safeErrors";
+import type { ErpProviderName, InquirySyncStatus } from "../integrations/erp/types";
 
 export const ADMIN_INQUIRY_STATUSES = ["new", "contacted", "following_up", "completed", "closed"] as const;
 export type AdminInquiryStatus = typeof ADMIN_INQUIRY_STATUSES[number];
@@ -17,6 +20,15 @@ export type AdminInquiryListItem = {
   travelers: string;
   travelDate: string;
   status: AdminInquiryStatus;
+  sync: AdminInquirySync | null;
+};
+
+export type AdminInquirySync = {
+  provider: ErpProviderName;
+  status: InquirySyncStatus;
+  externalRecordId: string | null;
+  errorCode: string | null;
+  message: string | null;
 };
 
 export type AdminInquiryListResponse = {
@@ -41,6 +53,7 @@ export type AdminInquiryDetail = {
   message: string;
   createdAt: string;
   status: AdminInquiryStatus;
+  sync: AdminInquirySync | null;
 };
 
 export type AdminInquiryStats = {
@@ -99,19 +112,28 @@ function inquiryFilters(tenantId: string, status?: AdminInquiryStatus) {
     : eq(inquiries.tenantId, tenantId);
 }
 
+function toSyncStatus(row: typeof tenantInquirySyncJobs.$inferSelect | undefined): AdminInquirySync | null {
+  if (!row) return null;
+  const safeError = safeSyncError(row.status, row.lastErrorCode);
+  return { provider: row.provider as ErpProviderName, status: row.status as InquirySyncStatus, externalRecordId: row.status === "synced" ? row.externalRecordId : null, errorCode: safeError.errorCode, message: safeError.message };
+}
+
 export async function getAdminInquiries(tenantId: string, input: { status?: AdminInquiryStatus; page?: number; pageSize?: number } = {}): Promise<AdminInquiryListResponse> {
   assertAdminTenant(tenantId);
   const page = normalizePage(input.page ?? 1);
   const pageSize = normalizePageSize(input.pageSize ?? ADMIN_INQUIRY_PAGE_SIZE);
   const where = inquiryFilters(tenantId, input.status);
   const db = await getDb();
+  const provider = await configuredProviderName(tenantId);
   const [rows, totalRows] = await Promise.all([
     db.select({ id: inquiries.id, createdAt: inquiries.createdAt, name: inquiries.name, phone: inquiries.phone, wechat: inquiries.wechat, email: inquiries.email, travelers: inquiries.travelers, travelDate: inquiries.travelDate, status: inquiries.status }).from(inquiries).where(where).orderBy(desc(inquiries.createdAt), desc(inquiries.id)).limit(pageSize).offset((page - 1) * pageSize),
     db.select({ value: count() }).from(inquiries).where(where),
   ]);
+  const syncRows = rows.length ? await db.select().from(tenantInquirySyncJobs).where(and(eq(tenantInquirySyncJobs.tenantId, tenantId), eq(tenantInquirySyncJobs.provider, provider), inArray(tenantInquirySyncJobs.inquiryId, rows.map((row) => row.id)))) : [];
+  const syncByInquiryId = new Map(syncRows.map((row) => [row.inquiryId, toSyncStatus(row)]));
   const total = Number(totalRows[0]?.value ?? 0);
   return {
-    items: rows.map((row) => ({ id: row.id, createdAt: row.createdAt, name: row.name, contactSummary: buildContactSummary(row), travelers: row.travelers, travelDate: row.travelDate, status: row.status as AdminInquiryStatus })),
+    items: rows.map((row) => ({ id: row.id, createdAt: row.createdAt, name: row.name, contactSummary: buildContactSummary(row), travelers: row.travelers, travelDate: row.travelDate, status: row.status as AdminInquiryStatus, sync: syncByInquiryId.get(row.id) ?? null })),
     pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
     status: input.status ?? null,
   };
@@ -122,7 +144,10 @@ export async function getAdminInquiryDetail(tenantId: string, inquiryId: number)
   const db = await getDb();
   const rows = await db.select({ id: inquiries.id, name: inquiries.name, phone: inquiries.phone, wechat: inquiries.wechat, email: inquiries.email, travelDate: inquiries.travelDate, travelers: inquiries.travelers, message: inquiries.message, createdAt: inquiries.createdAt, status: inquiries.status }).from(inquiries).where(and(eq(inquiries.tenantId, tenantId), eq(inquiries.id, inquiryId))).limit(1);
   const row = rows[0];
-  return row ? { ...row, status: row.status as AdminInquiryStatus } : null;
+  if (!row) return null;
+  const provider = await configuredProviderName(tenantId);
+  const [syncRow] = await db.select().from(tenantInquirySyncJobs).where(and(eq(tenantInquirySyncJobs.tenantId, tenantId), eq(tenantInquirySyncJobs.inquiryId, inquiryId), eq(tenantInquirySyncJobs.provider, provider))).limit(1);
+  return { ...row, status: row.status as AdminInquiryStatus, sync: toSyncStatus(syncRow) };
 }
 
 export async function updateAdminInquiryStatus(tenantId: string, inquiryId: number, status: AdminInquiryStatus) {

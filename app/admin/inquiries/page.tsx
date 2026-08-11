@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminInquiriesPage({ tenantSlug }: { tenantSlug?: string } = {}) {
-  const access = await getAdminPageAccess(tenantSlug, "viewer");
+  const access = await getAdminPageAccess(tenantSlug, "viewer", "inquiry:list_masked");
 
   let data: Awaited<ReturnType<typeof getAdminInquiries>>;
   try {

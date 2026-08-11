@@ -124,8 +124,11 @@ async function main() {
     assert.equal(query("SELECT COUNT(*) AS count FROM inquiries WHERE tenant_id = 'yunnan-demo'", freshState)[0].count, 1);
     execute("INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent) VALUES ('qianlin-travel', 'Sync tenant test', '18900000000', '1', 1)", freshState);
     const qianlinSyncInquiryId = query("SELECT id FROM inquiries WHERE name = 'Sync tenant test'", freshState)[0].id;
-    assert.throws(() => execute(`INSERT INTO tenant_inquiry_sync_jobs (id, tenant_id, inquiry_id, idempotency_key) VALUES ('cross-tenant-job', 'yunnan-demo', ${qianlinSyncInquiryId}, 'yunnan-demo:inquiry:${qianlinSyncInquiryId}')`, freshState));
-    assert.equal(query("SELECT COUNT(*) AS count FROM tenant_inquiry_sync_jobs", freshState)[0].count, 0);
+    execute(`INSERT INTO tenant_inquiry_sync_jobs (id, tenant_id, inquiry_id, provider, idempotency_key) VALUES ('disabled-sync-job', 'qianlin-travel', ${qianlinSyncInquiryId}, 'disabled', 'qianlin-travel:inquiry:${qianlinSyncInquiryId}:provider:disabled')`, freshState);
+    execute(`INSERT INTO tenant_inquiry_sync_jobs (id, tenant_id, inquiry_id, provider, idempotency_key) VALUES ('mock-sync-job', 'qianlin-travel', ${qianlinSyncInquiryId}, 'mock', 'qianlin-travel:inquiry:${qianlinSyncInquiryId}:provider:mock')`, freshState);
+    assert.throws(() => execute(`INSERT INTO tenant_inquiry_sync_jobs (id, tenant_id, inquiry_id, provider, idempotency_key) VALUES ('mock-sync-duplicate', 'qianlin-travel', ${qianlinSyncInquiryId}, 'mock', 'qianlin-travel:inquiry:${qianlinSyncInquiryId}:provider:mock-duplicate')`, freshState));
+    assert.throws(() => execute(`INSERT INTO tenant_inquiry_sync_jobs (id, tenant_id, inquiry_id, provider, idempotency_key) VALUES ('cross-tenant-job', 'yunnan-demo', ${qianlinSyncInquiryId}, 'disabled', 'yunnan-demo:inquiry:${qianlinSyncInquiryId}:provider:disabled')`, freshState));
+    assert.equal(query("SELECT COUNT(*) AS count FROM tenant_inquiry_sync_jobs", freshState)[0].count, 2);
     assert.equal(query("PRAGMA foreign_key_check", freshState).length, 0);
     assert.equal(query("SELECT status, site_status, default_language FROM tenants WHERE id = 'configuring-test'", freshState)[0].site_status, "configuring");
     const tourInsert = "('qianlin-tour-test','qianlin-travel','shared-slug','测试线路','Test tour','测试线路介绍','Test tour description','5天4晚','5 Days 4 Nights','','','价格请咨询','Contact us for price','/images/guizhou/huangguoshu.png','测试图片','Test image',1,10,'published')";

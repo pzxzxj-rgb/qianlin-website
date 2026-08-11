@@ -17,7 +17,7 @@
     "db:check:local": "node scripts/check-local-d1.mjs",
     "db:inquiries:local": "node scripts/list-inquiries-local.mjs",
     "db:reset:local": "node scripts/reset-local-d1.mjs",
-    "test:integration:local": "node scripts/test-local-d1.mjs && node scripts/test-local-http.mjs"
+    "test:integration:local": "node scripts/test-local-d1.mjs && node scripts/test-local-http.mjs && node scripts/test-local-http-sync.mjs"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",

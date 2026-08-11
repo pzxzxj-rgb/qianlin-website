@@ -890,7 +890,7 @@ PRAGMA foreign_key_check;
 当仓库中已经存在对应 Skill 时：
 
 - 部署任务同时遵守 `deployment-operations`
-- 用户和权限任务同时遵守 `auth-org-rbac`
+- 用户和权限任务同时遵守 `identity-tenant-rbac`
 
 如果对应 Skill 尚不存在，不得假装已经读取，也不得自行编造具体规则。
 

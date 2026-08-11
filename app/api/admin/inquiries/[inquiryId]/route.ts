@@ -18,13 +18,13 @@ function isAdminInquiryStatus(value: unknown): value is AdminInquiryStatus {
   return typeof value === "string" && ADMIN_INQUIRY_STATUSES.includes(value as AdminInquiryStatus);
 }
 
-async function getTenantId(request: Request, minimumRole: "viewer" | "editor") {
-  const trusted = await getAdminRouteAccess(request, undefined, minimumRole);
+async function getTenantId(request: Request, minimumRole: "viewer" | "editor", permission: "inquiry:read_sensitive" | "inquiry:update") {
+  const trusted = await getAdminRouteAccess(request, undefined, minimumRole, permission);
   return "response" in trusted ? { error: trusted.response } as const : { tenantId: trusted.access.tenantId, userId: trusted.access.userId } as const;
 }
 
 export async function GET(request: Request, context: { params: Promise<{ inquiryId: string }> }) {
-  const access = await getTenantId(request, "editor");
+  const access = await getTenantId(request, "editor", "inquiry:read_sensitive");
   if ("error" in access) return access.error;
   const { inquiryId: rawInquiryId } = await context.params;
   const inquiryId = parseInquiryId(rawInquiryId);
@@ -40,7 +40,7 @@ export async function GET(request: Request, context: { params: Promise<{ inquiry
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ inquiryId: string }> }) {
-  const access = await getTenantId(request, "editor");
+  const access = await getTenantId(request, "editor", "inquiry:update");
   if ("error" in access) return access.error;
   if (!verifySameOriginRequest(request)) return errorResponse("请求来源无效。", "Invalid request origin.", 403);
 

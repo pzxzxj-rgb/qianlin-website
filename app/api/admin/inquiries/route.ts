@@ -19,7 +19,7 @@ function parseStatus(value: string | null): AdminInquiryStatus | undefined | nul
 }
 
 export async function GET(request: Request) {
-  const trusted = await getAdminRouteAccess(request, undefined, "viewer");
+  const trusted = await getAdminRouteAccess(request, undefined, "viewer", "inquiry:list_masked");
   if ("response" in trusted) return trusted.response;
   const { tenantId } = trusted.access;
 
