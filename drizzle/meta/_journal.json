@@ -54,8 +54,36 @@
     {
       "idx": 7,
       "version": "6",
-      "when": 1786084037661,
+      "when": 1786353563504,
       "tag": "0007_yielding_deathstrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1786353576284,
+      "tag": "0008_saas_identity_and_tenant_governance",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1786353610464,
+      "tag": "0009_tenant_inquiry_sync_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1786353624304,
+      "tag": "0010_add_tenant_province_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1786353884373,
+      "tag": "0011_small_triton",
       "breakpoints": true
     }
   ]

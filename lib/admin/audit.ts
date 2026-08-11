@@ -5,7 +5,7 @@ import { assertTenantScope } from "./tenantScope";
 
 export type AdminAuditInput = {
   tenantId: string;
-  userId: string;
+  userId?: string | null;
   action: string;
   resourceType: string;
   resourceId?: string | null;
@@ -15,7 +15,7 @@ export type AdminAuditInput = {
 
 export async function recordAdminAudit(input: AdminAuditInput) {
   assertTenantScope(input.tenantId);
-  if (!input.userId || !input.action || !input.resourceType) throw new Error("Invalid audit context");
+  if (!input.action || !input.resourceType) throw new Error("Invalid audit context");
   const metadata = input.metadata ? JSON.stringify(input.metadata) : "";
   const db = await getDb();
   await db.insert(adminAuditLogs).values({ tenantId: input.tenantId, userId: input.userId, action: input.action, resourceType: input.resourceType, resourceId: input.resourceId ?? null, result: input.result, metadata });

@@ -22,7 +22,7 @@ test("uses the verified tenant context for contact administration", async () => 
   assert.match(auth, /sessions/);
   assert.match(auth, /tenantMemberships/);
   assert.match(auth, /requireAdminAccess/);
-  assert.doesNotMatch(auth, /ADMIN_TENANT_ID\s*=\s*["']qianlin-travel/);
+  assert.match(auth, /SUPPORTED_ADMIN_TENANT_ID\s*=\s*["']qianlin-travel/);
   assert.match(page, /getAdminPageAccess/);
   assert.match(page, /force-no-store/);
   assert.match(page, /robots: \{ index: false, follow: false \}/);

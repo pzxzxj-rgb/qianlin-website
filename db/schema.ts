@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const tenants = sqliteTable("tenants", {
   id: text("id").primaryKey(),
@@ -67,7 +67,7 @@ export const sessions = sqliteTable("sessions", {
 export const adminAuditLogs = sqliteTable("admin_audit_logs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  userId: text("user_id").references(() => users.id, { onDelete: "restrict" }),
   action: text("action").notNull(),
   resourceType: text("resource_type").notNull(),
   resourceId: text("resource_id"),
@@ -104,13 +104,15 @@ export const inquiries = sqliteTable("inquiries", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => ({
   tenantStatusCreatedIndex: index("idx_inquiries_tenant_status_created").on(table.tenantId, table.status, table.createdAt),
+  tenantIdUnique: uniqueIndex("uq_inquiries_tenant_id_id").on(table.tenantId, table.id),
+  retentionPendingIndex: index("idx_inquiries_retention_pending").on(table.anonymizedAt, table.retentionUntil),
   statusCheck: check("ck_inquiries_status", sql`${table.status} in ('new', 'contacted', 'following_up', 'completed', 'closed')`),
 }));
 
 export const tenantInquirySyncJobs = sqliteTable("tenant_inquiry_sync_jobs", {
   id: text("id").primaryKey(),
   tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
-  inquiryId: integer("inquiry_id").notNull().references(() => inquiries.id, { onDelete: "restrict" }),
+  inquiryId: integer("inquiry_id").notNull(),
   provider: text("provider").notNull().default("disabled"),
   status: text("status").notNull().default("pending"),
   externalRecordId: text("external_record_id"),
@@ -126,6 +128,11 @@ export const tenantInquirySyncJobs = sqliteTable("tenant_inquiry_sync_jobs", {
   tenantInquiryProviderUnique: uniqueIndex("uq_tenant_inquiry_sync_jobs_tenant_inquiry_provider").on(table.tenantId, table.inquiryId, table.provider),
   idempotencyUnique: uniqueIndex("uq_tenant_inquiry_sync_jobs_idempotency_key").on(table.idempotencyKey),
   tenantStatusIndex: index("idx_tenant_inquiry_sync_jobs_tenant_status").on(table.tenantId, table.status, table.updatedAt),
+  tenantInquiryForeignKey: foreignKey({
+    columns: [table.tenantId, table.inquiryId],
+    foreignColumns: [inquiries.tenantId, inquiries.id],
+    name: "fk_tenant_inquiry_sync_jobs_tenant_inquiry",
+  }).onDelete("restrict"),
   providerCheck: check("ck_tenant_inquiry_sync_jobs_provider", sql`${table.provider} in ('disabled', 'mock', 'zhilv')`),
   statusCheck: check("ck_tenant_inquiry_sync_jobs_status", sql`${table.status} in ('pending', 'processing', 'synced', 'failed', 'not_configured')`),
   retryCheck: check("ck_tenant_inquiry_sync_jobs_retry_count", sql`${table.retryCount} >= 0 and ${table.retryCount} <= 1000`),

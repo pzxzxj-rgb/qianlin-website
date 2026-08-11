@@ -1,6 +1,7 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import { anonymizeExpiredInquiries } from "../lib/inquiries/retention";
 
 interface Env {
   ASSETS: Fetcher;
@@ -52,6 +53,11 @@ const worker = {
     }
 
     return withSecurityHeaders(await handler.fetch(request, env, ctx), request);
+  },
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(anonymizeExpiredInquiries(env.DB).catch((error) => {
+      console.error("Failed to anonymize expired inquiries", error instanceof Error ? error.name : "UnknownError");
+    }));
   },
 };
 

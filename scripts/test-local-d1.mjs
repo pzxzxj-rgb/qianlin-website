@@ -9,6 +9,9 @@ const freshState = path.resolve(root, ".wrangler", "test-state");
 const legacyState = path.resolve(root, ".wrangler", "legacy-migration-state");
 const legacyMigrations = path.resolve(root, ".wrangler", "legacy-migrations");
 const legacyConfig = path.resolve(root, ".wrangler", "legacy-wrangler.json");
+const mismatchState = path.resolve(root, ".wrangler", "mismatch-migration-state");
+const mismatchMigrations = path.resolve(root, ".wrangler", "mismatch-migrations");
+const mismatchConfig = path.resolve(root, ".wrangler", "mismatch-wrangler.json");
 const wrangler = path.join(root, "node_modules", "wrangler", "bin", "wrangler.js");
 const defaultConfig = path.resolve(root, "wrangler.local.jsonc");
 
@@ -33,17 +36,15 @@ function migrationNames(statePath, configPath = defaultConfig) {
   return query("SELECT name FROM d1_migrations ORDER BY id", statePath, configPath).map((row) => row.name);
 }
 
-async function prepareLegacyMigrationConfig() {
-  await fs.mkdir(legacyMigrations, { recursive: true });
+async function prepareMigrationConfig(migrationsPath, configPath, maxMigration) {
+  await fs.mkdir(migrationsPath, { recursive: true });
   const migrationFiles = (await fs.readdir(path.resolve(root, "drizzle")))
-    .filter((file) => /^\d{4}_.+\.sql$/.test(file) && Number(file.slice(0, 4)) <= 4)
+    .filter((file) => /^\d{4}_.+\.sql$/.test(file) && Number(file.slice(0, 4)) <= maxMigration)
     .sort();
-  for (const file of migrationFiles) {
-    await fs.copyFile(path.resolve(root, "drizzle", file), path.resolve(legacyMigrations, file));
-  }
+  for (const file of migrationFiles) await fs.copyFile(path.resolve(root, "drizzle", file), path.resolve(migrationsPath, file));
   const config = {
     $schema: "node_modules/wrangler/config-schema.json",
-    name: "qianlin-travel-legacy-migration-test",
+    name: path.basename(configPath, ".json"),
     main: "worker/index.ts",
     compatibility_date: "2026-08-04",
     compatibility_flags: ["nodejs_compat"],
@@ -51,10 +52,10 @@ async function prepareLegacyMigrationConfig() {
       binding: "DB",
       database_name: "qianlin-travel-d1",
       database_id: "00000000-0000-4000-8000-000000000000",
-      migrations_dir: path.relative(path.dirname(legacyConfig), legacyMigrations).replaceAll("\\", "/"),
+      migrations_dir: path.relative(path.dirname(configPath), migrationsPath).replaceAll("\\", "/"),
     }],
   };
-  await fs.writeFile(legacyConfig, JSON.stringify(config, null, 2));
+  await fs.writeFile(configPath, JSON.stringify(config, null, 2));
 }
 
 async function main() {
@@ -62,6 +63,9 @@ async function main() {
   await fs.rm(legacyState, { recursive: true, force: true });
   await fs.rm(legacyMigrations, { recursive: true, force: true });
   await fs.rm(legacyConfig, { force: true });
+  await fs.rm(mismatchState, { recursive: true, force: true });
+  await fs.rm(mismatchMigrations, { recursive: true, force: true });
+  await fs.rm(mismatchConfig, { force: true });
   try {
     applyMigrations(freshState);
     assert.deepEqual(migrationNames(freshState), [
@@ -76,6 +80,7 @@ async function main() {
       "0008_saas_identity_and_tenant_governance.sql",
       "0009_tenant_inquiry_sync_jobs.sql",
       "0010_add_tenant_province_catalog.sql",
+      "0011_small_triton.sql",
     ]);
 
     const counts = query("SELECT (SELECT COUNT(*) FROM tenants WHERE status = 'active') AS active_tenants, (SELECT COUNT(*) FROM tenants WHERE site_status = 'published' AND id = 'qianlin-travel') AS qianlin_published, (SELECT COUNT(*) FROM tenants WHERE site_status = 'published' AND id = 'yunnan-demo') AS demo_published, (SELECT COUNT(*) FROM tenant_hero_slides WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_heroes, (SELECT COUNT(*) FROM tenant_hero_slides WHERE tenant_id = 'yunnan-demo' AND status = 'published') AS demo_heroes, (SELECT COUNT(*) FROM planner_cities WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_cities, (SELECT COUNT(*) FROM planner_destinations WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_destinations, (SELECT COUNT(*) FROM tenant_tours WHERE tenant_id = 'qianlin-travel') AS qianlin_tours, (SELECT COUNT(*) FROM tenant_tours WHERE tenant_id = 'yunnan-demo') AS demo_tours, (SELECT COUNT(*) FROM inquiries WHERE tenant_id IS NULL) AS null_inquiries", freshState);
@@ -102,6 +107,8 @@ async function main() {
     assert.equal(inquiryColumns.dflt_value, null);
     assert.ok(query("PRAGMA foreign_key_list('inquiries')", freshState).some((row) => row.table === "tenants" && row.on_delete.toUpperCase() === "RESTRICT"));
     assert.equal(query("PRAGMA foreign_key_check", freshState).length, 0);
+    assert.ok(query("SELECT name FROM pragma_index_list('inquiries')", freshState).some((row) => row.name === "uq_inquiries_tenant_id_id"));
+    assert.ok(query("PRAGMA foreign_key_list('tenant_inquiry_sync_jobs')", freshState).some((row) => row.table === "inquiries" && row.from === "tenant_id"));
     assert.equal(query("SELECT COUNT(*) AS count FROM inquiries i LEFT JOIN tenants t ON t.id = i.tenant_id WHERE t.id IS NULL", freshState)[0].count, 0);
     assert.ok(query("PRAGMA foreign_key_list('tenant_tours')", freshState).some((row) => row.table === "tenants" && row.on_delete.toUpperCase() === "RESTRICT"));
     assert.equal(query("SELECT dflt_value FROM pragma_table_info('tenant_tours') WHERE name = 'tenant_id'", freshState)[0].dflt_value, null);
@@ -115,6 +122,11 @@ async function main() {
     execute("INSERT INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('configuring-test', 'configuring-test', 'Configuring test', 'Configuring test', 'active', 'configuring', 'en', 0)", freshState);
     execute("INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent) VALUES ('yunnan-demo', 'Tenant test', '18900000000', '1', 1)", freshState);
     assert.equal(query("SELECT COUNT(*) AS count FROM inquiries WHERE tenant_id = 'yunnan-demo'", freshState)[0].count, 1);
+    execute("INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent) VALUES ('qianlin-travel', 'Sync tenant test', '18900000000', '1', 1)", freshState);
+    const qianlinSyncInquiryId = query("SELECT id FROM inquiries WHERE name = 'Sync tenant test'", freshState)[0].id;
+    assert.throws(() => execute(`INSERT INTO tenant_inquiry_sync_jobs (id, tenant_id, inquiry_id, idempotency_key) VALUES ('cross-tenant-job', 'yunnan-demo', ${qianlinSyncInquiryId}, 'yunnan-demo:inquiry:${qianlinSyncInquiryId}')`, freshState));
+    assert.equal(query("SELECT COUNT(*) AS count FROM tenant_inquiry_sync_jobs", freshState)[0].count, 0);
+    assert.equal(query("PRAGMA foreign_key_check", freshState).length, 0);
     assert.equal(query("SELECT status, site_status, default_language FROM tenants WHERE id = 'configuring-test'", freshState)[0].site_status, "configuring");
     const tourInsert = "('qianlin-tour-test','qianlin-travel','shared-slug','测试线路','Test tour','测试线路介绍','Test tour description','5天4晚','5 Days 4 Nights','','','价格请咨询','Contact us for price','/images/guizhou/huangguoshu.png','测试图片','Test image',1,10,'published')";
     execute(`INSERT INTO tenant_tours (id, tenant_id, slug, title_zh, title_en, description_zh, description_en, duration_zh, duration_en, tag_zh, tag_en, price_text_zh, price_text_en, image_url, image_alt_zh, image_alt_en, featured, display_order, status) VALUES ${tourInsert}`, freshState);
@@ -126,7 +138,7 @@ async function main() {
     assert.equal(query("SELECT COUNT(*) AS count FROM tenant_tours WHERE tenant_id = 'qianlin-travel'", freshState)[0].count, 1);
     assert.equal(query("SELECT COUNT(*) AS count FROM tenant_tours WHERE tenant_id = 'yunnan-demo'", freshState)[0].count, 1);
 
-    await prepareLegacyMigrationConfig();
+    await prepareMigrationConfig(legacyMigrations, legacyConfig, 4);
     applyMigrations(legacyState, legacyConfig);
     assert.deepEqual(migrationNames(legacyState, legacyConfig), [
       "0000_tired_pride.sql",
@@ -150,16 +162,31 @@ async function main() {
       "0008_saas_identity_and_tenant_governance.sql",
       "0009_tenant_inquiry_sync_jobs.sql",
       "0010_add_tenant_province_catalog.sql",
+      "0011_small_triton.sql",
     ]);
     assert.equal(query("SELECT customize_image_url FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel'", legacyState)[0].customize_image_url, "/images/guizhou/customize-mountains.png");
     assert.equal(query("SELECT COUNT(*) AS count FROM tenant_tours", legacyState)[0].count, 0);
+    assert.equal(query("PRAGMA foreign_key_check", legacyState).length, 0);
 
-    console.log("Local D1 integration passed: fresh 0000-0010 and existing 0000-0004 plus 0005-0010 migration paths.");
+    await prepareMigrationConfig(mismatchMigrations, mismatchConfig, 10);
+    applyMigrations(mismatchState, mismatchConfig);
+    execute("INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent) VALUES ('qianlin-travel', 'Migration mismatch test', '18900000000', '1', 1)", mismatchState, mismatchConfig);
+    const mismatchedInquiryId = query("SELECT id FROM inquiries WHERE name = 'Migration mismatch test'", mismatchState, mismatchConfig)[0].id;
+    assert.doesNotThrow(() => execute(`INSERT INTO tenant_inquiry_sync_jobs (id, tenant_id, inquiry_id, idempotency_key) VALUES ('historical-mismatch-job', 'yunnan-demo', ${mismatchedInquiryId}, 'historical-mismatch')`, mismatchState, mismatchConfig));
+    assert.throws(() => applyMigrations(mismatchState));
+    assert.equal(query("SELECT COUNT(*) AS count FROM d1_migrations WHERE name = '0011_small_triton.sql'", mismatchState)[0].count, 0);
+    assert.equal(query("SELECT COUNT(*) AS count FROM tenant_inquiry_sync_jobs", mismatchState, mismatchConfig)[0].count, 1);
+    console.log("Historical sync-job tenant mismatch was detected and migration was refused without overwriting data.");
+
+    console.log("Local D1 integration passed: fresh 0000-0011 and existing 0000-0004 plus 0005-0011 migration paths.");
   } finally {
     await fs.rm(freshState, { recursive: true, force: true });
     await fs.rm(legacyState, { recursive: true, force: true });
     await fs.rm(legacyMigrations, { recursive: true, force: true });
     await fs.rm(legacyConfig, { force: true });
+    await fs.rm(mismatchState, { recursive: true, force: true });
+    await fs.rm(mismatchMigrations, { recursive: true, force: true });
+    await fs.rm(mismatchConfig, { force: true });
   }
 }
 

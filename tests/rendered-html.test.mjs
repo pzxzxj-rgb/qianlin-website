@@ -27,8 +27,15 @@ test("keeps CI quality gates and external rate limiting guidance", async () => {
   const [workflow, readme] = await Promise.all([read(".github/workflows/ci.yml"), read("README.md")]);
   assert.match(workflow, /node-version: 22/);
   assert.match(workflow, /cache: npm/);
-  for (const command of ["npm ci", "npm run lint", "npm run typecheck", "npm run build", "npm test", "npm run test:integration:local", "npm audit --omit=dev --audit-level=high"]) assert.match(workflow, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  for (const command of ["npm ci", "npm run lint", "npm run typecheck", "npm test", "npm run test:integration:local"]) assert.match(workflow, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(workflow, /npm audit\b/);
+  assert.match(workflow, /--registry=https:\/\/registry\.npmjs\.org/);
+  assert.match(workflow, /--omit=dev/);
+  assert.match(workflow, /--audit-level=high/);
+  assert.doesNotMatch(workflow, /Build production bundle/);
   assert.match(readme, /Rate limiting|频率限制|Source IP/i);
+  assert.match(readme, /Cloudflare WAF Rate Limiting/);
+  assert.match(readme, /不能替代 WAF/);
   assert.match(readme, /\/api\/admin\/login/);
 });
 
@@ -78,7 +85,7 @@ test("keeps admin identity, revocation, audit, and private metadata boundaries",
   assert.match(auth, /revokedAt/);
   assert.match(auth, /revokeAllAdminSessions/);
   assert.match(auth, /tenantMemberships/);
-  assert.doesNotMatch(auth, /ADMIN_TENANT_ID\s*=\s*["']qianlin-travel/);
+  assert.match(auth, /SUPPORTED_ADMIN_TENANT_ID\s*=\s*["']qianlin-travel/);
   assert.match(adminPage, /getAdminPageAccess/);
   assert.match(adminLayout, /robots: \{ index: false, follow: false \}/);
   assert.match(login, /checkRateLimit/);

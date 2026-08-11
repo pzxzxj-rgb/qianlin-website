@@ -24,7 +24,7 @@ async function getTenantId(request: Request, minimumRole: "viewer" | "editor") {
 }
 
 export async function GET(request: Request, context: { params: Promise<{ inquiryId: string }> }) {
-  const access = await getTenantId(request, "viewer");
+  const access = await getTenantId(request, "editor");
   if ("error" in access) return access.error;
   const { inquiryId: rawInquiryId } = await context.params;
   const inquiryId = parseInquiryId(rawInquiryId);

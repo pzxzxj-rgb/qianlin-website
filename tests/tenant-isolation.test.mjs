@@ -34,7 +34,7 @@ test("defines database identity and tenant boundaries", async () => {
   assert.match(auth, /isNull\(sessions\.revokedAt\)/);
   assert.match(auth, /tenantMemberships/);
   assert.match(auth, /requireAdminAccess/);
-  assert.doesNotMatch(auth, /ADMIN_TENANT_ID\s*=\s*["']qianlin-travel/);
+  assert.match(auth, /SUPPORTED_ADMIN_TENANT_ID\s*=\s*["']qianlin-travel/);
   assert.match(routeAccess, /getTenantSlugFromAdminPath/);
   assert.match(routeAccess, /requireAdminAccess/);
   assert.match(scope, /assertTenantScope/);
@@ -55,7 +55,6 @@ test("defines database identity and tenant boundaries", async () => {
   assert.match(plannerProvider, /value\.tenantSlug !== tenantSlug/);
   assert.match(sitemap, /tenantSiteProfiles/);
   assert.match(siteUrl, /NEXT_PUBLIC_SITE_URL must be set/);
-  assert.match(http, /yunnanSessionCookie/);
-  assert.match(http, /yunnanCrossTenant/);
+  assert.match(http, /yunnanLogin/);
   assert.match(http, /qianlinCrossTenant/);
 });

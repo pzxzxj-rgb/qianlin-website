@@ -37,7 +37,7 @@ CI 使用 Node.js 22、npm 缓存和 `npm ci`。lint、typecheck、build、自�
 
 后台标准路径为 `/admin/t/:tenantSlug` 和 `/api/admin/t/:tenantSlug/...`，根路径保留给默认租户兼容入口。客户端提交的 tenant ID、tenant slug、provider、externalRecordId 和 syncStatus 都不会成为授权依据。资源查询和更新必须同时包含可信租户 ID 与资源 ID，跨租户资源统一按未找到或无权访问处理。
 
-管理员身份模型包含 `users`、`tenant_memberships`、`sessions` 和 `admin_audit_logs`。Cookie 只保存不可预测的 Session token，数据库保存 token hash、用户、过期时间和撤销时间。密码修改会撤销该用户的旧 Session。owner 和 admin 的 MFA 接口已预留，但生产开放多租户前仍需接入并验证正式 MFA Provider。
+管理员身份模型包含 `users`、`tenant_memberships`、`sessions` 和 `admin_audit_logs`。Cookie 只保存不可预测的 Session token，数据库保存 token hash、用户、过期时间和撤销时间。密码修改会撤销该用户的旧 Session，登录、退出、密码修改及失败操作会写入不含个人信息的审计记录。在正式 MFA Provider、成员关系和权限流程完成前，服务端只允许 `qianlin-travel` 进入后台；其他租户成员即使密码正确也不能登录。
 
 咨询数据包含同意时间、政策版本、保留截止时间和匿名化时间字段。联系方式在后台列表中脱敏，完整联系方式需要已验证的管理员 Session。不要在日志、测试或 README 中写入真实密码、Token、手机号、邮箱或微信号。
 
@@ -81,10 +81,14 @@ http.request.uri.path matches "^/api/t/[^/]+/inquiries$" and http.request.method
 
 Cloudflare 控制台步骤仍需由项目管理员完成，包括匹配表达式、计数维度、阈值、阻断动作和正式域名 Host 条件。项目没有引入 KV 或 Durable Objects。
 
+## 咨询保留与匿名化
+
+咨询写入 `retention_until`（默认 180 天）。Worker 的 `scheduled` 入口按小时运行逐租户匿名化到期记录，清空姓名、联系方式、行程和留言并保留租户边界、同意政策版本与匿名化时间。生产调度器必须为 Worker 配置同等的 hourly cron；本地配置已包含 `0 * * * *`。
+
 ## 数据库迁移
 
-迁移文件位于 `drizzle/`，当前最新迁移为 `0010_add_tenant_province_catalog.sql`。本任务不执行远程 D1 migration，不连接远程 D1，不部署生产环境。
+迁移文件位于 `drizzle/`，当前最新迁移为 `0011_small_triton.sql`。0011 会先检查历史同步任务是否跨租户，发现错配即中止，不会静默覆盖；之后用 `(tenant_id, inquiry_id)` 复合外键约束同租户关联。本任务不执行远程 D1 migration，不连接远程 D1，不部署生产环境。
 
 ## 尚未开放
 
-当前未开放真实 ERP、MFA Provider、订单、支付、文件上传、WhatsApp、LINE、国际手机号、短信发送和邮件发送。咨询数据保留与匿名化任务需要在生产运维中配置定时执行，并在上线前完成人工审核。
+当前未开放真实 ERP、MFA Provider、订单、支付、文件上传、WhatsApp、LINE、国际手机号、短信发送和邮件发送。Cloudflare WAF Rate Limiting 仍必须在生产控制台按上文表达式配置并由项目管理员确认；Worker 内存 Map 只作为本地/单实例的第二层保护，不能替代 WAF。由于本次明确禁止访问远程 Cloudflare，生产 WAF 和生产 cron 的实际状态未在本地验证，发布前必须完成这项人工确认。

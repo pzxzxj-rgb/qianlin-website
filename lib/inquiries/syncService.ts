@@ -30,9 +30,14 @@ async function getJob(tenantId: string, inquiryId: number) {
 export async function createInquirySyncJob(tenantId: string, inquiryId: number) {
   assertTenantScope(tenantId);
   const idempotencyKey = inquiryIdempotencyKey(tenantId, inquiryId);
+  const db = await getDb();
+  const [inquiry] = await db.select({ id: inquiries.id })
+    .from(inquiries)
+    .where(and(eq(inquiries.id, inquiryId), eq(inquiries.tenantId, tenantId)))
+    .limit(1);
+  if (!inquiry) throw new Error("Inquiry does not belong to tenant");
   const provider = await getErpInquiryProvider();
   const existing = await getJob(tenantId, inquiryId);
-  const db = await getDb();
   if (existing) {
     if (existing.provider !== provider.name && existing.status !== "synced") {
       await db.update(tenantInquirySyncJobs).set({ provider: provider.name, status: "pending", updatedAt: new Date().toISOString() }).where(and(eq(tenantInquirySyncJobs.id, existing.id), eq(tenantInquirySyncJobs.tenantId, tenantId), eq(tenantInquirySyncJobs.inquiryId, inquiryId)));

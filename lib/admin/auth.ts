@@ -7,6 +7,7 @@ const ADMIN_SESSION_TTL_SECONDS = 8 * 60 * 60;
 const PBKDF2_ALGORITHM = "pbkdf2-sha256";
 const MIN_ADMIN_SESSION_SECRET_LENGTH = 32;
 const ADMIN_TENANT_ENV = "ADMIN_TENANT_ID";
+export const SUPPORTED_ADMIN_TENANT_ID = "qianlin-travel";
 
 export const ADMIN_ROLES = ["owner", "admin", "editor", "viewer"] as const;
 export type AdminRole = typeof ADMIN_ROLES[number];
@@ -116,10 +117,13 @@ export async function createPasswordHash(password: string) {
 
 export async function isAdminConfigured() {
   const config = await getLegacyAdminConfig();
-  if (config.username && parsePasswordHash(config.passwordHash) && config.tenantId && config.sessionSecret.length >= MIN_ADMIN_SESSION_SECRET_LENGTH) return true;
+  if (config.username && parsePasswordHash(config.passwordHash) && config.tenantId === SUPPORTED_ADMIN_TENANT_ID && config.sessionSecret.length >= MIN_ADMIN_SESSION_SECRET_LENGTH) return true;
   try {
     const db = await getDb();
-    const rows = await db.select({ id: users.id }).from(users).where(eq(users.status, "active")).limit(1);
+    const rows = await db.select({ id: users.id }).from(users)
+      .innerJoin(tenantMemberships, eq(tenantMemberships.userId, users.id))
+      .where(and(eq(users.status, "active"), eq(tenantMemberships.status, "active"), eq(tenantMemberships.tenantId, SUPPORTED_ADMIN_TENANT_ID)))
+      .limit(1);
     return Boolean(rows[0]);
   } catch {
     return false;
@@ -134,7 +138,7 @@ async function findUserByUsername(username: string) {
 
 async function migrateLegacyAdmin() {
   const config = await getLegacyAdminConfig();
-  if (!config.username || !config.passwordHash || !config.tenantId) return null;
+  if (!config.username || !config.passwordHash || config.tenantId !== SUPPORTED_ADMIN_TENANT_ID) return null;
   const db = await getDb();
   const [tenant] = await db.select({ id: tenants.id }).from(tenants).where(and(eq(tenants.id, config.tenantId), eq(tenants.status, "active"))).limit(1);
   if (!tenant) return null;
@@ -159,7 +163,14 @@ async function migrateLegacyAdmin() {
 
 export async function verifyAdminCredentials(username: string, password: string) {
   const existingUser = await findUserByUsername(username).catch(() => null);
-  if (existingUser) return await verifyPasswordHash(password, existingUser.passwordHash) ? existingUser : null;
+  if (existingUser) {
+    if (!(await verifyPasswordHash(password, existingUser.passwordHash))) return null;
+    const db = await getDb();
+    const [membership] = await db.select({ id: tenantMemberships.id }).from(tenantMemberships)
+      .where(and(eq(tenantMemberships.userId, existingUser.id), eq(tenantMemberships.tenantId, SUPPORTED_ADMIN_TENANT_ID), eq(tenantMemberships.status, "active")))
+      .limit(1);
+    return membership ? existingUser : null;
+  }
 
   const config = await getLegacyAdminConfig();
   if (!config.username || username !== config.username || !(await verifyPasswordHash(password, config.passwordHash))) return null;
@@ -168,6 +179,10 @@ export async function verifyAdminCredentials(username: string, password: string)
 
 export async function createAdminSession(userId: string) {
   const db = await getDb();
+  const [membership] = await db.select({ id: tenantMemberships.id }).from(tenantMemberships)
+    .where(and(eq(tenantMemberships.userId, userId), eq(tenantMemberships.tenantId, SUPPORTED_ADMIN_TENANT_ID), eq(tenantMemberships.status, "active")))
+    .limit(1);
+  if (!membership) throw new Error("Admin user is not a member of the supported tenant");
   const token = randomToken();
   const sessionId = "session-" + randomToken(18);
   const expiresAt = Math.floor(Date.now() / 1000) + ADMIN_SESSION_TTL_SECONDS;
@@ -197,7 +212,7 @@ async function getSessionRows(token: string) {
     .innerJoin(users, eq(users.id, sessions.userId))
     .innerJoin(tenantMemberships, eq(tenantMemberships.userId, users.id))
     .innerJoin(tenants, eq(tenants.id, tenantMemberships.tenantId))
-    .where(and(eq(sessions.tokenHash, await digestBase64Url(token)), isNull(sessions.revokedAt), gt(sessions.expiresAt, Math.floor(Date.now() / 1000)), eq(users.status, "active"), eq(tenantMemberships.status, "active"), eq(tenants.status, "active")))
+    .where(and(eq(sessions.tokenHash, await digestBase64Url(token)), isNull(sessions.revokedAt), gt(sessions.expiresAt, Math.floor(Date.now() / 1000)), eq(users.status, "active"), eq(tenantMemberships.status, "active"), eq(tenantMemberships.tenantId, SUPPORTED_ADMIN_TENANT_ID), eq(tenants.id, SUPPORTED_ADMIN_TENANT_ID), eq(tenants.status, "active")))
     .limit(20);
 }
 
@@ -218,7 +233,7 @@ export async function requireAdminSession(request: Request) {
 
 export async function requireAdminAccess(request: Request, tenantSlug: string, minimumRole: AdminRole = "viewer"): Promise<AdminAccessContext | null> {
   const session = await requireAdminSession(request);
-  if (!session || !tenantSlug || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(tenantSlug)) return null;
+  if (!session || session.tenantId !== SUPPORTED_ADMIN_TENANT_ID || !tenantSlug || tenantSlug !== SUPPORTED_ADMIN_TENANT_ID || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(tenantSlug)) return null;
   const db = await getDb();
   const [row] = await db.select({
     tenantId: tenants.id,
@@ -230,7 +245,7 @@ export async function requireAdminAccess(request: Request, tenantSlug: string, m
     .innerJoin(tenants, eq(tenants.id, tenantMemberships.tenantId))
     .innerJoin(users, eq(users.id, tenantMemberships.userId))
     .innerJoin(sessions, eq(sessions.userId, users.id))
-    .where(and(eq(sessions.id, session.sessionId), eq(tenantMemberships.tenantId, tenants.id), eq(tenants.slug, tenantSlug), eq(tenants.status, "active"), eq(users.status, "active"), eq(tenantMemberships.status, "active"), eq(tenantMemberships.userId, session.userId), isNull(sessions.revokedAt), gt(sessions.expiresAt, Math.floor(Date.now() / 1000)))).limit(1);
+    .where(and(eq(sessions.id, session.sessionId), eq(tenantMemberships.tenantId, tenants.id), eq(tenantMemberships.tenantId, SUPPORTED_ADMIN_TENANT_ID), eq(tenants.id, SUPPORTED_ADMIN_TENANT_ID), eq(tenants.slug, tenantSlug), eq(tenants.status, "active"), eq(users.status, "active"), eq(tenantMemberships.status, "active"), eq(tenantMemberships.userId, session.userId), isNull(sessions.revokedAt), gt(sessions.expiresAt, Math.floor(Date.now() / 1000)))).limit(1);
   if (!row || !isAdminRole(row.role)) return null;
   const roleRank: Record<AdminRole, number> = { viewer: 1, editor: 2, admin: 3, owner: 4 };
   if (roleRank[row.role] < roleRank[minimumRole]) return null;

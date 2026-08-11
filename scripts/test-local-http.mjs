@@ -150,6 +150,10 @@ try {
   execute("INSERT OR IGNORE INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('yunnan-travel-test', 'yunnan-travel-test', '云南测试旅行社', 'Yunnan Test Travel', 'active', 'configuring', 'zh', 0)");
   execute(`INSERT OR IGNORE INTO users (id, username, password_hash, display_name_zh, display_name_en, status) VALUES ('user-yunnan-admin', 'yunnan-admin', '${adminPasswordHash}', '云南测试管理员', 'Yunnan test admin', 'active')`);
   execute("INSERT OR IGNORE INTO tenant_memberships (id, tenant_id, user_id, role, status) VALUES ('membership-yunnan-admin', 'yunnan-travel-test', 'user-yunnan-admin', 'admin', 'active')");
+  execute(`INSERT OR IGNORE INTO users (id, username, password_hash, display_name_zh, display_name_en, status) VALUES ('user-qianlin-editor', 'qianlin-editor', '${adminPasswordHash}', '黔林测试编辑', 'Qianlin test editor', 'active')`);
+  execute(`INSERT OR IGNORE INTO users (id, username, password_hash, display_name_zh, display_name_en, status) VALUES ('user-qianlin-viewer', 'qianlin-viewer', '${adminPasswordHash}', '黔林测试查看者', 'Qianlin test viewer', 'active')`);
+  execute("INSERT OR IGNORE INTO tenant_memberships (id, tenant_id, user_id, role, status) VALUES ('membership-qianlin-editor', 'qianlin-travel', 'user-qianlin-editor', 'editor', 'active')");
+  execute("INSERT OR IGNORE INTO tenant_memberships (id, tenant_id, user_id, role, status) VALUES ('membership-qianlin-viewer', 'qianlin-travel', 'user-qianlin-viewer', 'viewer', 'active')");
   execute("INSERT OR IGNORE INTO planner_cities (id, tenant_id, province_code, code, name_zh, name_en, available_as_start, available_as_end, display_order, status) VALUES ('yunnan-test-city', 'yunnan-demo', 'yunnan', 'yunnan-test-city', '云南测试城市', 'Yunnan Test City', 1, 1, 1, 'published')");
 
   server = spawn(process.execPath, [path.join(root, "node_modules", "vinext", "dist", "cli.js"), "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
@@ -223,16 +227,18 @@ try {
   const expiredTokenHash = createHash("sha256").update(cookieToken(expiredSessionCookie)).digest("base64url");
   execute(`UPDATE sessions SET expires_at = 1 WHERE token_hash = '${expiredTokenHash}'`);
   const yunnanLogin = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: "yunnan-admin", password: adminTestPassword }) });
-  assert.equal(yunnanLogin.response.status, 200);
-  const yunnanSessionCookie = (yunnanLogin.response.headers.get("set-cookie") ?? "").split(";", 1)[0];
-  const yunnanOwnInquiries = await request("/api/admin/t/yunnan-travel-test/inquiries", { headers: { cookie: yunnanSessionCookie } });
-  assert.equal(yunnanOwnInquiries.response.status, 200);
-  const yunnanCrossTenant = await request("/api/admin/t/qianlin-travel/contacts", { headers: { cookie: yunnanSessionCookie } });
-  assert.equal(yunnanCrossTenant.response.status, 403);
+  assert.equal(yunnanLogin.response.status, 401);
+  assert.doesNotMatch(yunnanLogin.response.headers.get("set-cookie") ?? "", /qianlin_admin_session=/);
   const qianlinCrossTenant = await request("/api/admin/t/yunnan-travel-test/contacts", { headers: { cookie: sessionCookie } });
   assert.equal(qianlinCrossTenant.response.status, 403);
   const qianlinSessionCheck = await request("/api/admin/t/qianlin-travel/contacts", { headers: { cookie: sessionCookie } });
   assert.equal(qianlinSessionCheck.response.status, 200);
+  const editorLogin = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: "qianlin-editor", password: adminTestPassword }) });
+  assert.equal(editorLogin.response.status, 200);
+  const editorSessionCookie = (editorLogin.response.headers.get("set-cookie") ?? "").split(";", 1)[0];
+  const viewerLogin = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: "qianlin-viewer", password: adminTestPassword }) });
+  assert.equal(viewerLogin.response.status, 200);
+  const viewerSessionCookie = (viewerLogin.response.headers.get("set-cookie") ?? "").split(";", 1)[0];
   const saveProfile = (payload, options = {}) => request("/api/admin/profile", {
     method: "PUT",
     headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
@@ -1097,6 +1103,19 @@ try {
   assert.equal(inquiryDetail.body.inquiry.phone, "18985127882");
   assert.equal(inquiryDetail.body.inquiry.message, "Local D1 functional test");
   assert.equal(inquiryDetail.body.inquiry.status, "following_up");
+  const viewerInquiryList = await request("/api/admin/t/qianlin-travel/inquiries", { headers: { cookie: viewerSessionCookie } });
+  assert.equal(viewerInquiryList.response.status, 200);
+  const viewerInquiryDetail = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}`, { headers: { cookie: viewerSessionCookie } });
+  assert.equal(viewerInquiryDetail.response.status, 403);
+  assert.doesNotMatch(JSON.stringify(viewerInquiryDetail.body), /18985127882|Local D1 functional test|contact-test@example\.invalid/);
+  const viewerInquiryPage = await request(`/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}`, { headers: { cookie: viewerSessionCookie }, redirect: "manual" });
+  assert.ok([302, 303, 307, 308].includes(viewerInquiryPage.response.status));
+  const viewerStatusUpdate = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}`, { method: "PATCH", headers: { "content-type": "application/json", origin: baseUrl, cookie: viewerSessionCookie }, body: JSON.stringify({ status: "closed" }) });
+  assert.equal(viewerStatusUpdate.response.status, 403);
+  const editorInquiryDetail = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}`, { headers: { cookie: editorSessionCookie } });
+  assert.equal(editorInquiryDetail.response.status, 200);
+  assert.equal(editorInquiryDetail.body.inquiry.phone, "18985127882");
+  assert.equal(editorInquiryDetail.body.inquiry.message, "Local D1 functional test");
   const inquiryListPage = await request("/admin/inquiries", { headers: { cookie: statusSessionCookie } });
   assert.equal(inquiryListPage.response.status, 200);
   assert.match(String(inquiryListPage.body), /咨询管理/);
@@ -1151,7 +1170,19 @@ try {
   assert.equal(storedProfile.logo_mark, normalizedProfile.logoMark);
   const afterMaliciousYunnanProfile = query("SELECT id, tenant_id, status, created_at, updated_at, company_name_zh, company_name_en, description_zh, description_en, address_zh, address_en, logo_mark FROM tenant_site_profiles WHERE tenant_id = 'yunnan-demo' LIMIT 1")[0] ?? null;
   assert.deepEqual(afterMaliciousYunnanProfile, originalYunnanProfile);
-  const stored = query("SELECT tenant_id, phone, message FROM inquiries ORDER BY id DESC LIMIT 1")[0];
+  const failedPasswordChange = await request("/api/admin/account/password", { method: "PUT", headers: { "content-type": "application/json", origin: baseUrl, cookie: statusSessionCookie }, body: JSON.stringify({ currentPassword: "wrong-password", newPassword: "NewTestPassword!456" }) });
+  assert.equal(failedPasswordChange.response.status, 401);
+  const passwordChange = await request("/api/admin/account/password", { method: "PUT", headers: { "content-type": "application/json", origin: baseUrl, cookie: statusSessionCookie }, body: JSON.stringify({ currentPassword: adminTestPassword, newPassword: "NewTestPassword!456" }) });
+  assert.equal(passwordChange.response.status, 200);
+  assert.match(passwordChange.response.headers.get("set-cookie") ?? "", /Max-Age=0/);
+  const auditRows = query("SELECT action, result, resource_type FROM admin_audit_logs WHERE tenant_id = 'qianlin-travel'");
+  assert.ok(auditRows.some((row) => row.action === "login" && row.result === "failure"));
+  assert.ok(auditRows.some((row) => row.action === "login" && row.result === "success"));
+  assert.ok(auditRows.some((row) => row.action === "logout" && row.result === "success"));
+  assert.ok(auditRows.some((row) => row.action === "change_password" && row.result === "failure"));
+  assert.ok(auditRows.some((row) => row.action === "change_password" && row.result === "success"));
+  assert.doesNotMatch(JSON.stringify(auditRows), /18985127882|contact-test@example\.invalid|TestPassword!123|NewTestPassword!456/);
+  const stored = query(`SELECT tenant_id, phone, message FROM inquiries WHERE id = ${qianlinInquiryId}`)[0];
   assert.equal(stored.tenant_id, "qianlin-travel");
   assert.equal(stored.phone, "18985127882");
   assert.equal(stored.message, "Local D1 functional test");
