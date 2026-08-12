@@ -134,7 +134,7 @@ export const tenantInquirySyncJobs = sqliteTable("tenant_inquiry_sync_jobs", {
     name: "fk_tenant_inquiry_sync_jobs_tenant_inquiry",
   }).onDelete("restrict"),
   providerCheck: check("ck_tenant_inquiry_sync_jobs_provider", sql`${table.provider} in ('disabled', 'mock', 'zhilv')`),
-  statusCheck: check("ck_tenant_inquiry_sync_jobs_status", sql`${table.status} in ('pending', 'processing', 'synced', 'failed', 'not_configured')`),
+  statusCheck: check("ck_tenant_inquiry_sync_jobs_status", sql`${table.status} in ('pending', 'processing', 'synced', 'failed', 'not_configured', 'dead_letter')`),
   retryCheck: check("ck_tenant_inquiry_sync_jobs_retry_count", sql`${table.retryCount} >= 0 and ${table.retryCount} <= 1000`),
 }));
 

@@ -2,7 +2,7 @@
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 import { anonymizeExpiredInquiries } from "../lib/inquiries/retention";
-import { processDueInquirySyncJobs, reconcileMissingInquirySyncJobs } from "../lib/inquiries/syncService";
+import { processDueInquirySyncJobs, reconcileMissingInquirySyncJobs, reportInquirySyncQueueHealth } from "../lib/inquiries/syncService";
 
 interface Env {
   ASSETS: Fetcher;
@@ -60,6 +60,7 @@ const worker = {
       await anonymizeExpiredInquiries(env.DB);
       await reconcileMissingInquirySyncJobs();
       await processDueInquirySyncJobs();
+      await reportInquirySyncQueueHealth();
     })().catch((error) => {
       console.error("Failed to run inquiry maintenance", error instanceof Error ? error.name : "UnknownError");
     }));

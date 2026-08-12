@@ -15,6 +15,7 @@ const SYNC_STATUS_LABELS: Record<InquirySyncStatus, string> = {
   processing: "同步中",
   synced: "已同步",
   failed: "同步失败",
+  dead_letter: "死信",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

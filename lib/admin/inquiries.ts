@@ -149,15 +149,31 @@ export async function getAdminInquiries(tenantId: string, role: AdminRole, input
   };
 }
 
-export async function getAdminInquiryDetail(tenantId: string, inquiryId: number): Promise<AdminInquiryDetail | null> {
+export async function getAdminInquiryDetail(tenantId: string, inquiryId: number, role?: AdminRole): Promise<AdminInquiryDetail | null> {
   assertAdminTenant(tenantId);
   const db = await getDb();
   const rows = await db.select({ id: inquiries.id, name: inquiries.name, phone: inquiries.phone, wechat: inquiries.wechat, email: inquiries.email, travelDate: inquiries.travelDate, travelers: inquiries.travelers, message: inquiries.message, createdAt: inquiries.createdAt, status: inquiries.status }).from(inquiries).where(and(eq(inquiries.tenantId, tenantId), eq(inquiries.id, inquiryId))).limit(1);
   const row = rows[0];
   if (!row) return null;
+  const piiVisibility = role ? inquiryPiiVisibilityForRole(role) : "full";
   const provider = await configuredProviderName(tenantId);
   const [syncRow] = await db.select().from(tenantInquirySyncJobs).where(and(eq(tenantInquirySyncJobs.tenantId, tenantId), eq(tenantInquirySyncJobs.inquiryId, inquiryId), eq(tenantInquirySyncJobs.provider, provider))).limit(1);
-  return { ...row, status: row.status as AdminInquiryStatus, sync: toSyncStatus(syncRow) };
+  if (piiVisibility === "full") {
+    return { ...row, status: row.status as AdminInquiryStatus, sync: toSyncStatus(syncRow) };
+  }
+  return {
+    id: row.id,
+    name: maskName(row.name),
+    phone: maskPhone(row.phone),
+    wechat: maskText(row.wechat),
+    email: maskEmail(row.email),
+    travelDate: row.travelDate,
+    travelers: row.travelers,
+    message: maskText(row.message),
+    createdAt: row.createdAt,
+    status: row.status as AdminInquiryStatus,
+    sync: toSyncStatus(syncRow),
+  };
 }
 
 export async function updateAdminInquiryStatus(tenantId: string, inquiryId: number, status: AdminInquiryStatus) {

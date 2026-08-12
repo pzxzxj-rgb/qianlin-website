@@ -25,7 +25,7 @@ export default async function AdminInquiryDetailPage({ params, tenantSlug }: Adm
 
   let inquiry: Awaited<ReturnType<typeof getAdminInquiryDetail>>;
   try {
-    inquiry = await getAdminInquiryDetail(access.tenantId, inquiryId);
+    inquiry = await getAdminInquiryDetail(access.tenantId, inquiryId, access.role);
   } catch (error) {
     console.error("Failed to load admin inquiry detail page", error instanceof Error ? error.name : "UnknownError");
     return <main className="admin-page"><div className="admin-error-card"><span className="eyebrow">ADMIN INQUIRY</span><h1>咨询详情暂时无法加载</h1><p>请稍后重试。如果问题持续，请检查后台运行配置。</p></div></main>;

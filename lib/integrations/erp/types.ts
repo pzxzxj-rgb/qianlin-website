@@ -1,7 +1,7 @@
 import type { Inquiry } from "../../../db/schema";
 
 export type ErpProviderName = "disabled" | "mock" | "zhilv";
-export type InquirySyncStatus = "pending" | "processing" | "synced" | "failed" | "not_configured";
+export type InquirySyncStatus = "pending" | "processing" | "synced" | "failed" | "not_configured" | "dead_letter";
 
 export type CanonicalInquiry = Pick<Inquiry, "tenantId" | "name" | "phone" | "wechat" | "email" | "location" | "travelDate" | "travelers" | "duration" | "tourName" | "places" | "message"> & {
   inquiryId: number;

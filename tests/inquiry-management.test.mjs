@@ -49,7 +49,7 @@ test("defines provider independent inquiries and tenant scoped sync jobs", async
   assert.match(detailRoute, /getTenantId\(request, "editor", "inquiry:read_sensitive"\)/);
   assert.match(detailRoute, /inquiry:update/);
   assert.match(detailRoute, /verifySameOriginRequest/);
-  assert.match(detailRoute, /getAdminInquiryDetail\(access\.tenantId, inquiryId\)/);
+  assert.match(detailRoute, /getAdminInquiryDetail\(access\.tenantId, inquiryId/);
   assert.doesNotMatch(detailRoute, /export async function DELETE/);
   assert.match(manager, /contactSummary/);
   assert.doesNotMatch(manager, /item\.phone|item\.wechat|item\.email|item\.message/);

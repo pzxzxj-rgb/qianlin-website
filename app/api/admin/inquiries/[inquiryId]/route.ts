@@ -20,7 +20,8 @@ function isAdminInquiryStatus(value: unknown): value is AdminInquiryStatus {
 
 async function getTenantId(request: Request, minimumRole: "viewer" | "editor", permission: "inquiry:read_sensitive" | "inquiry:update") {
   const trusted = await getAdminRouteAccess(request, undefined, minimumRole, permission);
-  return "response" in trusted ? { error: trusted.response } as const : { tenantId: trusted.access.tenantId, userId: trusted.access.userId } as const;
+  if ("response" in trusted) return { error: trusted.response } as const;
+  return { tenantId: trusted.access.tenantId, userId: trusted.access.userId, role: trusted.access.role } as const;
 }
 
 export async function GET(request: Request, context: { params: Promise<{ inquiryId: string }> }) {
@@ -31,7 +32,7 @@ export async function GET(request: Request, context: { params: Promise<{ inquiry
   if (inquiryId === null) return errorResponse("咨询编号无效。", "The enquiry ID is invalid.", 400);
 
   try {
-    const inquiry = await getAdminInquiryDetail(access.tenantId, inquiryId);
+    const inquiry = await getAdminInquiryDetail(access.tenantId, inquiryId, access.role);
     return inquiry ? Response.json({ inquiry }, { headers: { "Cache-Control": "no-store" } }) : errorResponse("咨询不存在。", "The enquiry was not found.", 404);
   } catch (error) {
     console.error("Failed to load admin inquiry detail", error instanceof Error ? error.name : "UnknownError");

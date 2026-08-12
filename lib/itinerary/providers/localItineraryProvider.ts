@@ -3,17 +3,44 @@ import type { ItineraryDay, ItineraryProvider, ItineraryRequest, ItineraryStop }
 import type { PlannerDestinationOption } from "../../planner/types";
 
 function stableHash(value: string) {
-  let hash = 2166136261;
+  // FNV-1a 64-bit: the 32-bit variant collides at ~77k inputs (birthday
+  // bound), which is too low even for display identifiers.
+  // 64-bit birthday bound is ~5 billion, effectively collision-free for
+  // itinerary planning workloads.
+  let hash = 0xcbf29ce484222325n;
+  const prime = 0x100000001b3n;
+  const mask = 0xffffffffffffffffn;
   for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
+    hash ^= BigInt(value.charCodeAt(index));
+    hash = (hash * prime) & mask;
   }
-  return (hash >>> 0).toString(36);
+  return hash.toString(36);
 }
 
+// Detects and logs hash collisions. While FNV-1a 64-bit makes collisions
+// astronomically unlikely, this guard turns a silent data loss into a
+// visible alert should a collision ever occur.
 function planId(input: ItineraryRequest) {
   const normalized = [input.tenantId, [...new Set(input.destinationIds)].sort().join(","), input.days, input.travelers, input.startCity, input.endCity, input.language].join("|");
-  return `local-${stableHash(normalized)}`;
+  const hash = stableHash(normalized);
+  return `local-${hash}`;
+}
+
+export function detectPlanCollision(idA: string, idB: string, requestA: ItineraryRequest, requestB: ItineraryRequest) {
+  if (idA !== idB) return false;
+  const canonicalA = [requestA.tenantId, [...new Set(requestA.destinationIds)].sort().join(","), requestA.days, requestA.travelers, requestA.startCity, requestA.endCity, requestA.language].join("|");
+  const canonicalB = [requestB.tenantId, [...new Set(requestB.destinationIds)].sort().join(","), requestB.days, requestB.travelers, requestB.startCity, requestB.endCity, requestB.language].join("|");
+  if (canonicalA !== canonicalB) {
+    console.error(JSON.stringify({
+      event: "itinerary_hash_collision",
+      hash: idA,
+      requestA: canonicalA,
+      requestB: canonicalB,
+      message: "FNV-1a 64-bit collision detected — investigate immediately",
+    }));
+    return true;
+  }
+  return false;
 }
 
 function makeStop(destination: PlannerDestinationOption): ItineraryStop {
