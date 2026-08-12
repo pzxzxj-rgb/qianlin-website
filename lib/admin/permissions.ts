@@ -23,3 +23,9 @@ export function hasAdminPermission(role: AdminRole, permission: AdminPermission)
 export function permissionsForAdminRole(role: AdminRole) {
   return ROLE_PERMISSIONS[role] ?? [];
 }
+
+export type InquiryPiiVisibility = "masked" | "full";
+
+export function inquiryPiiVisibilityForRole(role: AdminRole): InquiryPiiVisibility {
+  return hasAdminPermission(role, "inquiry:read_sensitive") ? "full" : "masked";
+}

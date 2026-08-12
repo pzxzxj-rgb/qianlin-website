@@ -10,17 +10,10 @@ const MAX_AUTOMATIC_RETRIES = 5;
 const PROCESSING_RECOVERY_MS = 15 * 60 * 1000;
 const RETRY_BACKOFF_MS = 60 * 1000;
 
-function stableHash(value: string) {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(36);
-}
-
-function stableJobId(tenantId: string, inquiryId: number, provider: ErpProviderName) {
-  return `sync-${stableHash(`${tenantId}:inquiry:${inquiryId}:provider:${provider}`)}`;
+export function inquirySyncJobId(tenantId: string, inquiryId: number, provider: ErpProviderName) {
+  assertTenantScope(tenantId);
+  if (!Number.isSafeInteger(inquiryId) || inquiryId <= 0) throw new Error("Invalid inquiry identifier");
+  return `sync:${tenantId}:inquiry:${inquiryId}:provider:${provider}`;
 }
 
 export function inquiryIdempotencyKey(tenantId: string, inquiryId: number, provider: ErpProviderName = "disabled") {
@@ -82,7 +75,7 @@ export async function createInquirySyncJob(tenantId: string, inquiryId: number) 
   const errorCode = notConfigured ? "ERP_NOT_CONFIGURED" : null;
   try {
     await db.insert(tenantInquirySyncJobs).values({
-      id: stableJobId(tenantId, inquiryId, provider.name),
+      id: inquirySyncJobId(tenantId, inquiryId, provider.name),
       tenantId,
       inquiryId,
       provider: provider.name,
@@ -253,13 +246,13 @@ export async function processDueInquirySyncJobs(limit = 100) {
   const staleCutoff = new Date(now - PROCESSING_RECOVERY_MS).toISOString();
   const rows = await db.select().from(tenantInquirySyncJobs).where(or(
     eq(tenantInquirySyncJobs.status, "pending"),
-    and(eq(tenantInquirySyncJobs.status, "failed"), lt(tenantInquirySyncJobs.updatedAt, cutoff)),
+    and(eq(tenantInquirySyncJobs.status, "failed"), lt(tenantInquirySyncJobs.retryCount, MAX_AUTOMATIC_RETRIES), lt(tenantInquirySyncJobs.updatedAt, cutoff)),
     and(eq(tenantInquirySyncJobs.status, "processing"), lt(tenantInquirySyncJobs.updatedAt, staleCutoff)),
   )).orderBy(tenantInquirySyncJobs.updatedAt).limit(Math.min(Math.max(limit, 1), 500));
   let processed = 0;
   for (const job of rows) {
     const result = await processInquirySyncJob(job.tenantId, job.id, job.inquiryId);
-    if (result) processed += 1;
+    if (result?.lastAttemptAt && result.lastAttemptAt !== job.lastAttemptAt) processed += 1;
   }
   return processed;
 }

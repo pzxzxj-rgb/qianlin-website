@@ -1120,11 +1120,37 @@ try {
   assert.equal(inquiryDetail.body.inquiry.sync.provider, "disabled");
   const viewerInquiryList = await request("/api/admin/t/qianlin-travel/inquiries", { headers: { cookie: viewerSessionCookie } });
   assert.equal(viewerInquiryList.response.status, 200);
+  // PII-01: viewer 列表原始响应不得包含完整姓名、手机号、微信、邮箱和留言。
+  assert.doesNotMatch(JSON.stringify(viewerInquiryList.body), /Local functional test|Different name|18985127882|Local D1 functional test|contact-test@example\.invalid/);
+  assert.ok(viewerInquiryList.body.items.length > 0);
+  for (const item of viewerInquiryList.body.items) {
+    assert.equal("phone" in item, false);
+    assert.equal("wechat" in item, false);
+    assert.equal("email" in item, false);
+    assert.equal("message" in item, false);
+    assert.match(item.name, /\*/);
+  }
+  const maskedViewerName = `L${"*".repeat("Local functional test".length - 1)}`;
+  const viewerListItem = viewerInquiryList.body.items.find((item) => item.id === qianlinInquiryId);
+  assert.ok(viewerListItem);
+  assert.equal(viewerListItem.name, maskedViewerName);
   const viewerInquiryDetail = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}`, { headers: { cookie: viewerSessionCookie } });
   assert.equal(viewerInquiryDetail.response.status, 403);
-  assert.doesNotMatch(JSON.stringify(viewerInquiryDetail.body), /18985127882|Local D1 functional test|contact-test@example\.invalid/);
+  assert.doesNotMatch(JSON.stringify(viewerInquiryDetail.body), /Local functional test|18985127882|Local D1 functional test|contact-test@example\.invalid/);
+  // 跨租户：viewer 使用 Tenant B 的咨询 ID 不得泄露资源存在性或任何 PII。
+  const viewerCrossTenantDetail = await request(`/api/admin/t/qianlin-travel/inquiries/${yunnanInquiryId}`, { headers: { cookie: viewerSessionCookie } });
+  assert.equal(viewerCrossTenantDetail.response.status, 403);
+  assert.doesNotMatch(JSON.stringify(viewerCrossTenantDetail.body), /Cross tenant inquiry|13900001234/);
   const viewerInquiryPage = await request(`/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}`, { headers: { cookie: viewerSessionCookie }, redirect: "manual" });
   assert.ok([302, 303, 307, 308].includes(viewerInquiryPage.response.status));
+  // PII-05: viewer 打开咨询列表页面，原始 HTML / hydration 数据不得包含完整 PII。
+  const viewerInquiryListPage = await request("/admin/inquiries", { headers: { cookie: viewerSessionCookie } });
+  assert.equal(viewerInquiryListPage.response.status, 200);
+  const viewerInquiryListHtml = String(viewerInquiryListPage.body);
+  assert.match(viewerInquiryListHtml, /咨询管理/);
+  assert.doesNotMatch(viewerInquiryListHtml, /Local functional test|Different name|18985127882|Local D1 functional test|contact-test@example\.invalid/);
+  // PII-06: 页面与 API 使用相同的 masked 语义。
+  assert.ok(viewerInquiryListHtml.includes(maskedViewerName));
   const viewerStatusUpdate = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}`, { method: "PATCH", headers: { "content-type": "application/json", origin: baseUrl, cookie: viewerSessionCookie }, body: JSON.stringify({ status: "closed" }) });
   assert.equal(viewerStatusUpdate.response.status, 403);
   const viewerInquiryRetry = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}/sync`, { method: "POST", headers: { origin: baseUrl, cookie: viewerSessionCookie } });
@@ -1135,6 +1161,13 @@ try {
   assert.equal(editorInquiryDetail.response.status, 200);
   assert.equal(editorInquiryDetail.body.inquiry.phone, "18985127882");
   assert.equal(editorInquiryDetail.body.inquiry.message, "Local D1 functional test");
+  // PII-03 对照：editor 列表保持姓名可见（inquiry:read_sensitive），联系方式仍按当前策略脱敏。
+  const editorInquiryList = await request("/api/admin/t/qianlin-travel/inquiries", { headers: { cookie: editorSessionCookie } });
+  assert.equal(editorInquiryList.response.status, 200);
+  const editorListItem = editorInquiryList.body.items.find((item) => item.id === qianlinInquiryId);
+  assert.ok(editorListItem);
+  assert.equal(editorListItem.name, "Local functional test");
+  assert.doesNotMatch(JSON.stringify(editorInquiryList.body.items), /18985127882|Local D1 functional test|contact-test@example\.invalid/);
   const inquiryListPage = await request("/admin/inquiries", { headers: { cookie: statusSessionCookie } });
   assert.equal(inquiryListPage.response.status, 200);
   assert.match(String(inquiryListPage.body), /咨询管理/);
@@ -1205,6 +1238,12 @@ try {
   assert.equal(stored.tenant_id, "qianlin-travel");
   assert.equal(stored.phone, "18985127882");
   assert.equal(stored.message, "Local D1 functional test");
+  // Tenant B 咨询数据在整个流程后必须保持不变。
+  const storedYunnanInquiry = query(`SELECT tenant_id, name, phone, status FROM inquiries WHERE id = ${yunnanInquiryId}`)[0];
+  assert.equal(storedYunnanInquiry.tenant_id, "yunnan-demo");
+  assert.equal(storedYunnanInquiry.name, "Cross tenant inquiry");
+  assert.equal(storedYunnanInquiry.phone, "13900001234");
+  assert.equal(storedYunnanInquiry.status, "new");
   console.log("Local HTTP functional tests passed: tenant guards, safe config, inquiry validation, tenant binding, and duplicate protection.");
 } finally {
   if (server && server.exitCode === null) {

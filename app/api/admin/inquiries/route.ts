@@ -21,7 +21,7 @@ function parseStatus(value: string | null): AdminInquiryStatus | undefined | nul
 export async function GET(request: Request) {
   const trusted = await getAdminRouteAccess(request, undefined, "viewer", "inquiry:list_masked");
   if ("response" in trusted) return trusted.response;
-  const { tenantId } = trusted.access;
+  const { tenantId, role } = trusted.access;
 
   const url = new URL(request.url);
   const status = parseStatus(url.searchParams.get("status"));
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
   if (page === null || pageSize === null || pageSize > ADMIN_INQUIRY_MAX_PAGE_SIZE) return errorResponse("分页参数无效。", "The pagination parameters are invalid.", 400);
 
   try {
-    const data = await getAdminInquiries(tenantId, { status, page, pageSize });
+    const data = await getAdminInquiries(tenantId, role, { status, page, pageSize });
     return Response.json(data, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Failed to load admin inquiries", error instanceof Error ? error.name : "UnknownError");

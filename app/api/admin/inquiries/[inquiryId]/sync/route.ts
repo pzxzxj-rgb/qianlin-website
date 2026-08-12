@@ -3,6 +3,7 @@ import { getAdminRouteAccess } from "../../../../../../lib/admin/routeAccess";
 import { readRequestBodyWithinLimit, verifySameOriginRequest } from "../../../../../../lib/admin/requestSecurity";
 import { recordAdminAudit } from "../../../../../../lib/admin/audit";
 import { safeSyncError } from "../../../../../../lib/integrations/erp/safeErrors";
+import { configuredProviderName } from "../../../../../../lib/integrations/erp/providerFactory";
 
 function errorResponse(errorZh: string, errorEn: string, status: number) {
   return Response.json({ errorZh, errorEn }, { status, headers: { "Cache-Control": "no-store" } });
@@ -30,7 +31,12 @@ export async function POST(request: Request, context: { params: Promise<{ inquir
   }
 
   try {
+    const configuredProvider = await configuredProviderName(trusted.access.tenantId);
     const beforeRetry = await getCurrentInquirySyncJob(trusted.access.tenantId, inquiryId);
+    if (configuredProvider === "disabled" || configuredProvider === "zhilv" || beforeRetry?.status === "not_configured") {
+      await recordAdminAudit({ tenantId: trusted.access.tenantId, userId: trusted.access.userId, action: "sync_retry", resourceType: "inquiry_sync_job", resourceId: beforeRetry?.id ?? String(inquiryId), result: "failure", metadata: { reason: "erp_not_configured" } });
+      return errorResponse("当前租户未配置 ERP 同步。", "ERP synchronization is not configured for this tenant.", 409);
+    }
     if (beforeRetry?.status === "synced") {
       await recordAdminAudit({ tenantId: trusted.access.tenantId, userId: trusted.access.userId, action: "sync_retry", resourceType: "inquiry_sync_job", resourceId: beforeRetry.id, result: "failure", metadata: { reason: "already_synced" } });
       return errorResponse("该 Provider 已完成同步，无需重复重试。", "This provider job is already synced and cannot be retried.", 409);

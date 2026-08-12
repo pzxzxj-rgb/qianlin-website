@@ -2,6 +2,8 @@ import { and, count, desc, eq, gte, inArray } from "drizzle-orm";
 import { getDb } from "../../db";
 import { inquiries, tenantInquirySyncJobs } from "../../db/schema";
 import { assertTenantScope } from "./tenantScope";
+import { inquiryPiiVisibilityForRole } from "./permissions";
+import type { AdminRole } from "./auth";
 import { configuredProviderName } from "../integrations/erp/providerFactory";
 import { safeSyncError } from "../integrations/erp/safeErrors";
 import type { ErpProviderName, InquirySyncStatus } from "../integrations/erp/types";
@@ -79,6 +81,13 @@ function maskText(value: string) {
   return `${characters[0]}***${characters[characters.length - 1]}`;
 }
 
+function maskName(value: string) {
+  const characters = Array.from(value.trim());
+  if (characters.length === 0) return "匿名客户";
+  if (characters.length === 1) return `${characters[0]}*`;
+  return `${characters[0]}${"*".repeat(characters.length - 1)}`;
+}
+
 function maskEmail(value: string) {
   if (!value) return "";
   const separator = value.indexOf("@");
@@ -118,8 +127,9 @@ function toSyncStatus(row: typeof tenantInquirySyncJobs.$inferSelect | undefined
   return { provider: row.provider as ErpProviderName, status: row.status as InquirySyncStatus, externalRecordId: row.status === "synced" ? row.externalRecordId : null, errorCode: safeError.errorCode, message: safeError.message };
 }
 
-export async function getAdminInquiries(tenantId: string, input: { status?: AdminInquiryStatus; page?: number; pageSize?: number } = {}): Promise<AdminInquiryListResponse> {
+export async function getAdminInquiries(tenantId: string, role: AdminRole, input: { status?: AdminInquiryStatus; page?: number; pageSize?: number } = {}): Promise<AdminInquiryListResponse> {
   assertAdminTenant(tenantId);
+  const piiVisibility = inquiryPiiVisibilityForRole(role);
   const page = normalizePage(input.page ?? 1);
   const pageSize = normalizePageSize(input.pageSize ?? ADMIN_INQUIRY_PAGE_SIZE);
   const where = inquiryFilters(tenantId, input.status);
@@ -133,7 +143,7 @@ export async function getAdminInquiries(tenantId: string, input: { status?: Admi
   const syncByInquiryId = new Map(syncRows.map((row) => [row.inquiryId, toSyncStatus(row)]));
   const total = Number(totalRows[0]?.value ?? 0);
   return {
-    items: rows.map((row) => ({ id: row.id, createdAt: row.createdAt, name: row.name, contactSummary: buildContactSummary(row), travelers: row.travelers, travelDate: row.travelDate, status: row.status as AdminInquiryStatus, sync: syncByInquiryId.get(row.id) ?? null })),
+    items: rows.map((row) => ({ id: row.id, createdAt: row.createdAt, name: piiVisibility === "full" ? row.name : maskName(row.name), contactSummary: buildContactSummary(row), travelers: row.travelers, travelDate: row.travelDate, status: row.status as AdminInquiryStatus, sync: syncByInquiryId.get(row.id) ?? null })),
     pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
     status: input.status ?? null,
   };
@@ -175,4 +185,4 @@ export async function getAdminInquiryStats(tenantId: string): Promise<AdminInqui
   return { newInquiries: Number(newRows[0]?.value ?? 0), followingUpInquiries: Number(followingUpRows[0]?.value ?? 0), todayNewInquiries: Number(todayRows[0]?.value ?? 0) };
 }
 
-export { buildContactSummary, maskEmail, maskPhone, maskText };
+export { buildContactSummary, maskEmail, maskName, maskPhone, maskText };

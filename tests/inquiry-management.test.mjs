@@ -8,7 +8,7 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const read = (file) => fs.readFile(path.join(projectRoot, file), "utf8");
 
 test("defines provider independent inquiries and tenant scoped sync jobs", async () => {
-  const [schema, adminInquiries, listRoute, detailRoute, syncRoute, dashboard, manager, detail, types, service, sync, factory, permissions, disabled, mock, retention, worker, safeErrors] = await Promise.all([
+  const [schema, adminInquiries, listRoute, detailRoute, syncRoute, dashboard, manager, detail, types, service, sync, factory, permissions, disabled, mock, retention, worker, safeErrors, listPage] = await Promise.all([
     read("db/schema.ts"),
     read("lib/admin/inquiries.ts"),
     read("app/api/admin/inquiries/route.ts"),
@@ -27,6 +27,7 @@ test("defines provider independent inquiries and tenant scoped sync jobs", async
     read("lib/inquiries/retention.ts"),
     read("worker/index.ts"),
     read("lib/integrations/erp/safeErrors.ts"),
+    read("app/admin/inquiries/page.tsx"),
   ]);
   assert.match(schema, /tenantInquirySyncJobs = sqliteTable\("tenant_inquiry_sync_jobs"/);
   assert.match(schema, /idempotencyKey/);
@@ -38,7 +39,12 @@ test("defines provider independent inquiries and tenant scoped sync jobs", async
   assert.match(adminInquiries, /eq\(inquiries\.tenantId, tenantId\)/);
   assert.match(adminInquiries, /maskPhone/);
   assert.match(adminInquiries, /maskEmail/);
+  assert.match(adminInquiries, /maskName/);
+  assert.match(adminInquiries, /inquiryPiiVisibilityForRole\(role\)/);
   assert.match(listRoute, /getAdminRouteAccess/);
+  assert.match(listRoute, /getAdminInquiries\(tenantId, role,/);
+  assert.match(listPage, /getAdminInquiries\(access\.tenantId, access\.role,/);
+  assert.match(permissions, /inquiryPiiVisibilityForRole/);
   assert.match(detailRoute, /getAdminRouteAccess/);
   assert.match(detailRoute, /getTenantId\(request, "editor", "inquiry:read_sensitive"\)/);
   assert.match(detailRoute, /inquiry:update/);
