@@ -9,9 +9,17 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const wrangler = path.join(root, "node_modules", "wrangler", "bin", "wrangler.js");
 const configPath = path.resolve(root, "wrangler.local.jsonc");
-const statePath = path.resolve(root, ".wrangler", `sync-http-test-${Date.now()}-${process.pid}`);
-const logsPath = path.join(statePath, "logs");
-const registryPath = path.join(statePath, "registry");
+// Each scenario gets its own state directory: the previous scenario's async
+// cleanup removes its path ~500ms after the dev server exits, so sharing one
+// path would race with the next scenario's migrations/INSERTs/workerd boot.
+let statePath;
+let logsPath;
+let registryPath;
+function freshPaths(label) {
+  statePath = path.resolve(root, ".wrangler", `sync-http-test-${Date.now()}-${process.pid}-${label}`);
+  logsPath = path.join(statePath, "logs");
+  registryPath = path.join(statePath, "registry");
+}
 const devVarsPath = path.resolve(root, ".dev.vars");
 const username = "sync-owner-test";
 const password = "SyncTestPassword!123";
@@ -26,6 +34,7 @@ function scheduleCleanup(target) { const script = "const fs=require('fs');const 
 async function removeTempPath(target) { scheduleCleanup(target); }
 
 async function runScenario({ failure }) {
+  freshPaths(failure ? "failure" : "success");
   const port = await freePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   const readinessToken = randomBytes(18).toString("base64url");

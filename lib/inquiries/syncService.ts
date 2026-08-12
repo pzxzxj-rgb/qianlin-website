@@ -281,6 +281,23 @@ export async function reconcileMissingInquirySyncJobs(limitPerTenant = 100) {
   return created;
 }
 
+/**
+ * Pure queue-planning helper for the automatic cron. Pending (new) jobs always
+ * take the whole batch budget first, so a backlog of failing retries can never
+ * starve the main sync path. Retries only consume leftover capacity.
+ *
+ * - `pendingBudget` is the number of pending rows that will be claimed.
+ * - `retryBudget` is the leftover capacity for retries.
+ * - `retryAllowed` is false whenever pending jobs consume the entire budget.
+ */
+export function planDueSyncQueue(batchLimit: number, pendingCount: number) {
+  const safeBatch = Math.max(Math.min(batchLimit, MAX_BATCH_LIMIT), 1);
+  const safePending = Math.max(pendingCount, 0);
+  const pendingBudget = Math.min(safePending, safeBatch);
+  const retryBudget = safeBatch - pendingBudget;
+  return { pendingBudget, retryBudget, retryAllowed: retryBudget > 0 };
+}
+
 export async function processDueInquirySyncJobs(limit?: number) {
   const db = await getDb();
   const now = Date.now();
@@ -294,17 +311,18 @@ export async function processDueInquirySyncJobs(limit?: number) {
     .where(eq(tenantInquirySyncJobs.status, "pending"))
     .orderBy(tenantInquirySyncJobs.updatedAt)
     .limit(batchLimit);
+  const plan = planDueSyncQueue(batchLimit, pendingRows.length);
   // Only retry jobs that are still eligible: failed with remaining retries
   // or stale processing jobs that can be recovered. dead_letter jobs and
   // failed jobs that have exhausted automatic retries are never picked up
   // by the automatic cron; they must be manually retried or inspected.
-  const retryRows = pendingRows.length >= batchLimit ? [] : await db.select().from(tenantInquirySyncJobs)
+  const retryRows = plan.retryAllowed ? await db.select().from(tenantInquirySyncJobs)
     .where(or(
       and(eq(tenantInquirySyncJobs.status, "failed"), lt(tenantInquirySyncJobs.retryCount, MAX_AUTOMATIC_RETRIES), lt(tenantInquirySyncJobs.updatedAt, cutoff)),
       and(eq(tenantInquirySyncJobs.status, "processing"), lt(tenantInquirySyncJobs.updatedAt, staleCutoff)),
     ))
     .orderBy(tenantInquirySyncJobs.updatedAt)
-    .limit(batchLimit - pendingRows.length);
+    .limit(plan.retryBudget) : [];
   let processed = 0;
   for (const job of [...pendingRows, ...retryRows]) {
     const result = await processInquirySyncJob(job.tenantId, job.id, job.inquiryId);
@@ -342,4 +360,4 @@ export async function getInquirySyncJobs(tenantId: string, inquiryIds?: number[]
   return db.select().from(tenantInquirySyncJobs).where(and(...conditions)).orderBy(tenantInquirySyncJobs.createdAt);
 }
 
-export { MAX_AUTOMATIC_RETRIES, MAX_TOTAL_RETRIES, PROCESSING_RECOVERY_MS };
+export { MAX_AUTOMATIC_RETRIES, MAX_TOTAL_RETRIES, PROCESSING_RECOVERY_MS, MAX_BATCH_LIMIT };

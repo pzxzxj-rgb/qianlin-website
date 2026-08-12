@@ -69,6 +69,24 @@ test("defines provider independent inquiries and tenant scoped sync jobs", async
   assert.match(sync, /processInquirySyncJob/);
   assert.match(sync, /reconcileMissingInquirySyncJobs/);
   assert.match(sync, /provider:\s*ErpProviderName/);
+  // Hard fix #1 regression (source audit): the automatic cron is queue-isolated -
+  // pending jobs always take the whole budget first, retries only use leftovers,
+  // and dead_letter / exhausted-failed rows are never picked up.
+  assert.match(sync, /export function planDueSyncQueue\(batchLimit: number, pendingCount: number\)/);
+  assert.match(sync, /const pendingBudget = Math\.min\(safePending, safeBatch\)/);
+  assert.match(sync, /const retryBudget = safeBatch - pendingBudget/);
+  assert.match(sync, /retryAllowed: retryBudget > 0/);
+  assert.match(sync, /const plan = planDueSyncQueue\(batchLimit, pendingRows\.length\)/);
+  assert.match(sync, /plan\.retryAllowed \?/);
+  assert.match(sync, /limit\(plan\.retryBudget\)/);
+  assert.match(sync, /lt\(tenantInquirySyncJobs\.retryCount, MAX_AUTOMATIC_RETRIES\)/);
+  const queueBlock = sync.slice(sync.indexOf("const plan = planDueSyncQueue"), sync.indexOf("async function claimJob"));
+  assert.ok(!queueBlock.includes("dead_letter"), "automatic-cron retry query must not select dead_letter rows");
+  // Hard fix #4 regression (source audit): sync job ids and idempotency keys
+  // are deterministic plain-text strings with no 32-bit hash component.
+  assert.match(sync, /return `sync:\$\{tenantId\}:inquiry:\$\{inquiryId\}:provider:\$\{provider\}`/);
+  assert.match(sync, /return `\$\{tenantId\}:inquiry:\$\{inquiryId\}:provider:\$\{provider\}`/);
+  assert.doesNotMatch(sync, /fnv|hash32|stableHash/i);
   assert.match(syncRoute, /inquiry:sync_retry/);
   assert.match(syncRoute, /verifySameOriginRequest/);
   assert.match(syncRoute, /tenantId/);

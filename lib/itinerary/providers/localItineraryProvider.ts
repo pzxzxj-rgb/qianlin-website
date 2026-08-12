@@ -7,9 +7,11 @@ function stableHash(value: string) {
   // bound), which is too low even for display identifiers.
   // 64-bit birthday bound is ~5 billion, effectively collision-free for
   // itinerary planning workloads.
-  let hash = 0xcbf29ce484222325n;
-  const prime = 0x100000001b3n;
-  const mask = 0xffffffffffffffffn;
+  // BigInt() constructor calls keep the code valid under the ES2017 target;
+  // the FNV-1a 64-bit constants are unchanged.
+  let hash = BigInt("0xcbf29ce484222325");
+  const prime = BigInt("0x100000001b3");
+  const mask = BigInt("0xffffffffffffffff");
   for (let index = 0; index < value.length; index += 1) {
     hash ^= BigInt(value.charCodeAt(index));
     hash = (hash * prime) & mask;
