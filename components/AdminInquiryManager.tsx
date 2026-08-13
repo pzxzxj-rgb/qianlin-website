@@ -96,7 +96,7 @@ export function AdminInquiryManager({ initialData, tenantSlug }: { initialData: 
 function SyncStatus({ sync }: { sync: AdminInquirySync | null }) {
   if (!sync) return <span className="admin-inquiry-sync admin-inquiry-sync-missing">待建立任务</span>;
   const showError = sync.status === "failed" || sync.status === "dead_letter";
-  return <span className={`admin-inquiry-sync admin-inquiry-sync-${sync.status}`} title={showError ? sync.message ?? undefined : undefined}>{SYNC_STATUS_LABELS[sync.status]}{sync.status === "synced" && sync.externalRecordId ? ` · ${sync.externalRecordId}` : showError && sync.errorCode ? ` · ${sync.errorCode}` : ""}</span>;
+  return <span className={`admin-inquiry-sync admin-inquiry-sync-${sync.status}`} title={showError ? sync.message ?? undefined : undefined}>{SYNC_STATUS_LABELS[sync.status]}{sync.status === "synced" && sync.externalRecordId ? ` · ${sync.externalRecordId}` : showError && sync.errorCode ? ` · ${sync.errorCode}` : ""}{showError && sync.message ? ` · ${sync.message}` : ""}</span>;
 }
 
 export { STATUS_LABELS };
