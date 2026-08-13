@@ -52,9 +52,11 @@ test("defines provider independent inquiries and tenant scoped sync jobs", async
   assert.match(detailRoute, /getAdminInquiryDetail\(access\.tenantId, inquiryId/);
   assert.doesNotMatch(detailRoute, /export async function DELETE/);
   assert.match(manager, /contactSummary/);
+  assert.match(manager, /showError && sync\.message/);
   assert.doesNotMatch(manager, /item\.phone|item\.wechat|item\.email|item\.message/);
   assert.match(detail, /inquiry\.phone/);
   assert.match(detail, /inquiry\.message/);
+  assert.match(detail, /showError && sync\.message/);
   assert.match(dashboard, /tenantId/);
   assert.match(types, /Provider/);
   assert.match(types, /idempotencyKey/);

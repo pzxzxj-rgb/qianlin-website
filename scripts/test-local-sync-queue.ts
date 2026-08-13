@@ -17,11 +17,11 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
+import { build } from "esbuild";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const stateDir = path.resolve(root, ".wrangler", "sync-queue-test-state");
 const wrangler = path.join(root, "node_modules", "wrangler", "bin", "wrangler.js");
-const esbuildBin = path.join(root, "node_modules", "esbuild", "bin", "esbuild");
 const bundlePath = path.resolve(root, ".wrangler", "sync-queue-bundle.mjs");
 const defaultConfig = path.resolve(root, "wrangler.local.jsonc");
 
@@ -33,7 +33,15 @@ function runNode(args: string[]) {
  *  (syncService uses extension-less relative imports that Node ESM cannot
  *  resolve directly). The bundle is deleted afterwards. */
 async function loadSyncService() {
-  runNode([esbuildBin, "lib/inquiries/syncService.ts", "--bundle", "--format=esm", "--platform=node", "--packages=external", "--external:cloudflare:workers", `--outfile=${bundlePath}`]);
+  await build({
+    entryPoints: ["lib/inquiries/syncService.ts"],
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    packages: "external",
+    external: ["cloudflare:workers"],
+    outfile: bundlePath,
+  });
   const mod = await import(pathToFileURL(bundlePath).href);
   return mod as {
     inquirySyncJobId: (tenantId: string, inquiryId: number, provider: string) => string;
