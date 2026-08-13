@@ -57,10 +57,11 @@ const worker = {
   },
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil((async () => {
-      await anonymizeExpiredInquiries(env.DB);
-      await reconcileMissingInquirySyncJobs();
-      await processDueInquirySyncJobs();
-      await reportInquirySyncQueueHealth();
+      const anonymized = await anonymizeExpiredInquiries(env.DB);
+      const compensated = await reconcileMissingInquirySyncJobs();
+      const processed = await processDueInquirySyncJobs();
+      const queueHealth = await reportInquirySyncQueueHealth();
+      console.log(JSON.stringify({ event: "inquiry_maintenance_completed", anonymized, compensated, processed, queueHealth }));
     })().catch((error) => {
       console.error("Failed to run inquiry maintenance", error instanceof Error ? error.name : "UnknownError");
     }));

@@ -1,3 +1,5 @@
+import type { InquirySyncStatus } from "./types";
+
 const SAFE_ERROR_CODES = new Set([
   "ERP_NOT_CONFIGURED",
   "MOCK_PROVIDER_FAILURE",
@@ -16,8 +18,11 @@ export function safeSyncErrorMessage(code: string) {
   return "The ERP synchronization attempt failed.";
 }
 
-export function safeSyncError(status: string, code: unknown) {
-  if (status !== "failed" && status !== "not_configured") return { errorCode: null, message: null };
+export function safeSyncError(status: InquirySyncStatus, code: unknown) {
+  // dead_letter shares the same safe-error conversion as failed: only a
+  // whitelisted code and a generic message are exposed, never the provider's
+  // raw exception text or any tenant/contact data.
+  if (status !== "failed" && status !== "not_configured" && status !== "dead_letter") return { errorCode: null, message: null };
   const errorCode = safeSyncErrorCode(code, status === "not_configured" ? "ERP_NOT_CONFIGURED" : "ERP_PROVIDER_ERROR");
   return { errorCode, message: safeSyncErrorMessage(errorCode) };
 }

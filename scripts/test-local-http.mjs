@@ -24,6 +24,7 @@ const adminIterations = 600_000;
 const adminSalt = Buffer.from("qianlin-admin-test-salt");
 const adminSessionSecret = "local-admin-session-secret-for-tests-only";
 const adminPasswordHash = `pbkdf2-sha256$${adminIterations}$${adminSalt.toString("base64url")}$${pbkdf2Sync(adminTestPassword, adminSalt, adminIterations, 32, "sha256").toString("base64url")}`;
+const HTTP_TIMEOUT_MS = 30_000;
 
 function runWrangler(args) {
   return execFileSync(process.execPath, [wrangler, ...args], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -37,13 +38,31 @@ function execute(sql) {
   runWrangler(["d1", "execute", "DB", "--local", "--config", configPath, "--persist-to", statePath, "--command", sql]);
 }
 
+async function fetchWithin(url, timeoutMs, init = {}) {
+  const controller = new AbortController();
+  let timeout;
+  const pending = fetch(url, { ...init, signal: controller.signal });
+  const expiration = new Promise((_, reject) => {
+    timeout = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`request timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([pending, expiration]);
+  } finally {
+    clearTimeout(timeout);
+    void pending.catch(() => undefined);
+  }
+}
+
 async function waitForServer() {
   for (let attempt = 0; attempt < 300; attempt += 1) {
     if (server?.exitCode !== null || server?.signalCode) {
       throw new Error(`Local HTTP server exited before readiness (code=${server.exitCode ?? "none"}, signal=${server.signalCode ?? "none"}).\n${serverOutput.join("").slice(-4000)}`);
     }
     try {
-      const response = await fetch(`${baseUrl}/api/t/qianlin-travel/site-config`);
+      const response = await fetchWithin(`${baseUrl}/api/t/qianlin-travel/site-config`, 1_000);
       if (response.status === 200 && response.headers.get("x-qianlin-readiness") === readinessToken) return;
     } catch {
       // The server is still starting.
@@ -75,7 +94,7 @@ async function findFreePort() {
 async function request(pathname, init) {
   let response;
   try {
-    response = await fetch(`${baseUrl}${pathname}`, { ...init, headers: { connection: "close", ...(init?.headers ?? {}) } });
+    response = await fetchWithin(`${baseUrl}${pathname}`, HTTP_TIMEOUT_MS, { ...init, headers: { connection: "close", ...(init?.headers ?? {}) } });
   } catch (error) {
     throw new Error(`HTTP request failed for ${pathname}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }

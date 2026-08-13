@@ -255,9 +255,22 @@ export async function retryCurrentInquirySyncJob(tenantId: string, inquiryId: nu
 export async function compensateMissingInquirySyncJobs(tenantId: string, limit = 100) {
   assertTenantScope(tenantId);
   const db = await getDb();
+  // Resolve the current provider from the trusted tenant context. The provider
+  // is never taken from the client; it always comes from server configuration.
+  const provider = await configuredProviderName(tenantId);
+  // "Missing" is scoped to (tenant + inquiry + current provider). Inquiries
+  // that already have a job for another provider (for example a historical
+  // disabled/not_configured job created before the provider was switched to
+  // mock) are still eligible, so a provider switch backfills the new provider's
+  // job without touching or overwriting the old provider's job. Anonymized
+  // inquiries are never re-synced.
   const rows = await db.select({ id: inquiries.id })
     .from(inquiries)
-    .leftJoin(tenantInquirySyncJobs, and(eq(tenantInquirySyncJobs.tenantId, inquiries.tenantId), eq(tenantInquirySyncJobs.inquiryId, inquiries.id)))
+    .leftJoin(tenantInquirySyncJobs, and(
+      eq(tenantInquirySyncJobs.tenantId, inquiries.tenantId),
+      eq(tenantInquirySyncJobs.inquiryId, inquiries.id),
+      eq(tenantInquirySyncJobs.provider, provider),
+    ))
     .where(and(eq(inquiries.tenantId, tenantId), isNull(tenantInquirySyncJobs.id), isNull(inquiries.anonymizedAt)))
     .orderBy(inquiries.createdAt)
     .limit(Math.min(Math.max(limit, 1), 500));
@@ -267,6 +280,9 @@ export async function compensateMissingInquirySyncJobs(tenantId: string, limit =
       await createInquirySyncJob(tenantId, row.id);
       created += 1;
     } catch (error) {
+      // createInquirySyncJob is idempotent: on a unique-constraint race it
+      // returns the existing current-provider job instead of failing, so a
+      // concurrent compensation run cannot create duplicates.
       console.error("Failed to compensate inquiry sync job", error instanceof Error ? error.name : "UnknownError");
     }
   }

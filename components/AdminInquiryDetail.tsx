@@ -68,5 +68,6 @@ function statusClass(status: AdminInquiryStatus) {
 
 function SyncStatus({ sync }: { sync: AdminInquiryDetailData["sync"] }) {
   if (!sync) return <span className="admin-inquiry-sync admin-inquiry-sync-missing">同步任务待建立</span>;
-  return <span className={`admin-inquiry-sync admin-inquiry-sync-${sync.status}`}>{SYNC_STATUS_LABELS[sync.status]}{sync.status === "synced" && sync.externalRecordId ? ` · ${sync.externalRecordId}` : sync.status === "failed" && sync.errorCode ? ` · ${sync.errorCode}` : ""}</span>;
+  const showError = sync.status === "failed" || sync.status === "dead_letter";
+  return <span className={`admin-inquiry-sync admin-inquiry-sync-${sync.status}`}>{SYNC_STATUS_LABELS[sync.status]}{sync.status === "synced" && sync.externalRecordId ? ` · ${sync.externalRecordId}` : showError && sync.errorCode ? ` · ${sync.errorCode}` : ""}</span>;
 }

@@ -39,7 +39,18 @@ CI 使用 Node.js 22、npm 缓存和 `npm ci`。lint、typecheck、build、自�
 
 管理员身份模型包含 `users`、`tenant_memberships`、`sessions` 和 `admin_audit_logs`。Cookie 只保存不可预测的 Session token，数据库保存 token hash、用户、过期时间和撤销时间。密码修改会撤销该用户的旧 Session，登录、退出、密码修改及失败操作会写入不含个人信息的审计记录。在正式 MFA Provider、成员关系和权限流程完成前，服务端只允许 `qianlin-travel` 进入后台；其他租户成员即使密码正确也不能登录。
 
-咨询数据包含同意时间、政策版本、保留截止时间和匿名化时间字段。联系方式在后台列表中脱敏，完整联系方式需要 `inquiry:read_sensitive` Permission 和已验证的管理员 Session。后台列表和详情会显示当前租户、当前 Provider 对应的 `not_configured`、`pending`、`processing`、`synced` 或 `failed` 状态；失败只显示安全错误码和通用说明，已同步时才显示外部记录 ID。`inquiry:sync_retry` 默认只授予 admin/owner，重试 API 不接受任何客户端租户或 Provider 字段。不要在日志、测试或 README 中写入真实密码、Token、手机号、邮箱或微信号。
+咨询数据包含同意时间、政策版本、保留截止时间和匿名化时间字段。联系方式在后台列表中脱敏，完整联系方式需要 `inquiry:read_sensitive` Permission 和已验证的管理员 Session。后台列表和详情会显示当前租户、当前 Provider 对应的同步状态，包括 `not_configured`、`pending`、`processing`、`synced`、`failed` 和 `dead_letter`；`failed` 与 `dead_letter` 只显示安全错误码和通用说明，已同步时才显示外部记录 ID。`inquiry:sync_retry` 默认只授予 admin/owner，重试 API 不接受任何客户端租户或 Provider 字段。不要在日志、测试或 README 中写入真实密码、Token、手机号、邮箱或微信号。
+
+同步状态语义：
+
+- `not_configured`：咨询保存在本地，但当前 Provider 未配置，暂不推送 ERP。
+- `pending`：任务已建立，等待自动同步处理。
+- `processing`：任务正在被同步处理器处理（中断后可自动恢复）。
+- `synced`：已成功推送到 ERP，返回外部记录 ID。
+- `failed`：同步失败，只要未达到自动重试上限，仍会由自动 cron 继续重试。
+- `dead_letter`：已达到自动重试上限，不再由 cron 自动重试，只能由拥有 `inquiry:sync_retry` 权限的 admin/owner 手动重试。
+
+Provider 启用后（例如从 `disabled` 切换到 `mock`，或未来切换到 `zhilv`），自动补偿会为缺少“当前 Provider 任务”的历史咨询补建任务，不会删除或覆盖旧 Provider 的历史任务。当前仍未接入真实智旅 API。
 
 ## ERP Provider 边界
 
@@ -87,7 +98,7 @@ Cloudflare 控制台步骤仍需由项目管理员完成，包括匹配表达式
 
 ## 数据库迁移
 
-迁移文件位于 `drizzle/`，当前最新迁移为 `0011_small_triton.sql`。0011 会先检查历史同步任务是否跨租户，发现错配即中止，不会静默覆盖；之后用 `(tenant_id, inquiry_id)` 复合外键约束同租户关联。本任务不执行远程 D1 migration，不连接远程 D1，不部署生产环境。
+迁移文件位于 `drizzle/`，当前最新迁移为 `0012_dead_letter_status.sql`。0011 会先检查历史同步任务是否跨租户，发现错配即中止，不会静默覆盖；之后用 `(tenant_id, inquiry_id)` 复合外键约束同租户关联。0012 扩展同步任务状态约束以支持 `dead_letter` 状态。本任务不执行远程 D1 migration，不连接远程 D1，不部署生产环境。
 
 ## 尚未开放
 

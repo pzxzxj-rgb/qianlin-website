@@ -11,19 +11,22 @@ function isProductionRuntime() {
 export async function configuredProviderName(trustedTenantId: string): Promise<ErpProviderName> {
   assertTenantScope(trustedTenantId);
   const processValue = typeof process !== "undefined" ? process.env.ERP_PROVIDER?.trim().toLowerCase() : "";
-  const processProduction = isProductionRuntime();
-  if (processValue === "mock" && !processProduction) return "mock";
-  if (processValue === "zhilv") return "zhilv";
   try {
     const { env } = await import("cloudflare:workers");
     const runtime = env as unknown as Record<string, unknown>;
     const workerProduction = [runtime.NODE_ENV, runtime.ENVIRONMENT, runtime.APP_ENV].some((value) => String(value ?? "").trim().toLowerCase() === "production");
     const value = String(runtime.ERP_PROVIDER ?? "").trim().toLowerCase();
-    if (value === "mock" && !processProduction && !workerProduction) return "mock";
+    // In a bundled Worker, process.env can reflect build-time mode rather than
+    // the executing Worker's environment. Prefer the trusted runtime binding
+    // when it is present, while still refusing mock in a production Worker.
+    if (value === "mock") return workerProduction ? "disabled" : "mock";
     if (value === "zhilv") return "zhilv";
   } catch {
     // Local tests and ordinary Node callers use the disabled provider by default.
   }
+  const processProduction = isProductionRuntime();
+  if (processValue === "mock" && !processProduction) return "mock";
+  if (processValue === "zhilv") return "zhilv";
   return "disabled";
 }
 

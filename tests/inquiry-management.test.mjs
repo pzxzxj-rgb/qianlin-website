@@ -69,6 +69,12 @@ test("defines provider independent inquiries and tenant scoped sync jobs", async
   assert.match(sync, /processInquirySyncJob/);
   assert.match(sync, /reconcileMissingInquirySyncJobs/);
   assert.match(sync, /provider:\s*ErpProviderName/);
+  // Hard fix (provider switch backfill): compensation must scope "missing" to
+  // (tenant + inquiry + current provider), resolving the provider from the
+  // trusted tenant context rather than the client.
+  assert.match(sync, /const provider = await configuredProviderName\(tenantId\)/);
+  assert.match(sync, /eq\(tenantInquirySyncJobs\.provider, provider\)/);
+  assert.match(sync, /isNull\(inquiries\.anonymizedAt\)/);
   // Hard fix #1 regression (source audit): the automatic cron is queue-isolated -
   // pending jobs always take the whole budget first, retries only use leftovers,
   // and dead_letter / exhausted-failed rows are never picked up.
@@ -106,6 +112,8 @@ test("defines provider independent inquiries and tenant scoped sync jobs", async
   assert.match(mock, /externalRecordId/);
   assert.match(safeErrors, /safeSyncErrorCode/);
   assert.match(safeErrors, /The ERP synchronization attempt failed/);
+  // dead_letter shares the same safe-error conversion as failed.
+  assert.match(safeErrors, /status !== "failed" && status !== "not_configured" && status !== "dead_letter"/);
   assert.match(retention, /retention_until/);
   assert.match(retention, /tenant_id = \?/);
   assert.match(retention, /anonymized_at/);

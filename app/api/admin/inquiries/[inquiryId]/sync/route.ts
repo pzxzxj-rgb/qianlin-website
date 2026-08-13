@@ -4,6 +4,7 @@ import { readRequestBodyWithinLimit, verifySameOriginRequest } from "../../../..
 import { recordAdminAudit } from "../../../../../../lib/admin/audit";
 import { safeSyncError } from "../../../../../../lib/integrations/erp/safeErrors";
 import { configuredProviderName } from "../../../../../../lib/integrations/erp/providerFactory";
+import type { InquirySyncStatus } from "../../../../../../lib/integrations/erp/types";
 
 function errorResponse(errorZh: string, errorEn: string, status: number) {
   return Response.json({ errorZh, errorEn }, { status, headers: { "Cache-Control": "no-store" } });
@@ -44,7 +45,7 @@ export async function POST(request: Request, context: { params: Promise<{ inquir
     const job = await retryCurrentInquirySyncJob(trusted.access.tenantId, inquiryId);
     if (!job) return errorResponse("同步任务不存在。", "The synchronization job was not found.", 404);
     await recordAdminAudit({ tenantId: trusted.access.tenantId, userId: trusted.access.userId, action: "sync_retry", resourceType: "inquiry_sync_job", resourceId: job.id, result: "success", metadata: { provider: job.provider, status: job.status } });
-    const safeError = safeSyncError(job.status, job.lastErrorCode);
+    const safeError = safeSyncError(job.status as InquirySyncStatus, job.lastErrorCode);
     return Response.json({ sync: { provider: job.provider, status: job.status, externalRecordId: job.status === "synced" ? job.externalRecordId : null, errorCode: safeError.errorCode, message: safeError.message } }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof Error && error.message === "Inquiry does not belong to tenant") return errorResponse("同步任务不存在。", "The synchronization job was not found.", 404);

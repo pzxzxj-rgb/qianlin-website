@@ -123,8 +123,9 @@ function inquiryFilters(tenantId: string, status?: AdminInquiryStatus) {
 
 function toSyncStatus(row: typeof tenantInquirySyncJobs.$inferSelect | undefined): AdminInquirySync | null {
   if (!row) return null;
-  const safeError = safeSyncError(row.status, row.lastErrorCode);
-  return { provider: row.provider as ErpProviderName, status: row.status as InquirySyncStatus, externalRecordId: row.status === "synced" ? row.externalRecordId : null, errorCode: safeError.errorCode, message: safeError.message };
+  const status = row.status as InquirySyncStatus;
+  const safeError = safeSyncError(status, row.lastErrorCode);
+  return { provider: row.provider as ErpProviderName, status, externalRecordId: row.status === "synced" ? row.externalRecordId : null, errorCode: safeError.errorCode, message: safeError.message };
 }
 
 export async function getAdminInquiries(tenantId: string, role: AdminRole, input: { status?: AdminInquiryStatus; page?: number; pageSize?: number } = {}): Promise<AdminInquiryListResponse> {
