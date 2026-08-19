@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     }
     clearRateLimit(rateLimitKey);
     await recordLoginAudit("success", user.id, "credentials_verified");
-    return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store", "Set-Cookie": createAdminCookie(token) } });
+    return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store", "Set-Cookie": await createAdminCookie(token) } });
   } catch {
     await recordLoginAudit("failure", user.id, "session_creation_failed");
     return errorResponse("登录服务暂时不可用。", "The login service is temporarily unavailable.", 503);

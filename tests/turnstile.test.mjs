@@ -3,28 +3,34 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import * as ts from "typescript";
+import { build } from "esbuild";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const source = await fs.readFile(path.join(projectRoot, "lib/security/turnstile.ts"), "utf8");
-const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+const bundled = await build({
+  entryPoints: [path.join(projectRoot, "lib/security/turnstile.ts")],
+  bundle: true,
+  format: "esm",
+  platform: "node",
+  write: false,
+});
+const output = bundled.outputFiles[0].text;
 const { verifyTurnstileToken } = await import(`data:text/javascript;base64,${Buffer.from(output).toString("base64")}`);
 
 const originalFetch = globalThis.fetch;
-const originalNodeEnv = process.env.NODE_ENV;
+const originalAppEnv = process.env.APP_ENV;
 const originalSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 const originalSecretKey = process.env.TURNSTILE_SECRET_KEY;
 
-function setTurnstileEnv({ nodeEnv = "test", siteKey = "", secretKey = "" } = {}) {
-  process.env.NODE_ENV = nodeEnv;
+function setTurnstileEnv({ appEnv = "test", siteKey = "", secretKey = "" } = {}) {
+  process.env.APP_ENV = appEnv;
   process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = siteKey;
   process.env.TURNSTILE_SECRET_KEY = secretKey;
 }
 
 test.after(() => {
   globalThis.fetch = originalFetch;
-  if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
-  else process.env.NODE_ENV = originalNodeEnv;
+  if (originalAppEnv === undefined) delete process.env.APP_ENV;
+  else process.env.APP_ENV = originalAppEnv;
   if (originalSiteKey === undefined) delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   else process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = originalSiteKey;
   if (originalSecretKey === undefined) delete process.env.TURNSTILE_SECRET_KEY;
@@ -32,7 +38,7 @@ test.after(() => {
 });
 
 test("allows Turnstile to be disabled locally when both keys are empty", async () => {
-  setTurnstileEnv({ nodeEnv: "development" });
+  setTurnstileEnv({ appEnv: "development" });
   let fetchCalls = 0;
   globalThis.fetch = async () => {
     fetchCalls += 1;
@@ -44,18 +50,18 @@ test("allows Turnstile to be disabled locally when both keys are empty", async (
 });
 
 test("reports missing production or partial key configuration", async () => {
-  setTurnstileEnv({ nodeEnv: "production" });
+  setTurnstileEnv({ appEnv: "production" });
   assert.deepEqual(await verifyTurnstileToken("", new Request("http://localhost")), { ok: false, code: "not_configured" });
 
-  setTurnstileEnv({ nodeEnv: "production", siteKey: "site-only" });
+  setTurnstileEnv({ appEnv: "production", siteKey: "site-only" });
   assert.deepEqual(await verifyTurnstileToken("token", new Request("http://localhost")), { ok: false, code: "not_configured" });
 
-  setTurnstileEnv({ nodeEnv: "production", secretKey: "secret-only" });
+  setTurnstileEnv({ appEnv: "production", secretKey: "secret-only" });
   assert.deepEqual(await verifyTurnstileToken("token", new Request("http://localhost")), { ok: false, code: "not_configured" });
 });
 
 test("classifies a missing token as invalid when both keys are configured", async () => {
-  setTurnstileEnv({ nodeEnv: "production", siteKey: "site", secretKey: "secret" });
+  setTurnstileEnv({ appEnv: "production", siteKey: "site", secretKey: "secret" });
   let fetchCalls = 0;
   globalThis.fetch = async () => {
     fetchCalls += 1;
@@ -67,19 +73,19 @@ test("classifies a missing token as invalid when both keys are configured", asyn
 });
 
 test("classifies Cloudflare rejection as invalid", async () => {
-  setTurnstileEnv({ nodeEnv: "production", siteKey: "site", secretKey: "secret" });
+  setTurnstileEnv({ appEnv: "production", siteKey: "site", secretKey: "secret" });
   globalThis.fetch = async () => new Response(JSON.stringify({ success: false }), { status: 200 });
   assert.deepEqual(await verifyTurnstileToken("token", new Request("http://localhost")), { ok: false, code: "invalid" });
 });
 
 test("accepts a successful mocked Cloudflare response", async () => {
-  setTurnstileEnv({ nodeEnv: "production", siteKey: "site", secretKey: "secret" });
+  setTurnstileEnv({ appEnv: "production", siteKey: "site", secretKey: "secret" });
   globalThis.fetch = async () => new Response(JSON.stringify({ success: true }), { status: 200 });
   assert.deepEqual(await verifyTurnstileToken("token", new Request("http://localhost")), { ok: true, code: "verified" });
 });
 
 test("classifies a Cloudflare network failure as invalid", async () => {
-  setTurnstileEnv({ nodeEnv: "production", siteKey: "site", secretKey: "secret" });
+  setTurnstileEnv({ appEnv: "production", siteKey: "site", secretKey: "secret" });
   globalThis.fetch = async () => { throw new Error("network failure"); };
   assert.deepEqual(await verifyTurnstileToken("token", new Request("http://localhost")), { ok: false, code: "invalid" });
 });

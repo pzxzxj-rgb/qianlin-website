@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { createHash, pbkdf2Sync, randomBytes } from "node:crypto";
+import { createHash, pbkdf2Sync, randomBytes, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
@@ -22,7 +22,6 @@ const adminTestUsername = "admin-test";
 const adminTestPassword = "TestPassword!123";
 const adminIterations = 600_000;
 const adminSalt = Buffer.from("qianlin-admin-test-salt");
-const adminSessionSecret = "local-admin-session-secret-for-tests-only";
 const adminPasswordHash = `pbkdf2-sha256$${adminIterations}$${adminSalt.toString("base64url")}$${pbkdf2Sync(adminTestPassword, adminSalt, adminIterations, 32, "sha256").toString("base64url")}`;
 const HTTP_TIMEOUT_MS = 30_000;
 
@@ -109,6 +108,7 @@ async function request(pathname, init) {
 }
 
 const validPayload = {
+  submissionId: randomUUID(),
   name: "Local functional test",
   phone: "18985127882",
   wechat: "",
@@ -152,7 +152,7 @@ try {
   } catch {
     originalDevVarsContent = null;
   }
-  await fs.writeFile(devVarsPath, `ADMIN_USERNAME=${adminTestUsername}\nADMIN_PASSWORD_HASH=${adminPasswordHash}\nADMIN_SESSION_SECRET=local-admin-session-secret-for-tests-only\nADMIN_TENANT_ID=qianlin-travel\nHTTP_TEST_READINESS_TOKEN=${readinessToken}\n`);
+  await fs.writeFile(devVarsPath, `APP_ENV=test\nADMIN_USERNAME=${adminTestUsername}\nADMIN_PASSWORD_HASH=${adminPasswordHash}\nADMIN_TENANT_ID=qianlin-travel\nHTTP_TEST_READINESS_TOKEN=${readinessToken}\n`);
   createdDevVars = true;
   runWrangler(["d1", "migrations", "apply", "DB", "--local", "--config", configPath, "--persist-to", statePath]);
   execute("UPDATE tenant_site_profiles SET updated_at = '2000-01-01 00:00:00' WHERE tenant_id = 'qianlin-travel' AND status = 'published'");
@@ -171,9 +171,14 @@ try {
   const originalQianlinDestinationImages = query("SELECT id, tenant_id, image_url, show_on_homepage FROM planner_destinations WHERE tenant_id = 'qianlin-travel' ORDER BY id");
   execute("INSERT OR IGNORE INTO planner_destinations (id, tenant_id, province_code, slug, city_code, name_zh, name_en, description_zh, description_en, image_url, card_size, region_zh, region_en, route_order, overnight_zh, overnight_en, recommended_visit_hours, major_attraction, available_for_planning, show_on_homepage, display_order, status) VALUES ('yunnan-destination-test', 'yunnan-demo', 'yunnan', 'fictional-shared-destination', 'yunnan-test-city', '云南虚构目的地', 'Fictional Yunnan destination', '云南租户虚构目的地介绍。', 'A fictional Yunnan destination for tenant isolation tests.', '/images/guizhou/hero-guizhou.png', 'small', '云南虚构区域', 'Fictional Yunnan region', 5, '', '', 3, 1, 1, 1, 5, 'published')");
   const originalYunnanDestinations = query("SELECT id, tenant_id, province_code, slug, city_code, name_zh, name_en, description_zh, description_en, image_url, card_size, region_zh, region_en, route_order, overnight_zh, overnight_en, recommended_visit_hours, major_attraction, available_for_planning, show_on_homepage, display_order, status, created_at, updated_at FROM planner_destinations WHERE tenant_id = 'yunnan-demo' ORDER BY display_order, id");
-  execute("INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent, status) VALUES ('yunnan-demo', 'Cross tenant inquiry', '13900001234', '1', 1, 'new')");
+  execute("INSERT INTO inquiries (tenant_id, submission_id, name, phone, travelers, privacy_consent, status) VALUES ('yunnan-demo', '00000000-0000-4000-8000-000000000010', 'Cross tenant inquiry', '13900001234', '1', 1, 'new')");
   const yunnanInquiryId = query("SELECT id FROM inquiries WHERE tenant_id = 'yunnan-demo' ORDER BY id DESC LIMIT 1")[0].id;
   execute("INSERT INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('configuring-test', 'configuring-test', '配置测试', 'Configuring test', 'active', 'configuring', 'zh', 0)");
+  execute("INSERT INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('legal-missing-test', 'legal-missing-test', '缺失政策测试', 'Missing policy test', 'active', 'published', 'zh', 0)");
+  execute("INSERT INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('legal-empty-test', 'legal-empty-test', '空政策测试', 'Empty policy test', 'active', 'published', 'zh', 0)");
+  execute("INSERT INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('legal-valid-test', 'legal-valid-test', '有效政策测试', 'Valid policy test', 'active', 'published', 'zh', 0)");
+  execute("INSERT INTO tenant_legal_pages (id, tenant_id, privacy_zh, privacy_en, policy_version) VALUES ('legal-empty-page', 'legal-empty-test', '', '', 'privacy-2026-08-04')");
+  execute("INSERT INTO tenant_legal_pages (id, tenant_id, privacy_zh, privacy_en, policy_version) VALUES ('legal-valid-page', 'legal-valid-test', '测试隐私政策', 'Test privacy policy', 'privacy-2026-08-04')");
   execute("INSERT OR IGNORE INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('yunnan-travel-test', 'yunnan-travel-test', '云南测试旅行社', 'Yunnan Test Travel', 'active', 'configuring', 'zh', 0)");
   execute(`INSERT OR IGNORE INTO users (id, username, password_hash, display_name_zh, display_name_en, status) VALUES ('user-yunnan-admin', 'yunnan-admin', '${adminPasswordHash}', '云南测试管理员', 'Yunnan test admin', 'active')`);
   execute("INSERT OR IGNORE INTO tenant_memberships (id, tenant_id, user_id, role, status) VALUES ('membership-yunnan-admin', 'yunnan-travel-test', 'user-yunnan-admin', 'admin', 'active')");
@@ -185,7 +190,7 @@ try {
 
   server = spawn(process.execPath, [path.join(root, "node_modules", "vinext", "dist", "cli.js"), "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
     cwd: root,
-    env: { ...process.env, NODE_ENV: "test", NEXT_PUBLIC_SITE_URL: baseUrl, ADMIN_USERNAME: adminTestUsername, ADMIN_PASSWORD_HASH: adminPasswordHash, ADMIN_SESSION_SECRET: adminSessionSecret, ADMIN_TENANT_ID: "qianlin-travel", HTTP_TEST_READINESS_TOKEN: readinessToken, CLOUDFLARE_PERSIST_STATE_PATH: statePath, WRANGLER_WRITE_LOGS: "false", WRANGLER_LOG_PATH: testLogsPath, MINIFLARE_REGISTRY_PATH: testRegistryPath },
+    env: { ...process.env, APP_ENV: "test", NEXT_PUBLIC_SITE_URL: baseUrl, ADMIN_USERNAME: adminTestUsername, ADMIN_PASSWORD_HASH: adminPasswordHash, ADMIN_TENANT_ID: "qianlin-travel", HTTP_TEST_READINESS_TOKEN: readinessToken, CLOUDFLARE_PERSIST_STATE_PATH: statePath, WRANGLER_WRITE_LOGS: "false", WRANGLER_LOG_PATH: testLogsPath, MINIFLARE_REGISTRY_PATH: testRegistryPath },
     stdio: ["ignore", "pipe", "pipe"],
   });
   server.stdout.on("data", (chunk) => serverOutput.push(String(chunk)));
@@ -981,7 +986,11 @@ try {
   assert.match(String(adminPage.body), /黔林旅行社/);
   assert.doesNotMatch(String(adminPage.body), /yunnan-demo|云南旅行社演示站/);
   assert.doesNotMatch(String(adminPage.body), /Local D1 functional test/);
-  const logout = await request("/api/admin/logout", { method: "POST", headers: { cookie: sessionCookie } });
+  const invalidLogout = await request("/api/admin/logout", { method: "POST", headers: { cookie: sessionCookie, origin: "https://evil.example" } });
+  assert.equal(invalidLogout.response.status, 403);
+  const sessionAfterInvalidLogout = await request("/admin", { headers: { cookie: sessionCookie } });
+  assert.equal(sessionAfterInvalidLogout.response.status, 200);
+  const logout = await request("/api/admin/logout", { method: "POST", headers: { cookie: sessionCookie, origin: baseUrl } });
   assert.equal(logout.response.status, 200);
   assert.match(logout.response.headers.get("cache-control") ?? "", /no-store/i);
   assert.match(logout.response.headers.get("set-cookie") ?? "", /Max-Age=0/);
@@ -1075,6 +1084,14 @@ try {
   assert.equal(demoInquiry.response.status, 403);
   const configuringInquiry = await request("/api/t/configuring-test/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(validPayload) });
   assert.equal(configuringInquiry.response.status, 403);
+  const missingLegalInquiry = await request("/api/t/legal-missing-test/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...validPayload, submissionId: randomUUID() }) });
+  assert.equal(missingLegalInquiry.response.status, 503);
+  assert.equal(missingLegalInquiry.body.errorZh, "隐私政策尚未完成配置，暂时无法提交咨询。");
+  assert.equal(missingLegalInquiry.response.headers.get("cache-control"), "no-store");
+  const emptyLegalInquiry = await request("/api/t/legal-empty-test/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...validPayload, submissionId: randomUUID() }) });
+  assert.equal(emptyLegalInquiry.response.status, 503);
+  assert.equal(emptyLegalInquiry.body.errorEn, "The privacy policy is not configured.");
+  assert.equal(emptyLegalInquiry.response.headers.get("cache-control"), "no-store");
   const unknownInquiry = await request("/api/t/missing-tenant/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(validPayload) });
   assert.equal(unknownInquiry.response.status, 404);
   const oldInquiry = await request("/api/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(validPayload) });
@@ -1096,10 +1113,19 @@ try {
   assert.equal(accepted.body.sync.status, "not_configured");
   assert.equal(accepted.body.sync.provider, "disabled");
   assert.doesNotMatch(JSON.stringify(accepted.body), /ERP_NOT_CONFIGURED|18985127882|Local D1 functional test/);
+  const storedAccepted = query(`SELECT submission_id, privacy_policy_version FROM inquiries WHERE id = ${accepted.body.inquiry.id}`)[0];
+  assert.equal(storedAccepted.submission_id, validPayload.submissionId);
+  assert.equal(storedAccepted.privacy_policy_version, "privacy-2026-08-04");
   const duplicate = await request("/api/t/qianlin-travel/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(validPayload) });
-  assert.equal(duplicate.response.status, 409);
-  const differentName = await request("/api/t/qianlin-travel/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...validPayload, name: "Different name" }) });
+  assert.equal(duplicate.response.status, 200);
+  assert.equal(duplicate.body.duplicate, true);
+  assert.equal(duplicate.body.inquiry.id, accepted.body.inquiry.id);
+  const differentSubmission = await request("/api/t/qianlin-travel/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...validPayload, submissionId: randomUUID() }) });
+  assert.equal(differentSubmission.response.status, 201);
+  const differentName = await request("/api/t/qianlin-travel/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...validPayload, submissionId: randomUUID(), name: "Different name" }) });
   assert.equal(differentName.response.status, 201);
+  const sameSubmissionOtherTenant = await request("/api/t/legal-valid-test/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(validPayload) });
+  assert.equal(sameSubmissionOtherTenant.response.status, 201);
   const qianlinInquiryId = accepted.body.inquiry.id;
   const statusLogin = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: adminTestUsername, password: adminTestPassword }) });
   assert.equal(statusLogin.response.status, 200);

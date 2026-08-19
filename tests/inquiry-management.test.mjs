@@ -8,7 +8,7 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const read = (file) => fs.readFile(path.join(projectRoot, file), "utf8");
 
 test("defines provider independent inquiries and tenant scoped sync jobs", async () => {
-  const [schema, adminInquiries, listRoute, detailRoute, syncRoute, dashboard, manager, detail, types, service, sync, factory, permissions, disabled, mock, retention, worker, safeErrors, listPage] = await Promise.all([
+  const [schema, adminInquiries, listRoute, detailRoute, syncRoute, dashboard, manager, detail, types, service, sync, factory, permissions, disabled, mock, retention, worker, safeErrors, listPage, environment, turnstile, sessionMaintenance, audit, passwordRoute, logoutRoute, loginRoute] = await Promise.all([
     read("db/schema.ts"),
     read("lib/admin/inquiries.ts"),
     read("app/api/admin/inquiries/route.ts"),
@@ -28,6 +28,13 @@ test("defines provider independent inquiries and tenant scoped sync jobs", async
     read("worker/index.ts"),
     read("lib/integrations/erp/safeErrors.ts"),
     read("app/admin/inquiries/page.tsx"),
+    read("lib/runtime/environment.ts"),
+    read("lib/security/turnstile.ts"),
+    read("lib/admin/sessionMaintenance.ts"),
+    read("lib/admin/audit.ts"),
+    read("app/api/admin/account/password/route.ts"),
+    read("app/api/admin/logout/route.ts"),
+    read("app/api/admin/login/route.ts"),
   ]);
   assert.match(schema, /tenantInquirySyncJobs = sqliteTable\("tenant_inquiry_sync_jobs"/);
   assert.match(schema, /idempotencyKey/);
@@ -105,6 +112,9 @@ test("defines provider independent inquiries and tenant scoped sync jobs", async
   assert.match(schema, /tenantInquiryForeignKey/);
   assert.match(schema, /uq_inquiries_tenant_id_id/);
   assert.match(schema, /retentionPendingIndex/);
+  assert.match(schema, /submissionId: text\("submission_id"\)\.notNull\(\)/);
+  assert.match(schema, /uq_inquiries_tenant_submission/);
+  assert.match(schema, /idx_sessions_expiry/);
   assert.match(factory, /disabled/);
   assert.match(factory, /mock/);
   assert.match(factory, /zhilv/);
@@ -121,4 +131,17 @@ test("defines provider independent inquiries and tenant scoped sync jobs", async
   assert.match(retention, /anonymized_at/);
   assert.match(worker, /scheduled/);
   assert.match(worker, /anonymizeExpiredInquiries/);
+  assert.match(worker, /cleanupExpiredSessions/);
+  assert.match(environment, /APP_ENV must be explicitly configured/);
+  assert.doesNotMatch(environment, /\bNODE_ENV\b|\bENVIRONMENT\b/);
+  assert.match(turnstile, /appEnv === "production"/);
+  assert.match(turnstile, /not_configured/);
+  assert.match(sessionMaintenance, /revokedAt/);
+  assert.match(sessionMaintenance, /expiresAt/);
+  assert.match(audit, /desc\(adminAuditLogs\.createdAt\)/);
+  assert.match(audit, /desc\(adminAuditLogs\.id\)/);
+  assert.match(passwordRoute, /password-change:/);
+  assert.match(passwordRoute, /checkRateLimit/);
+  assert.match(logoutRoute, /verifySameOriginRequest/);
+  assert.match(loginRoute, /lastLoginAt|createAdminSession/);
 });

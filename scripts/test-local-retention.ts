@@ -51,8 +51,8 @@ async function main() {
     const pastDate = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString();
 
     const insert = async (tenantId: string, name: string, phone: string, wechat: string, email: string, retentionUntil: string) => {
-      await db.prepare(`INSERT INTO inquiries (tenant_id, name, phone, wechat, email, location, travel_date, travelers, duration, tour_name, places, message, privacy_consent, retention_until, status) VALUES (?, ?, ?, ?, ?, 'Guiyang', '2025-06-01', '2', '3 days', 'Tour test', 'Guizhou', 'Test inquiry message', 1, ?, 'new')`)
-        .bind(tenantId, name, phone, wechat, email, retentionUntil).run();
+      await db.prepare(`INSERT INTO inquiries (tenant_id, submission_id, name, phone, wechat, email, location, travel_date, travelers, duration, tour_name, places, message, privacy_consent, retention_until, status) VALUES (?, ?, ?, ?, ?, ?, 'Guiyang', '2025-06-01', '2', '3 days', 'Tour test', 'Guizhou', 'Test inquiry message', 1, ?, 'new')`)
+        .bind(tenantId, crypto.randomUUID(), name, phone, wechat, email, retentionUntil).run();
     };
     await insert("qianlin-travel", "Expired test", "18900000001", "wx_expired_1", "expired@test.invalid", pastDate);
     await insert("qianlin-travel", "Not expired test", "18900000002", "wx_not_expired", "notexpired@test.invalid", futureDate);

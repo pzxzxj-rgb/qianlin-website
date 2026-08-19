@@ -1,7 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "../../db";
 import { tenantContactChannels, tenantHeroSlides, tenantSiteProfiles, tenantTours, tenants } from "../../db/schema";
-import { isAdminImagePathForUsage, isSafeOgImagePath } from "../admin/imageCatalog";
+import { isAdminImagePath, isAdminImagePathForUsage, isSafeOgImagePath } from "../admin/imageCatalog";
 import { sanitizeContactHref } from "./sanitizeContactHref";
 import type { ResolvedTenant, TenantSiteConfig } from "./types";
 import type { Tour } from "../../types/tour";
@@ -115,11 +115,11 @@ export async function getTenantSiteConfig(tenant: ResolvedTenant): Promise<Tenan
       description: { zh: profile?.descriptionZh ?? "", en: profile?.descriptionEn ?? "" },
       primaryRegion: { zh: profile?.primaryRegionZh ?? "", en: profile?.primaryRegionEn ?? "" },
       address: { zh: profile?.addressZh ?? "", en: profile?.addressEn ?? "" },
-      logo: { mark: profile?.logoMark ?? "", imageUrl: profile?.logoImageUrl ?? "" },
+       logo: { mark: profile?.logoMark ?? "", imageUrl: isAdminImagePath(profile?.logoImageUrl) ? profile.logoImageUrl : "" },
       ogImageUrl: isSafeOgImagePath(profile?.ogImageUrl) ? profile.ogImageUrl : "/og.png",
       images: {
-        about: { src: profile?.aboutImageUrl ?? "", alt: { zh: profile?.aboutImageAltZh ?? "", en: profile?.aboutImageAltEn ?? "" } },
-        customize: { src: profile?.customizeImageUrl ?? "", alt: { zh: profile?.customizeImageAltZh ?? "", en: profile?.customizeImageAltEn ?? "" } },
+        about: { src: isAdminImagePathForUsage(profile?.aboutImageUrl, "about") ? profile.aboutImageUrl : "", alt: { zh: profile?.aboutImageAltZh ?? "", en: profile?.aboutImageAltEn ?? "" } },
+        customize: { src: isAdminImagePathForUsage(profile?.customizeImageUrl, "customize") ? profile.customizeImageUrl : "", alt: { zh: profile?.customizeImageAltZh ?? "", en: profile?.customizeImageAltEn ?? "" } },
       },
     },
     contacts: contactRows.map((contact) => ({
@@ -130,12 +130,12 @@ export async function getTenantSiteConfig(tenant: ResolvedTenant): Promise<Tenan
       ...(sanitizeContactHref(contact.href) ? { href: sanitizeContactHref(contact.href) } : {}),
     })),
     tours: tourRows.map(mapPublicTour),
-    heroSlides: heroRows.map((slide) => ({
+    heroSlides: heroRows.flatMap((slide) => isAdminImagePathForUsage(slide.imageUrl, "hero") ? [{
       id: slide.id,
       src: slide.imageUrl,
       alt: { zh: slide.altZh, en: slide.altEn },
       desktopPosition: slide.desktopPosition,
       mobilePosition: slide.mobilePosition,
-    })),
+    }] : []),
   };
 }

@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: TenantPageProps): Promise<Met
     if (!tenant) return { title: "网站不可用", robots: { index: false, follow: false } };
     const siteConfig = await getTenantSiteConfig(tenant);
     const isPublic = siteConfig.isConfigured && siteConfig.tenant.siteStatus === "published" && !siteConfig.tenant.isDemo;
-    const siteUrl = getSiteUrl();
+    const siteUrl = await getSiteUrl();
     const path = tenant.slug === DEFAULT_TENANT_SLUG ? "/" : `/t/${tenant.slug}`;
     const title = siteConfig.profile.companyName.zh || tenant.name.zh;
     const description = siteConfig.profile.description.zh || siteConfig.profile.primaryRegion.zh || tenant.name.zh;

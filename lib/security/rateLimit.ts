@@ -17,8 +17,13 @@ function looksLikeAddress(value: string) {
 export function getRequestAddress(request: Request) {
   const cloudflareAddress = normalizePart(request.headers.get("CF-Connecting-IP"), "");
   if (cloudflareAddress && looksLikeAddress(cloudflareAddress)) return `cf:${cloudflareAddress}`;
-  const runtime = typeof process !== "undefined" ? (process.env.NODE_ENV as string | undefined) : undefined;
-  const allowLocalForwardedFallback = runtime === "development" || runtime === "test" || runtime === "local";
+  let allowLocalForwardedFallback = false;
+  try {
+    const hostname = new URL(request.url).hostname;
+    allowLocalForwardedFallback = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+  } catch {
+    allowLocalForwardedFallback = false;
+  }
   if (allowLocalForwardedFallback) {
     const forwardedAddress = normalizePart(request.headers.get("X-Forwarded-For")?.split(",", 1)[0], "");
     if (forwardedAddress && looksLikeAddress(forwardedAddress)) return `local:${forwardedAddress}`;

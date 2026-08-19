@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../../db";
 import { adminAuditLogs } from "../../db/schema";
 import { assertTenantScope } from "./tenantScope";
@@ -24,5 +24,5 @@ export async function recordAdminAudit(input: AdminAuditInput) {
 export async function listAdminAuditLogs(tenantId: string, userId: string, limit = 100) {
   assertTenantScope(tenantId);
   const db = await getDb();
-  return db.select().from(adminAuditLogs).where(and(eq(adminAuditLogs.tenantId, tenantId), eq(adminAuditLogs.userId, userId))).orderBy(adminAuditLogs.createdAt).limit(Math.min(Math.max(limit, 1), 100));
+  return db.select().from(adminAuditLogs).where(and(eq(adminAuditLogs.tenantId, tenantId), eq(adminAuditLogs.userId, userId))).orderBy(desc(adminAuditLogs.createdAt), desc(adminAuditLogs.id)).limit(Math.min(Math.max(limit, 1), 100));
 }

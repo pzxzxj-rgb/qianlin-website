@@ -62,6 +62,7 @@ export const sessions = sqliteTable("sessions", {
 }, (table) => ({
   tokenUnique: uniqueIndex("uq_sessions_token_hash").on(table.tokenHash),
   userExpiryIndex: index("idx_sessions_user_expiry").on(table.userId, table.expiresAt),
+  expiryIndex: index("idx_sessions_expiry").on(table.expiresAt),
 }));
 
 export const adminAuditLogs = sqliteTable("admin_audit_logs", {
@@ -83,6 +84,7 @@ export const adminAuditLogs = sqliteTable("admin_audit_logs", {
 export const inquiries = sqliteTable("inquiries", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  submissionId: text("submission_id").notNull(),
   name: text("name").notNull(),
   phone: text("phone").notNull(),
   wechat: text("wechat").notNull().default(""),
@@ -96,7 +98,7 @@ export const inquiries = sqliteTable("inquiries", {
   message: text("message").notNull().default(""),
   privacyConsent: integer("privacy_consent", { mode: "boolean" }).notNull().default(false),
   privacyConsentAt: text("privacy_consent_at"),
-  privacyPolicyVersion: text("privacy_policy_version").notNull().default("v1"),
+  privacyPolicyVersion: text("privacy_policy_version").notNull().default("privacy-2026-08-04"),
   retentionUntil: text("retention_until"),
   anonymizedAt: text("anonymized_at"),
   status: text("status").notNull().default("new"),
@@ -105,6 +107,7 @@ export const inquiries = sqliteTable("inquiries", {
 }, (table) => ({
   tenantStatusCreatedIndex: index("idx_inquiries_tenant_status_created").on(table.tenantId, table.status, table.createdAt),
   tenantIdUnique: uniqueIndex("uq_inquiries_tenant_id_id").on(table.tenantId, table.id),
+  tenantSubmissionUnique: uniqueIndex("uq_inquiries_tenant_submission").on(table.tenantId, table.submissionId),
   retentionPendingIndex: index("idx_inquiries_retention_pending").on(table.anonymizedAt, table.retentionUntil),
   statusCheck: check("ck_inquiries_status", sql`${table.status} in ('new', 'contacted', 'following_up', 'completed', 'closed')`),
 }));
@@ -176,7 +179,7 @@ export const tenantLegalPages = sqliteTable("tenant_legal_pages", {
   termsEn: text("terms_en").notNull().default(""),
   refundZh: text("refund_zh").notNull().default(""),
   refundEn: text("refund_en").notNull().default(""),
-  policyVersion: text("policy_version").notNull().default("v1"),
+  policyVersion: text("policy_version").notNull().default("privacy-2026-08-04"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => ({

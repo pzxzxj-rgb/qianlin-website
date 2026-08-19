@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useLanguage } from "./LanguageContext";
 import { usePlannerOptions } from "./PlannerOptionsProvider";
 import { SectionHeading } from "./SectionHeading";
@@ -27,7 +28,7 @@ export function Destinations({ onSelectDestination }: DestinationsProps) {
           const name = destination.name[language];
           const cardClass = `destination-card destination-card-${destination.cardSize}`;
           const ariaLabel = language === "zh" ? `咨询${name}` : `Enquire about ${name}`;
-          return <button type="button" className={cardClass} key={destination.id} onClick={() => onSelectDestination(name)} aria-label={ariaLabel}><img src={destination.imageUrl} alt={name} width={960} height={640} sizes="(max-width: 760px) 50vw, 25vw" loading={index > 1 ? "lazy" : "eager"} decoding="async" onError={() => markImageFailed(destination.id)} /><div className="destination-shade" /><div className="destination-copy"><span className="destination-index">0{index + 1}</span><h3>{name}</h3><p>{destination.description[language]}</p></div><span className="destination-arrow" aria-hidden="true">↗</span></button>;
+          return <button type="button" className={cardClass} key={destination.id} onClick={() => onSelectDestination(name)} aria-label={ariaLabel}><Image src={destination.imageUrl} alt={name} width={960} height={640} sizes="(max-width: 760px) 50vw, 25vw" loading="lazy" onError={() => markImageFailed(destination.id)} /><div className="destination-shade" /><div className="destination-copy"><span className="destination-index">0{index + 1}</span><h3>{name}</h3><p>{destination.description[language]}</p></div><span className="destination-arrow" aria-hidden="true">↗</span></button>;
         })}
       </div>
     </div>

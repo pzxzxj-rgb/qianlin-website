@@ -1,4 +1,5 @@
 import type { Tour } from "../types/tour";
+import Image from "next/image";
 import { useLanguage } from "./LanguageContext";
 import { SectionHeading } from "./SectionHeading";
 
@@ -19,7 +20,7 @@ export function Tours({ tours, onBook, region }: ToursProps) {
             const title = tour.title[language];
             return <article className="tour-card" key={tour.id}>
               <div className="tour-image-wrap">
-                {tour.image ? <img src={tour.image} alt={tour.imageAlt?.[language] ?? title} className="tour-image" width={960} height={640} sizes="(max-width: 760px) 100vw, 33vw" loading={index > 1 ? "lazy" : "eager"} decoding="async" onError={(event) => { event.currentTarget.hidden = true; }} /> : null}
+                {tour.image ? <Image src={tour.image} alt={tour.imageAlt?.[language] ?? title} className="tour-image" width={960} height={640} sizes="(max-width: 760px) 100vw, 33vw" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} /> : null}
                 {tour.tag ? <span className="tour-tag">{tour.tag[language]}</span> : null}
                 <span className="tour-number">0{index + 1}</span>
               </div>

@@ -16,4 +16,4 @@ export function isMfaRequiredForRole(role: "owner" | "admin" | "editor" | "viewe
   return role === "owner" || role === "admin";
 }
 
-export const mfaProductionGate = "MFA provider is not configured; owner and admin production access must remain disabled until a provider is connected.";
+export const mfaProductionGate = "MFA architecture exists but MFA is currently not enforced. TODO: connect and verify a production MFA provider before opening additional production tenant access.";

@@ -2,6 +2,7 @@
 
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { isValidMainlandPhone, normalizeMainlandPhone } from "../lib/inquiries/validateMainlandPhone";
 import type { TenantSiteConfig } from "../lib/tenancy/types";
 import { useLanguage } from "./LanguageContext";
@@ -37,6 +38,7 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
   const modalRef = useRef<HTMLDivElement>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const submissionIdRef = useRef(crypto.randomUUID());
   const onCloseRef = useRef(onClose);
   const submittingRef = useRef(submitting);
   const handleTurnstileToken = useCallback((token: string) => setTurnstileToken(token), []);
@@ -101,6 +103,7 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
 
     const form = event.currentTarget;
     const payload = Object.fromEntries(new FormData(form).entries());
+    payload.submissionId = submissionIdRef.current;
     const phone = typeof payload.phone === "string" ? normalizeMainlandPhone(payload.phone) : "";
     const travelDate = typeof payload.travelDate === "string" ? payload.travelDate : "";
     if (!isValidMainlandPhone(phone) || (travelDate && travelDate < getChinaDate())) {
@@ -122,6 +125,7 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
         throw new Error(typeof serverMessage === "string" ? serverMessage : t.customize.submitError);
       }
       setSubmitted(true);
+      submissionIdRef.current = crypto.randomUUID();
       resetTurnstile();
       form.reset();
     } catch (error) {
@@ -143,7 +147,7 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
           <button type="button" className="button button-light" onClick={onOpen}>{t.customize.button} <span aria-hidden="true">→</span></button>
         </div>
         <div className="customize-image-wrap">
-          {siteConfig.profile.images.customize.src ? <img src={siteConfig.profile.images.customize.src} alt={siteConfig.profile.images.customize.alt[language]} width={1200} height={800} sizes="(max-width: 760px) 100vw, 50vw" loading="lazy" decoding="async" onError={(event) => { event.currentTarget.hidden = true; }} /> : null}
+          {siteConfig.profile.images.customize.src ? <Image src={siteConfig.profile.images.customize.src} alt={siteConfig.profile.images.customize.alt[language]} width={1200} height={800} sizes="(max-width: 760px) 100vw, 50vw" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} /> : null}
           <span className="image-caption">{t.customize.imageCaption}<br /><em>{t.customize.imageChinese}</em></span>
         </div>
       </div>

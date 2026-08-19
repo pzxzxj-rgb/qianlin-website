@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, count, eq, isNull } from "drizzle-orm";
 import { getDb } from "../../db";
 import { inquiries, tenantLegalPages, tenantQuotas } from "../../db/schema";
 import { verifyTurnstileToken } from "../security/turnstile";
@@ -7,19 +7,6 @@ import { createInquirySyncJob } from "./syncService";
 import type { ResolvedTenant } from "../tenancy/types";
 
 type InquiryPayload = Record<string, unknown>;
-
-type NormalizedInquiryValues = {
-  name: string;
-  wechat: string;
-  email: string;
-  location: string;
-  travelDate: string;
-  travelers: string;
-  duration: string;
-  tourName: string;
-  places: string;
-  message: string;
-};
 
 const MAX_BODY_BYTES = 32 * 1024;
 const travelerValues = new Set(["1", "2", "3-5", "6+"]);
@@ -77,27 +64,8 @@ async function readJsonBody(request: Request): Promise<unknown> {
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 
-function sameInquiry(row: typeof inquiries.$inferSelect, values: NormalizedInquiryValues) {
-  return row.name === values.name
-    && row.wechat === values.wechat
-    && row.email === values.email
-    && row.location === values.location
-    && row.travelDate === values.travelDate
-    && row.travelers === values.travelers
-    && row.duration === values.duration
-    && row.tourName === values.tourName
-    && row.places === values.places
-    && row.message === values.message;
-}
-
-async function hasRecentDuplicate(db: Awaited<ReturnType<typeof getDb>>, tenantId: string, phone: string, values: NormalizedInquiryValues) {
-  // This ten-minute check is an initial duplicate guard. Concurrent requests can still race; stronger coordination belongs to a later infrastructure decision.
-  const recentRows = await db.select().from(inquiries).where(and(
-    eq(inquiries.tenantId, tenantId),
-    eq(inquiries.phone, phone),
-    sql`${inquiries.createdAt} >= datetime('now', '-10 minutes')`,
-  )).orderBy(desc(inquiries.createdAt), desc(inquiries.id)).limit(20);
-  return recentRows.some((row) => sameInquiry(row, values));
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 export async function handleInquiry(request: Request, tenant: ResolvedTenant | null) {
@@ -114,7 +82,7 @@ export async function handleInquiry(request: Request, tenant: ResolvedTenant | n
   if (!body || typeof body !== "object" || Array.isArray(body)) return responseError("请求内容不正确，请检查后重试。", "Invalid request body.", 400);
 
   const payload = body as InquiryPayload;
-  const allowedFields = new Set(["name", "phone", "wechat", "email", "location", "travelDate", "travelers", "duration", "tourName", "places", "message", "website", "privacyConsent", "turnstileToken"]);
+  const allowedFields = new Set(["name", "phone", "wechat", "email", "location", "travelDate", "travelers", "duration", "tourName", "places", "message", "website", "privacyConsent", "turnstileToken", "submissionId"]);
   if (Object.keys(payload).some((key) => !allowedFields.has(key))) return responseError("请求包含不支持的字段。", "The enquiry contains unsupported fields.", 400);
   const name = readText(payload, "name", 80);
   const rawPhone = readText(payload, "phone", 20);
@@ -129,11 +97,13 @@ export async function handleInquiry(request: Request, tenant: ResolvedTenant | n
   const message = readText(payload, "message", 2000);
   const website = readText(payload, "website", 200);
   const turnstileToken = readText(payload, "turnstileToken", 4096);
+  const submissionId = readText(payload, "submissionId", 36);
 
-  if ([name, rawPhone, wechat, email, location, travelDate, travelers, duration, tourName, places, message, website, turnstileToken].some((value) => value === null)) return responseError("部分内容格式不正确，请检查后重试。", "Some fields are invalid or too long.", 400);
+  if ([name, rawPhone, wechat, email, location, travelDate, travelers, duration, tourName, places, message, website, turnstileToken, submissionId].some((value) => value === null)) return responseError("部分内容格式不正确，请检查后重试。", "Some fields are invalid or too long.", 400);
   if (website) return responseError("请求内容不正确，请检查后重试。", "Invalid request body.", 400);
   if (!name) return responseError("请填写姓名。", "Please provide your name.", 400);
   if (!rawPhone) return responseError("请填写手机号码。", "Please provide your phone number.", 400);
+  if (!submissionId || !isUuid(submissionId)) return responseError("提交编号无效，请刷新页面后重试。", "The submission ID is invalid. Please refresh and try again.", 400);
 
   const phone = normalizeMainlandPhone(rawPhone);
   if (!isValidMainlandPhone(phone)) return responseError("请填写有效的中国大陆手机号码。", "Please provide a valid mainland China mobile number.", 400);
@@ -165,16 +135,31 @@ export async function handleInquiry(request: Request, tenant: ResolvedTenant | n
 
   try {
     const db = await getDb();
+    const [policy] = await db.select({ policyVersion: tenantLegalPages.policyVersion, privacyZh: tenantLegalPages.privacyZh, privacyEn: tenantLegalPages.privacyEn }).from(tenantLegalPages).where(eq(tenantLegalPages.tenantId, tenant.id)).limit(1);
+    if (!policy || !policy.policyVersion.trim() || (!policy.privacyZh.trim() && !policy.privacyEn.trim())) {
+      return responseError("隐私政策尚未完成配置，暂时无法提交咨询。", "The privacy policy is not configured.", 503);
+    }
     const [quota] = await db.select({ inquiryLimit: tenantQuotas.inquiryLimit }).from(tenantQuotas).where(eq(tenantQuotas.tenantId, tenant.id)).limit(1);
     if (quota) {
       const [usage] = await db.select({ value: count(inquiries.id) }).from(inquiries).where(and(eq(inquiries.tenantId, tenant.id), isNull(inquiries.anonymizedAt)));
       if (Number(usage?.value ?? 0) >= quota.inquiryLimit) return responseError("当前网站已达到咨询接收额度，请稍后再试。", "This site has reached its enquiry limit. Please try again later.", 429);
     }
-    if (await hasRecentDuplicate(db, tenant.id, phone, normalizedValues)) return responseError("相同咨询刚刚已经提交，请稍后再试。", "The same enquiry was submitted recently. Please wait before trying again.", 409);
-    const [policy] = await db.select({ policyVersion: tenantLegalPages.policyVersion }).from(tenantLegalPages).where(eq(tenantLegalPages.tenantId, tenant.id)).limit(1);
     const retentionDate = new Date();
     retentionDate.setUTCDate(retentionDate.getUTCDate() + 180);
-    const [inquiry] = await db.insert(inquiries).values({ tenantId: tenant.id, phone, ...normalizedValues, privacyConsent: true, privacyConsentAt: new Date().toISOString(), privacyPolicyVersion: policy?.policyVersion ?? "v1", retentionUntil: retentionDate.toISOString() }).returning({ id: inquiries.id, createdAt: inquiries.createdAt });
+    let inquiry: { id: number; createdAt: string } | undefined;
+    try {
+      [inquiry] = await db.insert(inquiries).values({ tenantId: tenant.id, submissionId, phone, ...normalizedValues, privacyConsent: true, privacyConsentAt: new Date().toISOString(), privacyPolicyVersion: policy.policyVersion, retentionUntil: retentionDate.toISOString() }).returning({ id: inquiries.id, createdAt: inquiries.createdAt });
+    } catch (error) {
+      const [existing] = await db.select({ id: inquiries.id, createdAt: inquiries.createdAt }).from(inquiries).where(and(eq(inquiries.tenantId, tenant.id), eq(inquiries.submissionId, submissionId))).limit(1);
+      if (!existing) throw error;
+      let existingJob: Awaited<ReturnType<typeof createInquirySyncJob>> | null = null;
+      try {
+        existingJob = await createInquirySyncJob(tenant.id, existing.id);
+      } catch (syncError) {
+        console.error("Failed to create duplicate inquiry sync state", syncError instanceof Error ? syncError.name : "UnknownError");
+      }
+      return Response.json({ inquiry: existing, sync: existingJob ? { status: existingJob.status, provider: existingJob.provider } : null, duplicate: true }, { status: 200, headers: { "Cache-Control": "no-store" } });
+    }
     if (!inquiry) return unavailableResponse();
     let latestJob: Awaited<ReturnType<typeof createInquirySyncJob>> | null = null;
     try {

@@ -2,11 +2,11 @@ import { and, eq, gt, isNull, ne } from "drizzle-orm";
 import { getDb } from "../../db";
 import { sessions, tenantMemberships, tenants, users } from "../../db/schema";
 import { hasAdminPermission, type AdminPermission } from "./permissions";
+import { getAppEnvironment } from "../runtime/environment";
 
 const ADMIN_SESSION_COOKIE = "qianlin_admin_session";
 const ADMIN_SESSION_TTL_SECONDS = 8 * 60 * 60;
 const PBKDF2_ALGORITHM = "pbkdf2-sha256";
-const MIN_ADMIN_SESSION_SECRET_LENGTH = 32;
 const ADMIN_TENANT_ENV = "ADMIN_TENANT_ID";
 export const SUPPORTED_ADMIN_TENANT_ID = "qianlin-travel";
 
@@ -50,25 +50,23 @@ function randomToken(bytes = 32) {
 }
 
 async function getRuntimeVariable(name: string) {
-  const processValue = typeof process !== "undefined" ? process.env[name]?.trim() : "";
-  if (processValue) return processValue;
   try {
     const { env } = await import("cloudflare:workers");
     const workerValue = (env as unknown as Record<string, unknown>)[name];
-    return typeof workerValue === "string" ? workerValue.trim() : "";
+    if (typeof workerValue === "string" && workerValue.trim()) return workerValue.trim();
   } catch {
-    return "";
+    // Node-based local callers use process.env below.
   }
+  return typeof process !== "undefined" ? process.env[name]?.trim() ?? "" : "";
 }
 
 async function getLegacyAdminConfig() {
-  const [username, passwordHash, sessionSecret, tenantId] = await Promise.all([
+  const [username, passwordHash, tenantId] = await Promise.all([
     getRuntimeVariable("ADMIN_USERNAME"),
     getRuntimeVariable("ADMIN_PASSWORD_HASH"),
-    getRuntimeVariable("ADMIN_SESSION_SECRET"),
     getRuntimeVariable(ADMIN_TENANT_ENV),
   ]);
-  return { username, passwordHash, sessionSecret, tenantId };
+  return { username, passwordHash, tenantId };
 }
 
 function decodeBase64Url(value: string) {
@@ -118,7 +116,7 @@ export async function createPasswordHash(password: string) {
 
 export async function isAdminConfigured() {
   const config = await getLegacyAdminConfig();
-  if (config.username && parsePasswordHash(config.passwordHash) && config.tenantId === SUPPORTED_ADMIN_TENANT_ID && config.sessionSecret.length >= MIN_ADMIN_SESSION_SECRET_LENGTH) return true;
+  if (config.username && parsePasswordHash(config.passwordHash) && config.tenantId === SUPPORTED_ADMIN_TENANT_ID) return true;
   try {
     const db = await getDb();
     const rows = await db.select({ id: users.id }).from(users)
@@ -188,6 +186,7 @@ export async function createAdminSession(userId: string) {
   const sessionId = "session-" + randomToken(18);
   const expiresAt = Math.floor(Date.now() / 1000) + ADMIN_SESSION_TTL_SECONDS;
   await db.insert(sessions).values({ id: sessionId, userId, tokenHash: await digestBase64Url(token), expiresAt });
+  await db.update(users).set({ lastLoginAt: new Date().toISOString() }).where(eq(users.id, userId));
   return token;
 }
 
@@ -282,16 +281,16 @@ export async function changeAdminPassword(userId: string, currentPassword: strin
   return true;
 }
 
-function secureCookieAttribute() {
-  return process.env.NODE_ENV === "production" ? "; Secure" : "";
+async function secureCookieAttribute() {
+  return (await getAppEnvironment()) === "production" ? "; Secure" : "";
 }
 
-export function createAdminCookie(token: string) {
-  return ADMIN_SESSION_COOKIE + "=" + token + "; HttpOnly; Path=/; SameSite=Lax; Max-Age=" + ADMIN_SESSION_TTL_SECONDS + secureCookieAttribute();
+export async function createAdminCookie(token: string) {
+  return ADMIN_SESSION_COOKIE + "=" + token + "; HttpOnly; Path=/; SameSite=Lax; Max-Age=" + ADMIN_SESSION_TTL_SECONDS + await secureCookieAttribute();
 }
 
-export function clearAdminCookie() {
-  return ADMIN_SESSION_COOKIE + "=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0" + secureCookieAttribute();
+export async function clearAdminCookie() {
+  return ADMIN_SESSION_COOKIE + "=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0" + await secureCookieAttribute();
 }
 
-export { ADMIN_SESSION_COOKIE, ADMIN_SESSION_TTL_SECONDS, MIN_ADMIN_SESSION_SECRET_LENGTH, verifyPasswordHash };
+export { ADMIN_SESSION_COOKIE, ADMIN_SESSION_TTL_SECONDS, verifyPasswordHash };

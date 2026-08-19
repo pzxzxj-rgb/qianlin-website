@@ -1,32 +1,33 @@
 import { DisabledErpProvider } from "./disabled/DisabledErpProvider";
 import { MockErpProvider } from "./mock/MockErpProvider";
 import { assertTenantScope } from "../../admin/tenantScope";
+import { getAppEnvironment } from "../../runtime/environment";
 import type { ErpInquiryProvider, ErpProviderName } from "./types";
 
-function isProductionRuntime() {
-  if (typeof process !== "undefined" && process.env.NODE_ENV === "production") return true;
-  return false;
+async function readWorkerProvider() {
+  try {
+    const { env } = await import("cloudflare:workers");
+    const value = (env as unknown as Record<string, unknown>).ERP_PROVIDER;
+    return typeof value === "string" && value.trim() ? value.trim().toLowerCase() : "";
+  } catch {
+    return "";
+  }
 }
 
 export async function configuredProviderName(trustedTenantId: string): Promise<ErpProviderName> {
   assertTenantScope(trustedTenantId);
-  const processValue = typeof process !== "undefined" ? process.env.ERP_PROVIDER?.trim().toLowerCase() : "";
-  try {
-    const { env } = await import("cloudflare:workers");
-    const runtime = env as unknown as Record<string, unknown>;
-    const workerProduction = [runtime.NODE_ENV, runtime.ENVIRONMENT, runtime.APP_ENV].some((value) => String(value ?? "").trim().toLowerCase() === "production");
-    const value = String(runtime.ERP_PROVIDER ?? "").trim().toLowerCase();
-    // In a bundled Worker, process.env can reflect build-time mode rather than
-    // the executing Worker's environment. Prefer the trusted runtime binding
-    // when it is present, while still refusing mock in a production Worker.
-    if (value === "mock") return workerProduction ? "disabled" : "mock";
-    if (value === "zhilv") return "zhilv";
-  } catch {
-    // Local tests and ordinary Node callers use the disabled provider by default.
+  const appEnv = await getAppEnvironment();
+  const workerValue = await readWorkerProvider();
+  const processValue = typeof process !== "undefined" ? process.env.ERP_PROVIDER?.trim().toLowerCase() ?? "" : "";
+  const provider = workerValue || processValue;
+
+  if (provider === "mock") {
+    if (appEnv === "production") {
+      throw new Error("ERP_PROVIDER=mock is forbidden in production.");
+    }
+    return "mock";
   }
-  const processProduction = isProductionRuntime();
-  if (processValue === "mock" && !processProduction) return "mock";
-  if (processValue === "zhilv") return "zhilv";
+  if (provider === "zhilv") return "zhilv";
   return "disabled";
 }
 

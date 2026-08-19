@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
     if (tenant) {
       const siteConfig = await getTenantSiteConfig(tenant);
       const isPublic = siteConfig.isConfigured && siteConfig.tenant.siteStatus === "published";
-      const siteUrl = getSiteUrl();
+      const siteUrl = await getSiteUrl();
       const title = siteConfig.profile.companyName.zh || defaultTitle;
       const description = siteConfig.profile.description.zh || siteConfig.profile.primaryRegion.zh || defaultDescription;
       const image = siteConfig.profile.ogImageUrl || "/og.png";

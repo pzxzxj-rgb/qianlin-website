@@ -1,6 +1,7 @@
 import { changeAdminPassword, clearAdminCookie, SUPPORTED_ADMIN_TENANT_ID } from "../../../../../lib/admin/auth";
 import { recordAdminAudit } from "../../../../../lib/admin/audit";
 import { readAdminJsonRequest } from "../../../../../lib/admin/imageRequest";
+import { checkRateLimit, clearRateLimit } from "../../../../../lib/security/rateLimit";
 
 const PASSWORD_BODY_MAX_BYTES = 8 * 1024;
 
@@ -30,15 +31,22 @@ export async function PUT(request: Request) {
   }
   const currentPassword = typeof body.currentPassword === "string" ? body.currentPassword : "";
   const newPassword = typeof body.newPassword === "string" ? body.newPassword : "";
-  if (currentPassword.length > 512 || newPassword.length < 12 || newPassword.length > 512) {
+  if (!currentPassword || currentPassword.length > 512 || newPassword.length < 12 || newPassword.length > 512) {
     await recordPasswordAudit("failure", parsed.userId, "invalid_password_length");
     return errorResponse("密码长度不符合要求。", "Password length is invalid.", 400);
   }
   const changed = await changeAdminPassword(parsed.userId, currentPassword, newPassword).catch(() => false);
   if (!changed) {
+    const rateLimitKey = `password-change:${parsed.userId}:${parsed.sessionId}`;
+    const rateLimit = checkRateLimit(rateLimitKey, 5, 15 * 60 * 1000);
+    if (!rateLimit.allowed) {
+      await recordPasswordAudit("failure", parsed.userId, "current_password_rate_limited");
+      return new Response(JSON.stringify({ errorZh: "当前密码验证失败次数过多，请稍后重试。", errorEn: "Too many current-password failures. Please try again later." }), { status: 429, headers: { "Cache-Control": "no-store", "Content-Type": "application/json", "Retry-After": String(rateLimit.retryAfterSeconds) } });
+    }
     await recordPasswordAudit("failure", parsed.userId, "current_password_rejected");
     return errorResponse("当前密码不正确。", "The current password is incorrect.", 401);
   }
+  clearRateLimit(`password-change:${parsed.userId}:${parsed.sessionId}`);
   await recordPasswordAudit("success", parsed.userId, "password_changed");
-  return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store", "Set-Cookie": clearAdminCookie() } });
+  return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store", "Set-Cookie": await clearAdminCookie() } });
 }

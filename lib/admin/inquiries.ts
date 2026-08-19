@@ -150,13 +150,13 @@ export async function getAdminInquiries(tenantId: string, role: AdminRole, input
   };
 }
 
-export async function getAdminInquiryDetail(tenantId: string, inquiryId: number, role?: AdminRole): Promise<AdminInquiryDetail | null> {
+export async function getAdminInquiryDetail(tenantId: string, inquiryId: number, role: AdminRole): Promise<AdminInquiryDetail | null> {
   assertAdminTenant(tenantId);
   const db = await getDb();
   const rows = await db.select({ id: inquiries.id, name: inquiries.name, phone: inquiries.phone, wechat: inquiries.wechat, email: inquiries.email, travelDate: inquiries.travelDate, travelers: inquiries.travelers, message: inquiries.message, createdAt: inquiries.createdAt, status: inquiries.status }).from(inquiries).where(and(eq(inquiries.tenantId, tenantId), eq(inquiries.id, inquiryId))).limit(1);
   const row = rows[0];
   if (!row) return null;
-  const piiVisibility = role ? inquiryPiiVisibilityForRole(role) : "full";
+  const piiVisibility = inquiryPiiVisibilityForRole(role);
   const provider = await configuredProviderName(tenantId);
   const [syncRow] = await db.select().from(tenantInquirySyncJobs).where(and(eq(tenantInquirySyncJobs.tenantId, tenantId), eq(tenantInquirySyncJobs.inquiryId, inquiryId), eq(tenantInquirySyncJobs.provider, provider))).limit(1);
   if (piiVisibility === "full") {
@@ -180,7 +180,7 @@ export async function getAdminInquiryDetail(tenantId: string, inquiryId: number,
 export async function updateAdminInquiryStatus(tenantId: string, inquiryId: number, status: AdminInquiryStatus) {
   assertAdminTenant(tenantId);
   const db = await getDb();
-  const rows = await db.update(inquiries).set({ status }).where(and(eq(inquiries.tenantId, tenantId), eq(inquiries.id, inquiryId))).returning({ id: inquiries.id, status: inquiries.status, createdAt: inquiries.createdAt });
+  const rows = await db.update(inquiries).set({ status, updatedAt: new Date().toISOString() }).where(and(eq(inquiries.tenantId, tenantId), eq(inquiries.id, inquiryId))).returning({ id: inquiries.id, status: inquiries.status, createdAt: inquiries.createdAt });
   const row = rows[0];
   return row ? { ...row, status: row.status as AdminInquiryStatus } : null;
 }

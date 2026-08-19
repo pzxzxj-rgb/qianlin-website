@@ -3,10 +3,13 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import { anonymizeExpiredInquiries } from "../lib/inquiries/retention";
 import { processDueInquirySyncJobs, reconcileMissingInquirySyncJobs, reportInquirySyncQueueHealth } from "../lib/inquiries/syncService";
+import { cleanupExpiredSessions } from "../lib/admin/sessionMaintenance";
+import { getAppEnvironment } from "../lib/runtime/environment";
 
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
+  APP_ENV: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -21,14 +24,29 @@ interface ExecutionContext {
   passThroughOnException(): void;
 }
 
-function withSecurityHeaders(response: Response, request: Request) {
+function encodeBase64Url(bytes: Uint8Array) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function createCspNonce() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return encodeBase64Url(bytes);
+}
+
+function contentSecurityPolicy(nonce: string) {
+  return `default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'nonce-${nonce}' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com`;
+}
+
+function withSecurityHeaders(response: Response, request: Request, appEnv: Awaited<ReturnType<typeof getAppEnvironment>>, nonce: string) {
   const headers = new Headers(response.headers);
-  headers.set("Content-Security-Policy", "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com");
+  headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
-  const isProduction = typeof process !== "undefined" && process.env.NODE_ENV === "production";
-  if (new URL(request.url).protocol === "https:" && isProduction) headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  if (new URL(request.url).protocol === "https:" && appEnv === "production") headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
@@ -41,6 +59,11 @@ function withSecurityHeaders(response: Response, request: Request) {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    const appEnv = await getAppEnvironment();
+    const nonce = createCspNonce();
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("Content-Security-Policy", contentSecurityPolicy(nonce));
+    const requestWithCsp = new Request(request, { headers: requestHeaders });
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
@@ -50,18 +73,19 @@ const worker = {
           const result = await env.IMAGES.input(body).transform(width > 0 ? { width } : {}).output({ format, quality });
           return result.response();
         },
-      }, allowedWidths), request);
+      }, allowedWidths), request, appEnv, nonce);
     }
 
-    return withSecurityHeaders(await handler.fetch(request, env, ctx), request);
+    return withSecurityHeaders(await handler.fetch(requestWithCsp, env, ctx), request, appEnv, nonce);
   },
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil((async () => {
       const anonymized = await anonymizeExpiredInquiries(env.DB);
+      const sessions = await cleanupExpiredSessions();
       const compensated = await reconcileMissingInquirySyncJobs();
       const processed = await processDueInquirySyncJobs();
       const queueHealth = await reportInquirySyncQueueHealth();
-      console.log(JSON.stringify({ event: "inquiry_maintenance_completed", anonymized, compensated, processed, queueHealth }));
+      console.log(JSON.stringify({ event: "inquiry_maintenance_completed", anonymized, sessions, compensated, processed, queueHealth }));
     })().catch((error) => {
       console.error("Failed to run inquiry maintenance", error instanceof Error ? error.name : "UnknownError");
     }));

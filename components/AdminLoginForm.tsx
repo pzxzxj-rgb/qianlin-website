@@ -2,12 +2,14 @@
 
 import type { FormEvent } from "react";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 export function AdminLoginForm() {
+  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
@@ -25,7 +27,8 @@ export function AdminLoginForm() {
       });
       const result: unknown = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(isRecord(result) && typeof result.errorZh === "string" ? result.errorZh : "登录失败，请稍后重试。");
-      window.location.assign("/admin");
+      router.replace("/admin");
+      router.refresh();
     } catch (requestError) {
       setError(requestError instanceof Error && requestError.message ? requestError.message : "登录失败，请稍后重试。");
     } finally {

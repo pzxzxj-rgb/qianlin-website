@@ -49,7 +49,7 @@ async function createScheduledWorkerConfig() {
   // imports a Vite-only virtual module that Wrangler cannot resolve directly.
   config.main = builtWorkerPath;
   config.assets = { directory: path.resolve(root, "dist", "client") };
-  config.vars = { NODE_ENV: "test", ERP_PROVIDER: "mock", ERP_MOCK_FAILURE: "false" };
+  config.vars = { APP_ENV: "test", ERP_PROVIDER: "mock", ERP_MOCK_FAILURE: "false" };
   config.d1_databases = (config.d1_databases ?? []).map((database) => ({ ...database, migrations_dir: path.resolve(root, "drizzle") }));
   // --test-scheduled injects Wrangler middleware during bundling. Vinext's
   // deployment config sets no_bundle, which otherwise prevents /__scheduled
@@ -173,10 +173,16 @@ async function main() {
     ];
     const backlogRows = Array.from({ length: 105 }, (_, index) => ["qianlin-travel", `retention-backlog-${index}`, "2000-01-01T00:00:00.000Z"]);
     const inquiryRows = [...retentionRows, ...backlogRows];
-    execute(`INSERT INTO inquiries (tenant_id, name, phone, wechat, email, location, travel_date, travelers, duration, tour_name, places, message, privacy_consent, privacy_consent_at, privacy_policy_version, retention_until, status) VALUES ${inquiryRows.map(([tenant, name, retentionUntil]) => `('${tenant}', '${name}', '17700000000', 'fake-wechat', 'fake-${name}@example.invalid', '测试地点', '2099-01-01', '2', '3天', '虚构线路', '虚构目的地', '人工构造的测试留言', 1, '2026-01-01T00:00:00.000Z', 'v-test', '${retentionUntil}', 'new')`).join(",")}`);
+    for (let index = 0; index < inquiryRows.length; index += 20) {
+      const batch = inquiryRows.slice(index, index + 20);
+      execute(`INSERT INTO inquiries (tenant_id, submission_id, name, phone, wechat, email, location, travel_date, travelers, duration, tour_name, places, message, privacy_consent, privacy_consent_at, privacy_policy_version, retention_until, status) VALUES ${batch.map(([tenant, name, retentionUntil]) => `('${tenant}', '${crypto.randomUUID()}', '${name}', '17700000000', 'fake-wechat', 'fake-${name}@example.invalid', '测试地点', '2099-01-01', '2', '3天', '虚构线路', '虚构目的地', '人工构造的测试留言', 1, '2026-01-01T00:00:00.000Z', 'v-test', '${retentionUntil}', 'new')`).join(",")}`);
+    }
 
     const terminalRows = query("SELECT id, tenant_id FROM inquiries WHERE name LIKE 'retention-backlog-%' OR name IN ('retention-future', 'retention-demo-future')");
-    execute(`INSERT INTO tenant_inquiry_sync_jobs (id, tenant_id, inquiry_id, provider, status, idempotency_key, retry_count, last_attempt_at, updated_at) VALUES ${terminalRows.map((row) => `('terminal-${row.id}', '${row.tenant_id}', ${row.id}, 'mock', 'failed', '${row.tenant_id}:inquiry:${row.id}:provider:mock', 5, datetime('now', '-2 hours'), datetime('now', '-2 hours'))`).join(",")}`);
+    for (let index = 0; index < terminalRows.length; index += 20) {
+      const batch = terminalRows.slice(index, index + 20);
+      execute(`INSERT INTO tenant_inquiry_sync_jobs (id, tenant_id, inquiry_id, provider, status, idempotency_key, retry_count, last_attempt_at, updated_at) VALUES ${batch.map((row) => `('terminal-${row.id}', '${row.tenant_id}', ${row.id}, 'mock', 'failed', '${row.tenant_id}:inquiry:${row.id}:provider:mock', 5, datetime('now', '-2 hours'), datetime('now', '-2 hours'))`).join(",")}`);
+    }
     const pendingInquiry = query("SELECT id FROM inquiries WHERE name = 'sync-pending'")[0].id;
     execute(`INSERT INTO tenant_inquiry_sync_jobs (id, tenant_id, inquiry_id, provider, status, idempotency_key, retry_count) VALUES ('pending-maintenance-job', 'qianlin-travel', ${pendingInquiry}, 'mock', 'pending', 'qianlin-travel:inquiry:${pendingInquiry}:provider:mock', 0)`);
     const providerSwitchInquiry = query("SELECT id FROM inquiries WHERE name = 'provider-switch'")[0].id;
@@ -189,13 +195,20 @@ async function main() {
     assert.equal(query(`SELECT COUNT(*) AS count FROM tenant_inquiry_sync_jobs WHERE tenant_id = 'qianlin-travel' AND inquiry_id = ${providerSwitchInquiry} AND provider = 'mock'`)[0].count, 0);
     const demoExpired = query("SELECT id FROM inquiries WHERE name = 'retention-demo-expired'")[0].id;
     execute(`INSERT INTO tenant_inquiry_sync_jobs (id, tenant_id, inquiry_id, provider, status, idempotency_key, retry_count) VALUES ('demo-terminal-job', 'yunnan-demo', ${demoExpired}, 'mock', 'failed', 'yunnan-demo:inquiry:${demoExpired}:provider:mock', 5)`);
+    const sessionNow = Math.floor(Date.now() / 1000);
+    execute("INSERT INTO users (id, username, password_hash, status) VALUES ('maintenance-session-user', 'maintenance-session-user', 'test-only-hash', 'active')");
+    execute(`INSERT INTO sessions (id, user_id, token_hash, expires_at, revoked_at) VALUES
+      ('expired-session', 'maintenance-session-user', 'expired-session-hash', ${sessionNow - 1}, NULL),
+      ('old-revoked-session', 'maintenance-session-user', 'old-revoked-session-hash', ${sessionNow + 3600}, ${sessionNow - 8 * 24 * 60 * 60}),
+      ('recent-revoked-session', 'maintenance-session-user', 'recent-revoked-session-hash', ${sessionNow + 3600}, ${sessionNow - 24 * 60 * 60}),
+      ('active-session', 'maintenance-session-user', 'active-session-hash', ${sessionNow + 3600}, NULL)`);
 
     // Wrangler must execute Vinext's built Worker. The source worker imports a
     // Vite-only virtual module, so direct source bundling cannot exercise the
     // real scheduled() implementation.
     server = spawn(process.execPath, [wrangler, "dev", "--local", "--config", scheduledWorkerConfigPath, "--persist-to", statePath, "--port", String(port), "--test-scheduled"], {
       cwd: root,
-      env: { ...process.env, NODE_ENV: "test", ERP_PROVIDER: "mock", ERP_MOCK_FAILURE: "false", CLOUDFLARE_PERSIST_STATE_PATH: statePath, WRANGLER_WRITE_LOGS: "false", WRANGLER_LOG_PATH: logsPath, MINIFLARE_REGISTRY_PATH: registryPath },
+      env: { ...process.env, APP_ENV: "test", ERP_PROVIDER: "mock", ERP_MOCK_FAILURE: "false", CLOUDFLARE_PERSIST_STATE_PATH: statePath, WRANGLER_WRITE_LOGS: "false", WRANGLER_LOG_PATH: logsPath, MINIFLARE_REGISTRY_PATH: registryPath },
       stdio: ["ignore", "pipe", "pipe"],
     });
     server.stdout.on("data", (chunk) => output.push(String(chunk)));
@@ -210,12 +223,16 @@ async function main() {
     console.log(`Scheduled maintenance results: ${JSON.stringify([firstRun, secondRun])}`);
     assert.equal(firstRun.anonymized, 100);
     assert.equal(secondRun.anonymized, 7);
+    assert.equal(firstRun.sessions, 2);
+    assert.equal(secondRun.sessions, 0);
+    assert.equal(query("SELECT COUNT(*) AS count FROM sessions")[0].count, 2);
+    assert.equal(query("SELECT COUNT(*) AS count FROM sessions WHERE id IN ('recent-revoked-session', 'active-session')")[0].count, 2);
     assert.ok(firstRun.compensated >= 1, "the first scheduled run must backfill current-provider jobs");
     assert.ok(firstRun.processed + secondRun.processed >= 1, "scheduled runs must process pending sync work");
     assert.equal(firstRun.queueHealth.failed, 108);
     assert.equal(firstRun.queueHealth.dead_letter, 0);
     assert.equal(secondRun.queueHealth.failed, 108);
-    console.log("Local maintenance integration passed: real worker.scheduled() retention anonymization, batch continuation, tenant boundaries, terminal retry starvation protection, pending sync processing, and provider-switch compensation.");
+    console.log("Local maintenance integration passed: real worker.scheduled() retention anonymization, session cleanup, batch continuation, tenant boundaries, terminal retry starvation protection, pending sync processing, and provider-switch compensation.");
   } finally {
     await stopWorker(server);
     server?.stdout?.destroy();

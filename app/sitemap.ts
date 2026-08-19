@@ -9,7 +9,7 @@ const legalPaths = ["/privacy", "/terms", "/refund"];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const lastModified = new Date();
-  const siteUrl = getSiteUrl();
+  const siteUrl = await getSiteUrl();
   try {
     const db = await getDb();
     const rows = await db.select({ slug: tenants.slug }).from(tenants).innerJoin(tenantSiteProfiles, eq(tenantSiteProfiles.tenantId, tenants.id)).where(and(eq(tenants.status, "active"), eq(tenants.siteStatus, "published"), eq(tenants.isDemo, false), eq(tenantSiteProfiles.status, "published"), ne(tenantSiteProfiles.companyNameZh, ""), ne(tenantSiteProfiles.companyNameEn, "")));

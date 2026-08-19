@@ -104,7 +104,7 @@ async function main() {
     // ── Hard fix #1: live D1 queue-selection semantics ──
     applyMigrations();
     const insertInquiry = (name: string) => {
-      execute(`INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent) VALUES ('qianlin-travel', '${name}', '18900000101', '1', 1)`);
+      execute(`INSERT INTO inquiries (tenant_id, submission_id, name, phone, travelers, privacy_consent) VALUES ('qianlin-travel', '${crypto.randomUUID()}', '${name}', '18900000101', '1', 1)`);
       return String(query(`SELECT id FROM inquiries WHERE name = '${name}'`)[0].id);
     };
     const aId = insertInquiry("Queue A");

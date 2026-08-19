@@ -20,6 +20,8 @@ npm run dev
 
 本地 D1 使用 `wrangler.local.jsonc` 和 `.wrangler/state`。本地重置命令只操作项目工作区内的本地数据库，不连接远程 D1。
 
+运行环境必须显式设置 `APP_ENV`，只能使用 `development`、`test` 或 `production`。本地示例为 `APP_ENV=development`；部署生产 Worker 时必须设置 `APP_ENV=production`。应用不再从 `NODE_ENV` 或其他变量推断生产环境。
+
 ## 质量检查
 
 ```bash
@@ -62,7 +64,7 @@ Provider 启用后（例如从 `disabled` 切换到 `mock`，或未来切换到 
 ERP_PROVIDER=disabled
 ```
 
-正式智旅 API 文档到达前，不执行真实智旅调用，不访问真实 ERP，也不提交真实密钥。Provider 解析必须接收服务端可信租户上下文；客户端不能通过 body、Header 或 query 选择 Provider。生产环境拒绝启用 `mock`。
+正式智旅 API 文档到达前，不执行真实智旅调用，不访问真实 ERP，也不提交真实密钥。Provider 解析必须接收服务端可信租户上下文；客户端不能通过 body、Header 或 query 选择 Provider。生产环境拒绝启用 `mock`，并在解析阶段直接失败。
 
 ## Cloudflare 生产频率限制
 
@@ -98,8 +100,8 @@ Cloudflare 控制台步骤仍需由项目管理员完成，包括匹配表达式
 
 ## 数据库迁移
 
-迁移文件位于 `drizzle/`，当前最新迁移为 `0012_dead_letter_status.sql`。0011 会先检查历史同步任务是否跨租户，发现错配即中止，不会静默覆盖；之后用 `(tenant_id, inquiry_id)` 复合外键约束同租户关联。0012 扩展同步任务状态约束以支持 `dead_letter` 状态。本任务不执行远程 D1 migration，不连接远程 D1，不部署生产环境。
+迁移文件位于 `drizzle/`，当前最新迁移为 `0013_inquiry_idempotency_and_session_maintenance.sql`。0011 会先检查历史同步任务是否跨租户，发现错配即中止，不会静默覆盖；之后用 `(tenant_id, inquiry_id)` 复合外键约束同租户关联。0012 扩展同步任务状态约束以支持 `dead_letter` 状态。0013 为咨询增加租户内唯一 `submission_id` 幂等键，并增加 Session 到期清理索引；历史咨询会获得迁移生成的兼容键，既有政策版本迁移为 `privacy-2026-08-04`。本任务不执行远程 D1 migration，不连接远程 D1，不部署生产环境。
 
 ## 尚未开放
 
-当前未开放真实 ERP、MFA Provider、订单、支付、文件上传、WhatsApp、LINE、国际手机号、短信发送和邮件发送。Cloudflare WAF Rate Limiting 仍必须在生产控制台按上文表达式配置并由项目管理员确认；Worker 内存 Map 只作为本地/单实例的第二层保护，不能替代 WAF。由于本次明确禁止访问远程 Cloudflare，生产 WAF 和生产 cron 的实际状态未在本地验证，发布前必须完成这项人工确认。
+当前未开放真实 ERP、生产 MFA Provider、订单、支付、文件上传、WhatsApp、LINE、国际手机号、短信发送和邮件发送。MFA 架构已预留但当前尚未强制执行，开放更多生产租户前必须接入并验证生产 MFA Provider。Cloudflare WAF Rate Limiting 仍必须在生产控制台按上文表达式配置并由项目管理员确认；Worker 内存 Map 只作为本地/单实例的第二层保护，不能替代 WAF。由于本次明确禁止访问远程 Cloudflare，生产 WAF 和生产 cron 的实际状态未在本地验证，发布前必须完成这项人工确认。

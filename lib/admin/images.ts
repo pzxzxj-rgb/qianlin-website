@@ -2,7 +2,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import { tenantHeroSlides, tenantSiteProfiles } from "../../db/schema";
 import { HERO_IMAGE_POSITIONS } from "./imagePositions";
-import { isAdminImagePath } from "./imageCatalog";
+import { isAdminImagePathForUsage } from "./imageCatalog";
 import { assertTenantScope } from "./tenantScope";
 
 export const ADMIN_PROFILE_IMAGE_FIELDS = [
@@ -102,8 +102,8 @@ function validateAlt(value: unknown, field: "altZh" | "altEn", fieldErrors: Admi
   return normalizedValue;
 }
 
-function validateImagePath(value: unknown, fieldErrors: AdminImageFieldErrors, key: string) {
-  if (!isAdminImagePath(value)) {
+function validateImagePath(value: unknown, usage: "hero" | "about" | "customize", fieldErrors: AdminImageFieldErrors, key: string) {
+  if (!isAdminImagePathForUsage(value, usage)) {
     fieldErrors[key] = "请选择项目内置图片。";
     return "";
   }
@@ -129,10 +129,10 @@ export function validateAdminProfileImagesPayload(body: unknown): AdminImageVali
   const payload = body as Record<string, unknown>;
   const hasUnknownFields = hasUnknownKeys(payload, ADMIN_PROFILE_IMAGE_FIELDS);
 
-  values.aboutImageUrl = validateImagePath(payload.aboutImageUrl, fieldErrors, "aboutImageUrl");
+  values.aboutImageUrl = validateImagePath(payload.aboutImageUrl, "about", fieldErrors, "aboutImageUrl");
   values.aboutImageAltZh = validateAlt(payload.aboutImageAltZh, "altZh", fieldErrors, "aboutImageAltZh");
   values.aboutImageAltEn = validateAlt(payload.aboutImageAltEn, "altEn", fieldErrors, "aboutImageAltEn");
-  values.customizeImageUrl = validateImagePath(payload.customizeImageUrl, fieldErrors, "customizeImageUrl");
+  values.customizeImageUrl = validateImagePath(payload.customizeImageUrl, "customize", fieldErrors, "customizeImageUrl");
   values.customizeImageAltZh = validateAlt(payload.customizeImageAltZh, "altZh", fieldErrors, "customizeImageAltZh");
   values.customizeImageAltEn = validateAlt(payload.customizeImageAltEn, "altEn", fieldErrors, "customizeImageAltEn");
 
@@ -161,7 +161,7 @@ export function validateAdminHeroImagesPayload(body: unknown): AdminImageValidat
       fieldErrors[`slides.${index}`] = "Hero 请求包含不支持的字段。";
     }
     return {
-      imageUrl: validateImagePath(record.imageUrl, fieldErrors, `slides.${index}.imageUrl`),
+      imageUrl: validateImagePath(record.imageUrl, "hero", fieldErrors, `slides.${index}.imageUrl`),
       altZh: validateAlt(record.altZh, "altZh", fieldErrors, `slides.${index}.altZh`),
       altEn: validateAlt(record.altEn, "altEn", fieldErrors, `slides.${index}.altEn`),
       desktopPosition: validatePosition(record.desktopPosition, fieldErrors, `slides.${index}.desktopPosition`),

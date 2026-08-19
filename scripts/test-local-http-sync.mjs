@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { pbkdf2Sync, randomBytes } from "node:crypto";
+import { pbkdf2Sync, randomBytes, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
@@ -49,11 +49,11 @@ async function runScenario({ failure }) {
     execute("INSERT OR IGNORE INTO tenant_memberships (id, tenant_id, user_id, role, status) VALUES ('sync-owner-membership', 'qianlin-travel', 'sync-owner-user', 'owner', 'active')");
     execute(`INSERT OR IGNORE INTO users (id, username, password_hash, display_name_zh, display_name_en, status) VALUES ('sync-editor-user', 'sync-editor-test', '${passwordHash}', '同步测试编辑', 'Sync test editor', 'active')`);
     execute("INSERT OR IGNORE INTO tenant_memberships (id, tenant_id, user_id, role, status) VALUES ('sync-editor-membership', 'qianlin-travel', 'sync-editor-user', 'editor', 'active')");
-    execute("INSERT OR IGNORE INTO inquiries (tenant_id, name, phone, travelers, privacy_consent, message, email, status) VALUES ('yunnan-demo', 'Other Tenant', '17700000002', '1', 1, 'other-tenant-test', 'other@example.invalid', 'new')");
+    execute("INSERT OR IGNORE INTO inquiries (tenant_id, submission_id, name, phone, travelers, privacy_consent, message, email, status) VALUES ('yunnan-demo', 'sync-other-tenant-submission', 'Other Tenant', '17700000002', '1', 1, 'other-tenant-test', 'other@example.invalid', 'new')");
     const yunnanInquiryId = query("SELECT id FROM inquiries WHERE tenant_id = 'yunnan-demo' ORDER BY id DESC LIMIT 1")[0].id;
     execute(`INSERT OR IGNORE INTO tenant_inquiry_sync_jobs (id, tenant_id, inquiry_id, provider, status, idempotency_key) VALUES ('yunnan-sync-job', 'yunnan-demo', ${yunnanInquiryId}, 'mock', 'pending', 'yunnan-demo:inquiry:${yunnanInquiryId}:provider:mock')`);
-    await fs.writeFile(devVarsPath, `ADMIN_USERNAME=${username}\nADMIN_PASSWORD_HASH=${passwordHash}\nADMIN_SESSION_SECRET=sync-owner-session-secret-for-tests-only\nADMIN_TENANT_ID=qianlin-travel\nHTTP_TEST_READINESS_TOKEN=${readinessToken}\nERP_PROVIDER=mock\nERP_MOCK_FAILURE=${failure ? "true" : "false"}\n`);
-    server = spawn(process.execPath, [path.join(root, "node_modules", "vinext", "dist", "cli.js"), "dev", "--hostname", "127.0.0.1", "--port", String(port)], { cwd: root, env: { ...process.env, NODE_ENV: "test", ERP_PROVIDER: "mock", ERP_MOCK_FAILURE: failure ? "true" : "false", ADMIN_USERNAME: username, ADMIN_PASSWORD_HASH: passwordHash, ADMIN_SESSION_SECRET: "sync-owner-session-secret-for-tests-only", ADMIN_TENANT_ID: "qianlin-travel", NEXT_PUBLIC_SITE_URL: baseUrl, HTTP_TEST_READINESS_TOKEN: readinessToken, CLOUDFLARE_PERSIST_STATE_PATH: statePath, WRANGLER_WRITE_LOGS: "false", WRANGLER_LOG_PATH: logsPath, MINIFLARE_REGISTRY_PATH: registryPath }, stdio: ["ignore", "pipe", "pipe"] });
+    await fs.writeFile(devVarsPath, `APP_ENV=test\nADMIN_USERNAME=${username}\nADMIN_PASSWORD_HASH=${passwordHash}\nADMIN_TENANT_ID=qianlin-travel\nHTTP_TEST_READINESS_TOKEN=${readinessToken}\nERP_PROVIDER=mock\nERP_MOCK_FAILURE=${failure ? "true" : "false"}\n`);
+    server = spawn(process.execPath, [path.join(root, "node_modules", "vinext", "dist", "cli.js"), "dev", "--hostname", "127.0.0.1", "--port", String(port)], { cwd: root, env: { ...process.env, APP_ENV: "test", ERP_PROVIDER: "mock", ERP_MOCK_FAILURE: failure ? "true" : "false", ADMIN_USERNAME: username, ADMIN_PASSWORD_HASH: passwordHash, ADMIN_TENANT_ID: "qianlin-travel", NEXT_PUBLIC_SITE_URL: baseUrl, HTTP_TEST_READINESS_TOKEN: readinessToken, CLOUDFLARE_PERSIST_STATE_PATH: statePath, WRANGLER_WRITE_LOGS: "false", WRANGLER_LOG_PATH: logsPath, MINIFLARE_REGISTRY_PATH: registryPath }, stdio: ["ignore", "pipe", "pipe"] });
     server.stdout.on("data", (chunk) => output.push(String(chunk)));
     server.stderr.on("data", (chunk) => output.push(String(chunk)));
     for (let attempt = 0; attempt < 60; attempt += 1) {
@@ -67,7 +67,7 @@ async function runScenario({ failure }) {
     const login = await request(baseUrl, "/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username, password }) });
     assert.equal(login.response.status, 200);
     const ownerCookie = (login.response.headers.get("set-cookie") ?? "").split(";", 1)[0];
-    const payload = { name: failure ? "Mock failure inquiry" : "Mock success inquiry", phone: failure ? "17700000003" : "17700000004", wechat: "", email: "", location: "贵阳", travelDate: "", travelers: "1", duration: "", tourName: "", places: "", message: failure ? "failure-only-test" : "success-only-test", privacyConsent: true, turnstileToken: "" };
+    const payload = { submissionId: randomUUID(), name: failure ? "Mock failure inquiry" : "Mock success inquiry", phone: failure ? "17700000003" : "17700000004", wechat: "", email: "", location: "贵阳", travelDate: "", travelers: "1", duration: "", tourName: "", places: "", message: failure ? "failure-only-test" : "success-only-test", privacyConsent: true, turnstileToken: "" };
     const submitted = await request(baseUrl, "/api/t/qianlin-travel/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
     assert.equal(submitted.response.status, 201);
     assert.equal(submitted.body.sync.status, "pending");

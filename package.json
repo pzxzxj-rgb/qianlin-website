@@ -10,14 +10,14 @@
     "build": "vinext build",
     "start": "vinext start",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/image-management.test.mjs tests/contact-management.test.mjs tests/tour-management.test.mjs tests/destination-management.test.mjs tests/inquiry-management.test.mjs tests/planner-data.test.mjs tests/tenant-isolation.test.mjs tests/turnstile.test.mjs",
+    "test": "npm run build && node scripts/run-runtime-security.mjs && node --test tests/rendered-html.test.mjs tests/image-management.test.mjs tests/contact-management.test.mjs tests/tour-management.test.mjs tests/destination-management.test.mjs tests/inquiry-management.test.mjs tests/planner-data.test.mjs tests/tenant-isolation.test.mjs tests/turnstile.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern .wrangler",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply DB --local --config wrangler.local.jsonc --persist-to .wrangler/state",
     "db:check:local": "node scripts/check-local-d1.mjs",
     "db:inquiries:local": "node scripts/list-inquiries-local.mjs",
     "db:reset:local": "node scripts/reset-local-d1.mjs",
-    "test:integration:local": "node scripts/test-local-d1.mjs && node --experimental-strip-types scripts/test-local-retention.ts && node --experimental-strip-types scripts/test-local-sync-queue.ts && node --experimental-strip-types scripts/test-rate-limit.ts && node scripts/test-local-http.mjs && node scripts/test-local-http-sync.mjs && node scripts/test-local-maintenance.mjs"
+    "test:integration:local": "node scripts/test-local-d1.mjs && node --experimental-strip-types scripts/test-local-retention.ts && node --experimental-strip-types scripts/test-local-sync-queue.ts && node --experimental-strip-types scripts/test-rate-limit.ts && node scripts/run-runtime-security.mjs && node scripts/test-local-http.mjs && node scripts/test-local-http-sync.mjs && node scripts/test-local-maintenance.mjs"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",

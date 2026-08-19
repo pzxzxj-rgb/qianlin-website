@@ -82,6 +82,7 @@ async function main() {
       "0010_add_tenant_province_catalog.sql",
       "0011_small_triton.sql",
       "0012_dead_letter_status.sql",
+      "0013_inquiry_idempotency_and_session_maintenance.sql",
     ]);
 
     const counts = query("SELECT (SELECT COUNT(*) FROM tenants WHERE status = 'active') AS active_tenants, (SELECT COUNT(*) FROM tenants WHERE site_status = 'published' AND id = 'qianlin-travel') AS qianlin_published, (SELECT COUNT(*) FROM tenants WHERE site_status = 'published' AND id = 'yunnan-demo') AS demo_published, (SELECT COUNT(*) FROM tenant_hero_slides WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_heroes, (SELECT COUNT(*) FROM tenant_hero_slides WHERE tenant_id = 'yunnan-demo' AND status = 'published') AS demo_heroes, (SELECT COUNT(*) FROM planner_cities WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_cities, (SELECT COUNT(*) FROM planner_destinations WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_destinations, (SELECT COUNT(*) FROM tenant_tours WHERE tenant_id = 'qianlin-travel') AS qianlin_tours, (SELECT COUNT(*) FROM tenant_tours WHERE tenant_id = 'yunnan-demo') AS demo_tours, (SELECT COUNT(*) FROM inquiries WHERE tenant_id IS NULL) AS null_inquiries", freshState);
@@ -109,6 +110,8 @@ async function main() {
     assert.ok(query("PRAGMA foreign_key_list('inquiries')", freshState).some((row) => row.table === "tenants" && row.on_delete.toUpperCase() === "RESTRICT"));
     assert.equal(query("PRAGMA foreign_key_check", freshState).length, 0);
     assert.ok(query("SELECT name FROM pragma_index_list('inquiries')", freshState).some((row) => row.name === "uq_inquiries_tenant_id_id"));
+    assert.ok(query("SELECT name FROM pragma_index_list('inquiries')", freshState).some((row) => row.name === "uq_inquiries_tenant_submission"));
+    assert.ok(query("SELECT name FROM pragma_index_list('sessions')", freshState).some((row) => row.name === "idx_sessions_expiry"));
     assert.ok(query("PRAGMA foreign_key_list('tenant_inquiry_sync_jobs')", freshState).some((row) => row.table === "inquiries" && row.from === "tenant_id"));
     assert.equal(query("SELECT COUNT(*) AS count FROM inquiries i LEFT JOIN tenants t ON t.id = i.tenant_id WHERE t.id IS NULL", freshState)[0].count, 0);
     assert.ok(query("PRAGMA foreign_key_list('tenant_tours')", freshState).some((row) => row.table === "tenants" && row.on_delete.toUpperCase() === "RESTRICT"));
@@ -117,13 +120,13 @@ async function main() {
     assert.equal(query("PRAGMA foreign_key_check", freshState).length, 0);
 
     assert.throws(() => execute("INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent) VALUES ('missing-tenant', 'Test', '18900000000', '1', 1)", freshState));
-    execute("INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent, status) VALUES ('qianlin-travel', 'Status test', '18900000000', '1', 1, 'following_up')", freshState);
+    execute("INSERT INTO inquiries (tenant_id, submission_id, name, phone, travelers, privacy_consent, status) VALUES ('qianlin-travel', '00000000-0000-4000-8000-000000000001', 'Status test', '18900000000', '1', 1, 'following_up')", freshState);
     assert.equal(query("SELECT status FROM inquiries WHERE name = 'Status test'", freshState)[0].status, "following_up");
     assert.throws(() => execute("INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent, status) VALUES ('qianlin-travel', 'Invalid status test', '18900000000', '1', 1, 'invalid')", freshState));
     execute("INSERT INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('configuring-test', 'configuring-test', 'Configuring test', 'Configuring test', 'active', 'configuring', 'en', 0)", freshState);
-    execute("INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent) VALUES ('yunnan-demo', 'Tenant test', '18900000000', '1', 1)", freshState);
+    execute("INSERT INTO inquiries (tenant_id, submission_id, name, phone, travelers, privacy_consent) VALUES ('yunnan-demo', '00000000-0000-4000-8000-000000000002', 'Tenant test', '18900000000', '1', 1)", freshState);
     assert.equal(query("SELECT COUNT(*) AS count FROM inquiries WHERE tenant_id = 'yunnan-demo'", freshState)[0].count, 1);
-    execute("INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent) VALUES ('qianlin-travel', 'Sync tenant test', '18900000000', '1', 1)", freshState);
+    execute("INSERT INTO inquiries (tenant_id, submission_id, name, phone, travelers, privacy_consent) VALUES ('qianlin-travel', '00000000-0000-4000-8000-000000000003', 'Sync tenant test', '18900000000', '1', 1)", freshState);
     const qianlinSyncInquiryId = query("SELECT id FROM inquiries WHERE name = 'Sync tenant test'", freshState)[0].id;
     execute(`INSERT INTO tenant_inquiry_sync_jobs (id, tenant_id, inquiry_id, provider, idempotency_key) VALUES ('disabled-sync-job', 'qianlin-travel', ${qianlinSyncInquiryId}, 'disabled', 'qianlin-travel:inquiry:${qianlinSyncInquiryId}:provider:disabled')`, freshState);
     execute(`INSERT INTO tenant_inquiry_sync_jobs (id, tenant_id, inquiry_id, provider, idempotency_key) VALUES ('mock-sync-job', 'qianlin-travel', ${qianlinSyncInquiryId}, 'mock', 'qianlin-travel:inquiry:${qianlinSyncInquiryId}:provider:mock')`, freshState);
@@ -173,6 +176,7 @@ async function main() {
       "0010_add_tenant_province_catalog.sql",
       "0011_small_triton.sql",
       "0012_dead_letter_status.sql",
+      "0013_inquiry_idempotency_and_session_maintenance.sql",
     ]);
     assert.equal(query("SELECT customize_image_url FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel'", legacyState)[0].customize_image_url, "/images/guizhou/customize-mountains.png");
     assert.equal(query("SELECT COUNT(*) AS count FROM tenant_tours", legacyState)[0].count, 0);
@@ -192,7 +196,7 @@ async function main() {
     // which drives a live D1 instance through the real
     // anonymizeExpiredInquiries() implementation (see test:integration:local).
 
-    console.log("Local D1 integration passed: fresh 0000-0012 and existing 0000-0004 plus 0005-0012 migration paths.");
+    console.log("Local D1 integration passed: fresh 0000-0013 and existing 0000-0004 plus 0005-0013 migration paths.");
   } finally {
     await fs.rm(freshState, { recursive: true, force: true });
     await fs.rm(legacyState, { recursive: true, force: true });
