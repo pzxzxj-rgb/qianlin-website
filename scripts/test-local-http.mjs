@@ -271,6 +271,76 @@ try {
   const viewerLogin = await request("/api/admin/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: "qianlin-viewer", password: adminTestPassword }) });
   assert.equal(viewerLogin.response.status, 200);
   const viewerSessionCookie = (viewerLogin.response.headers.get("set-cookie") ?? "").split(";", 1)[0];
+  const getTheme = (options = {}) => request("/api/admin/t/qianlin-travel/theme", { headers: { cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) } });
+  const saveTheme = (payload, options = {}) => request("/api/admin/t/qianlin-travel/theme/draft", {
+    method: "PUT",
+    headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
+    body: options.body ?? JSON.stringify(payload),
+  });
+  const publishTheme = (options = {}) => request("/api/admin/t/qianlin-travel/theme/publish", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
+    body: options.body ?? JSON.stringify({}),
+  });
+  const resetTheme = (options = {}) => request("/api/admin/t/qianlin-travel/theme/draft/reset", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
+    body: options.body ?? JSON.stringify({}),
+  });
+  const originalTheme = {
+    templateKey: "modern",
+    primaryColor: "#173F36",
+    secondaryColor: "#DCE6DC",
+    accentColor: "#C7A878",
+    backgroundColor: "#FBFAF7",
+    fontPreset: "modern",
+    buttonStyle: "rounded",
+    cardStyle: "elevated",
+    sectionStyle: "clean",
+  };
+  assert.equal((await request("/api/admin/t/qianlin-travel/theme")).response.status, 401);
+  assert.ok([302, 303, 307, 308].includes((await request("/admin/theme", { redirect: "manual" })).response.status));
+  const initialTheme = await getTheme();
+  assert.equal(initialTheme.response.status, 200);
+  assert.deepEqual(initialTheme.body.draft.values, originalTheme);
+  assert.equal(initialTheme.body.published.values.templateKey, "modern");
+  assert.equal((await getTheme({ cookie: viewerSessionCookie })).response.status, 200);
+  assert.equal((await saveTheme({ ...originalTheme, primaryColor: "#244D73" }, { cookie: viewerSessionCookie })).response.status, 403);
+  assert.equal((await publishTheme({ cookie: editorSessionCookie })).response.status, 403);
+  assert.equal((await request("/api/admin/t/yunnan-travel-test/theme", { headers: { cookie: sessionCookie } })).response.status, 403);
+  assert.equal((await saveTheme({ ...originalTheme, tenantId: "yunnan-demo" })).response.status, 400);
+  assert.equal((await saveTheme({ ...originalTheme, status: "published" })).response.status, 400);
+  for (const invalidTheme of [
+    { ...originalTheme, primaryColor: "url(javascript:alert(1))" },
+    { ...originalTheme, fontPreset: "Comic Sans" },
+    { ...originalTheme, buttonStyle: "custom" },
+    { ...originalTheme, cardStyle: "box-shadow: 0 0 10px red" },
+    { ...originalTheme, sectionStyle: "--theme-primary: red" },
+  ]) assert.equal((await saveTheme(invalidTheme)).response.status, 400);
+  const draftTheme = { ...originalTheme, templateKey: "youthful", primaryColor: "#244D73", secondaryColor: "#DDEBF3", accentColor: "#F09B62", backgroundColor: "#F8FBFD", fontPreset: "friendly", buttonStyle: "pill", cardStyle: "flat", sectionStyle: "soft" };
+  const savedTheme = await saveTheme(draftTheme, { cookie: editorSessionCookie });
+  assert.equal(savedTheme.response.status, 200);
+  assert.deepEqual(savedTheme.body.draft.values, draftTheme);
+  const publicBeforeThemePublish = await request("/api/t/qianlin-travel/site-config");
+  assert.equal(publicBeforeThemePublish.response.status, 200);
+  assert.equal(publicBeforeThemePublish.body.theme.template, "modern");
+  const publishedTheme = await publishTheme();
+  assert.equal(publishedTheme.response.status, 200);
+  assert.equal(publishedTheme.body.published.values.templateKey, "youthful");
+  const publicAfterThemePublish = await request("/api/t/qianlin-travel/site-config");
+  assert.equal(publicAfterThemePublish.body.theme.template, "youthful");
+  assert.equal(publicAfterThemePublish.body.theme.colors.primary, "#244D73");
+  const changedDraftTheme = { ...draftTheme, templateKey: "elegant", primaryColor: "#2C2A3A", fontPreset: "editorial", buttonStyle: "square", cardStyle: "bordered", sectionStyle: "contrast" };
+  assert.equal((await saveTheme(changedDraftTheme, { cookie: editorSessionCookie })).response.status, 200);
+  assert.equal((await request("/api/t/qianlin-travel/site-config")).body.theme.template, "youthful");
+  const resetThemeResponse = await resetTheme({ cookie: editorSessionCookie });
+  assert.equal(resetThemeResponse.response.status, 200);
+  assert.equal(resetThemeResponse.body.values.templateKey, "youthful");
+  assert.deepEqual((await getTheme()).body.draft.values, (await getTheme()).body.published.values);
+  const themePage = await request("/admin/theme", { headers: { cookie: sessionCookie } });
+  assert.equal(themePage.response.status, 200);
+  assert.match(String(themePage.body), /Theme Studio/);
+  assert.match(String(themePage.body), /LIVE DRAFT PREVIEW/);
   const saveProfile = (payload, options = {}) => request("/api/admin/profile", {
     method: "PUT",
     headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },
@@ -1278,6 +1348,9 @@ try {
   assert.ok(auditRows.some((row) => row.action === "logout" && row.result === "success"));
   assert.ok(auditRows.some((row) => row.action === "change_password" && row.result === "failure"));
   assert.ok(auditRows.some((row) => row.action === "change_password" && row.result === "success"));
+  assert.ok(auditRows.some((row) => row.action === "theme_draft_update" && row.result === "success"));
+  assert.ok(auditRows.some((row) => row.action === "theme_publish" && row.result === "success"));
+  assert.ok(auditRows.some((row) => row.action === "theme_draft_reset" && row.result === "success"));
   assert.doesNotMatch(JSON.stringify(auditRows), /18985127882|contact-test@example\.invalid|TestPassword!123|NewTestPassword!456/);
   const stored = query(`SELECT tenant_id, phone, message FROM inquiries WHERE id = ${qianlinInquiryId}`)[0];
   assert.equal(stored.tenant_id, "qianlin-travel");

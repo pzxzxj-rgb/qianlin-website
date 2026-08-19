@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { TenantSiteConfig } from "../lib/tenancy/types";
+import { isThemeConfig } from "../lib/theme/themeConfig";
 
 type TenantSiteState = {
   status: "loading" | "success" | "error";
@@ -27,7 +28,7 @@ function isTenantSiteConfig(value: unknown, tenantSlug: string): value is Tenant
   const tenantId = tenant.id;
   if (typeof tenant.slug !== "string" || typeof tenantId !== "string" || tenant.slug !== tenantSlug) return false;
   if (tenant.siteStatus !== "configuring" && tenant.siteStatus !== "published") return false;
-  if (typeof value.isConfigured !== "boolean" || !Array.isArray(value.contacts) || !Array.isArray(value.tours) || !value.tours.every((tour) => isPublicTour(tour, tenantId)) || !Array.isArray(value.heroSlides)) return false;
+  if (typeof value.isConfigured !== "boolean" || !isThemeConfig(value.theme) || !Array.isArray(value.contacts) || !Array.isArray(value.tours) || !value.tours.every((tour) => isPublicTour(tour, tenantId)) || !Array.isArray(value.heroSlides)) return false;
   return true;
 }
 

@@ -83,6 +83,7 @@ async function main() {
       "0011_small_triton.sql",
       "0012_dead_letter_status.sql",
       "0013_inquiry_idempotency_and_session_maintenance.sql",
+      "0014_controlled_theme_studio.sql",
     ]);
 
     const counts = query("SELECT (SELECT COUNT(*) FROM tenants WHERE status = 'active') AS active_tenants, (SELECT COUNT(*) FROM tenants WHERE site_status = 'published' AND id = 'qianlin-travel') AS qianlin_published, (SELECT COUNT(*) FROM tenants WHERE site_status = 'published' AND id = 'yunnan-demo') AS demo_published, (SELECT COUNT(*) FROM tenant_hero_slides WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_heroes, (SELECT COUNT(*) FROM tenant_hero_slides WHERE tenant_id = 'yunnan-demo' AND status = 'published') AS demo_heroes, (SELECT COUNT(*) FROM planner_cities WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_cities, (SELECT COUNT(*) FROM planner_destinations WHERE tenant_id = 'qianlin-travel' AND status = 'published') AS qianlin_destinations, (SELECT COUNT(*) FROM tenant_tours WHERE tenant_id = 'qianlin-travel') AS qianlin_tours, (SELECT COUNT(*) FROM tenant_tours WHERE tenant_id = 'yunnan-demo') AS demo_tours, (SELECT COUNT(*) FROM inquiries WHERE tenant_id IS NULL) AS null_inquiries", freshState);
@@ -99,6 +100,9 @@ async function main() {
     assert.equal(countRow.null_inquiries, 0);
     assert.equal(query("SELECT COUNT(*) AS count FROM tenant_legal_pages WHERE tenant_id IN ('qianlin-travel', 'yunnan-demo')", freshState)[0].count, 2);
     assert.equal(query("SELECT COUNT(*) AS count FROM tenant_quotas WHERE tenant_id IN ('qianlin-travel', 'yunnan-demo')", freshState)[0].count, 2);
+    assert.equal(query("SELECT COUNT(*) AS count FROM tenant_themes WHERE tenant_id IN ('qianlin-travel', 'yunnan-demo')", freshState)[0].count, 4);
+    assert.equal(query("SELECT COUNT(*) AS count FROM tenant_themes WHERE status = 'draft' AND tenant_id IN ('qianlin-travel', 'yunnan-demo')", freshState)[0].count, 2);
+    assert.equal(query("SELECT COUNT(*) AS count FROM tenant_themes WHERE status = 'published' AND tenant_id IN ('qianlin-travel', 'yunnan-demo')", freshState)[0].count, 2);
     assert.equal(query("SELECT COUNT(*) AS count FROM users", freshState)[0].count, 0);
     assert.equal(query("SELECT COUNT(*) AS count FROM tenant_memberships", freshState)[0].count, 0);
     assert.equal(query("SELECT COUNT(*) AS count FROM sessions", freshState)[0].count, 0);
@@ -117,6 +121,12 @@ async function main() {
     assert.ok(query("PRAGMA foreign_key_list('tenant_tours')", freshState).some((row) => row.table === "tenants" && row.on_delete.toUpperCase() === "RESTRICT"));
     assert.equal(query("SELECT dflt_value FROM pragma_table_info('tenant_tours') WHERE name = 'tenant_id'", freshState)[0].dflt_value, null);
     assert.ok(query("SELECT name FROM pragma_index_list('tenant_tours')", freshState).some((row) => row.name === "uq_tenant_tours_tenant_slug"));
+    assert.ok(query("PRAGMA foreign_key_list('tenant_themes')", freshState).some((row) => row.table === "tenants" && row.on_delete.toUpperCase() === "RESTRICT"));
+    assert.ok(query("SELECT name FROM pragma_index_list('tenant_themes')", freshState).some((row) => row.name === "uq_tenant_themes_tenant_status"));
+    execute("INSERT INTO tenants (id, slug, name_zh, name_en, status, site_status, default_language, is_demo) VALUES ('theme-constraint-test', 'theme-constraint-test', 'Theme constraint test', 'Theme constraint test', 'active', 'configuring', 'en', 0)", freshState);
+    assert.throws(() => execute("INSERT INTO tenant_themes (id, tenant_id, status) VALUES ('invalid-theme-status', 'theme-constraint-test', 'archived')", freshState));
+    assert.throws(() => execute("INSERT INTO tenant_themes (id, tenant_id, status, template_key) VALUES ('invalid-theme-template', 'theme-constraint-test', 'draft', 'freeform')", freshState));
+    assert.equal(query("PRAGMA foreign_key_check", freshState).length, 0);
     assert.equal(query("PRAGMA foreign_key_check", freshState).length, 0);
 
     assert.throws(() => execute("INSERT INTO inquiries (tenant_id, name, phone, travelers, privacy_consent) VALUES ('missing-tenant', 'Test', '18900000000', '1', 1)", freshState));
@@ -177,6 +187,7 @@ async function main() {
       "0011_small_triton.sql",
       "0012_dead_letter_status.sql",
       "0013_inquiry_idempotency_and_session_maintenance.sql",
+      "0014_controlled_theme_studio.sql",
     ]);
     assert.equal(query("SELECT customize_image_url FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel'", legacyState)[0].customize_image_url, "/images/guizhou/customize-mountains.png");
     assert.equal(query("SELECT COUNT(*) AS count FROM tenant_tours", legacyState)[0].count, 0);
@@ -196,7 +207,7 @@ async function main() {
     // which drives a live D1 instance through the real
     // anonymizeExpiredInquiries() implementation (see test:integration:local).
 
-    console.log("Local D1 integration passed: fresh 0000-0013 and existing 0000-0004 plus 0005-0013 migration paths.");
+    console.log("Local D1 integration passed: fresh 0000-0014 and existing 0000-0004 plus 0005-0014 migration paths.");
   } finally {
     await fs.rm(freshState, { recursive: true, force: true });
     await fs.rm(legacyState, { recursive: true, force: true });

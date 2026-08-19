@@ -1,4 +1,5 @@
 import type { Tour } from "../../types/tour";
+import type { ThemeConfig } from "../theme/themeConfig";
 
 export type TenantLanguage = "zh" | "en";
 
@@ -22,6 +23,7 @@ export type TenantSiteConfig = {
     isDemo: boolean;
   };
   isConfigured: boolean;
+  theme: ThemeConfig;
   profile: {
     companyName: { zh: string; en: string };
     description: { zh: string; en: string };

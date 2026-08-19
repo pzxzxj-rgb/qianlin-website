@@ -5,15 +5,18 @@ export const ADMIN_PERMISSIONS = [
   "inquiry:read_sensitive",
   "inquiry:update",
   "inquiry:sync_retry",
+  "theme:read",
+  "theme:update_draft",
+  "theme:publish",
 ] as const;
 
 export type AdminPermission = typeof ADMIN_PERMISSIONS[number];
 
 const ROLE_PERMISSIONS: Record<AdminRole, readonly AdminPermission[]> = {
-  viewer: ["inquiry:list_masked"],
-  editor: ["inquiry:list_masked", "inquiry:read_sensitive", "inquiry:update"],
-  admin: ["inquiry:list_masked", "inquiry:read_sensitive", "inquiry:update", "inquiry:sync_retry"],
-  owner: ["inquiry:list_masked", "inquiry:read_sensitive", "inquiry:update", "inquiry:sync_retry"],
+  viewer: ["inquiry:list_masked", "theme:read"],
+  editor: ["inquiry:list_masked", "inquiry:read_sensitive", "inquiry:update", "theme:read", "theme:update_draft"],
+  admin: ["inquiry:list_masked", "inquiry:read_sensitive", "inquiry:update", "inquiry:sync_retry", "theme:read", "theme:update_draft", "theme:publish"],
+  owner: ["inquiry:list_masked", "inquiry:read_sensitive", "inquiry:update", "inquiry:sync_retry", "theme:read", "theme:update_draft", "theme:publish"],
 };
 
 export function hasAdminPermission(role: AdminRole, permission: AdminPermission) {

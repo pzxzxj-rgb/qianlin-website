@@ -186,6 +186,36 @@ export const tenantLegalPages = sqliteTable("tenant_legal_pages", {
   tenantUnique: uniqueIndex("uq_tenant_legal_pages_tenant").on(table.tenantId),
 }));
 
+export const tenantThemes = sqliteTable("tenant_themes", {
+  id: text("id").primaryKey(),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  status: text("status").notNull().default("draft"),
+  templateKey: text("template_key").notNull().default("modern"),
+  primaryColor: text("primary_color").notNull().default("#173F36"),
+  secondaryColor: text("secondary_color").notNull().default("#DCE6DC"),
+  accentColor: text("accent_color").notNull().default("#C7A878"),
+  backgroundColor: text("background_color").notNull().default("#FBFAF7"),
+  fontPreset: text("font_preset").notNull().default("modern"),
+  buttonStyle: text("button_style").notNull().default("rounded"),
+  cardStyle: text("card_style").notNull().default("elevated"),
+  sectionStyle: text("section_style").notNull().default("clean"),
+  version: integer("version").notNull().default(1),
+  publishedBy: text("published_by").references(() => users.id, { onDelete: "set null" }),
+  publishedAt: text("published_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  tenantStatusUnique: uniqueIndex("uq_tenant_themes_tenant_status").on(table.tenantId, table.status),
+  tenantUpdatedIndex: index("idx_tenant_themes_tenant_updated").on(table.tenantId, table.updatedAt),
+  statusCheck: check("ck_tenant_themes_status", sql`${table.status} in ('draft', 'published')`),
+  templateCheck: check("ck_tenant_themes_template", sql`${table.templateKey} in ('modern', 'natural', 'elegant', 'youthful')`),
+  fontCheck: check("ck_tenant_themes_font", sql`${table.fontPreset} in ('modern', 'elegant', 'editorial', 'friendly')`),
+  buttonCheck: check("ck_tenant_themes_button", sql`${table.buttonStyle} in ('rounded', 'square', 'pill')`),
+  cardCheck: check("ck_tenant_themes_card", sql`${table.cardStyle} in ('flat', 'bordered', 'elevated')`),
+  sectionCheck: check("ck_tenant_themes_section", sql`${table.sectionStyle} in ('clean', 'soft', 'contrast')`),
+  versionCheck: check("ck_tenant_themes_version", sql`${table.version} > 0`),
+}));
+
 export const tenantQuotas = sqliteTable("tenant_quotas", {
   tenantId: text("tenant_id").primaryKey().references(() => tenants.id, { onDelete: "restrict" }),
   inquiryLimit: integer("inquiry_limit").notNull().default(1000),
@@ -344,6 +374,8 @@ export type TenantSiteProfile = typeof tenantSiteProfiles.$inferSelect;
 export type NewTenantSiteProfile = typeof tenantSiteProfiles.$inferInsert;
 export type TenantLegalPage = typeof tenantLegalPages.$inferSelect;
 export type NewTenantLegalPage = typeof tenantLegalPages.$inferInsert;
+export type TenantTheme = typeof tenantThemes.$inferSelect;
+export type NewTenantTheme = typeof tenantThemes.$inferInsert;
 export type TenantQuota = typeof tenantQuotas.$inferSelect;
 export type NewTenantQuota = typeof tenantQuotas.$inferInsert;
 export type TenantContactChannel = typeof tenantContactChannels.$inferSelect;

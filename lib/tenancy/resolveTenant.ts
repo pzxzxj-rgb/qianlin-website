@@ -1,10 +1,11 @@
 import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "../../db";
-import { tenantContactChannels, tenantHeroSlides, tenantSiteProfiles, tenantTours, tenants } from "../../db/schema";
+import { tenantContactChannels, tenantHeroSlides, tenantSiteProfiles, tenantThemes, tenantTours, tenants } from "../../db/schema";
 import { isAdminImagePath, isAdminImagePathForUsage, isSafeOgImagePath } from "../admin/imageCatalog";
 import { sanitizeContactHref } from "./sanitizeContactHref";
 import type { ResolvedTenant, TenantSiteConfig } from "./types";
 import type { Tour } from "../../types/tour";
+import { DEFAULT_THEME_CONFIG, isThemeConfig, themeDraftToConfig } from "../theme/themeConfig";
 
 export const DEFAULT_TENANT_SLUG = "qianlin-travel";
 
@@ -50,6 +51,7 @@ function unconfiguredSiteConfig(tenant: ResolvedTenant): TenantSiteConfig {
       isDemo: tenant.isDemo,
     },
     isConfigured: false,
+    theme: DEFAULT_THEME_CONFIG,
     profile: {
       companyName: tenant.name,
       description: { zh: "", en: "" },
@@ -90,9 +92,24 @@ export async function getTenantSiteConfig(tenant: ResolvedTenant): Promise<Tenan
   const db = await getDb();
   if (tenant.siteStatus !== "published") return unconfiguredSiteConfig(tenant);
 
-  const profileRows = await db.select().from(tenantSiteProfiles).where(and(eq(tenantSiteProfiles.tenantId, tenant.id), eq(tenantSiteProfiles.status, "published"))).limit(1);
+  const [profileRows, themeRows] = await Promise.all([
+    db.select().from(tenantSiteProfiles).where(and(eq(tenantSiteProfiles.tenantId, tenant.id), eq(tenantSiteProfiles.status, "published"))).limit(1),
+    db.select().from(tenantThemes).where(and(eq(tenantThemes.tenantId, tenant.id), eq(tenantThemes.status, "published"))).limit(1),
+  ]);
   const profile = profileRows[0];
   if (!profile) return unconfiguredSiteConfig(tenant);
+  const publishedTheme = themeRows[0];
+  const theme = publishedTheme ? themeDraftToConfig({
+    templateKey: publishedTheme.templateKey as never,
+    primaryColor: publishedTheme.primaryColor,
+    secondaryColor: publishedTheme.secondaryColor,
+    accentColor: publishedTheme.accentColor,
+    backgroundColor: publishedTheme.backgroundColor,
+    fontPreset: publishedTheme.fontPreset as never,
+    buttonStyle: publishedTheme.buttonStyle as never,
+    cardStyle: publishedTheme.cardStyle as never,
+    sectionStyle: publishedTheme.sectionStyle as never,
+  }) : DEFAULT_THEME_CONFIG;
 
   const [contactRows, heroRows, tourRows] = await Promise.all([
     db.select().from(tenantContactChannels).where(and(eq(tenantContactChannels.tenantId, tenant.id), eq(tenantContactChannels.status, "published"))).orderBy(asc(tenantContactChannels.displayOrder), asc(tenantContactChannels.id)),
@@ -110,6 +127,7 @@ export async function getTenantSiteConfig(tenant: ResolvedTenant): Promise<Tenan
       isDemo: tenant.isDemo,
     },
     isConfigured: true,
+    theme: isThemeConfig(theme) ? theme : DEFAULT_THEME_CONFIG,
     profile: {
       companyName: { zh: profile?.companyNameZh || tenant.name.zh, en: profile?.companyNameEn || tenant.name.en },
       description: { zh: profile?.descriptionZh ?? "", en: profile?.descriptionEn ?? "" },

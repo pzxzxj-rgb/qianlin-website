@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { About } from "./About";
 import { Contact } from "./Contact";
 import { CustomizeForm } from "./CustomizeForm";
@@ -18,6 +19,7 @@ import { TenantSiteProvider, useTenantSite } from "./TenantSiteProvider";
 import { Tours } from "./Tours";
 import { getVisibleTours } from "../lib/tours";
 import type { TenantSiteConfig } from "../lib/tenancy/types";
+import { themeClassNames, themeCssVariables } from "../lib/theme/themeConfig";
 
 type InquiryPrefill = { tourName?: string; places?: string; message?: string };
 
@@ -25,6 +27,14 @@ function emptySiteConfig(tenantSlug: string): TenantSiteConfig {
   return {
     tenant: { id: tenantSlug, slug: tenantSlug, name: { zh: "旅行服务", en: "Travel service" }, siteStatus: "configuring", defaultLanguage: "zh", isDemo: false },
     isConfigured: false,
+    theme: {
+      template: "modern",
+      colors: { primary: "#173F36", secondary: "#DCE6DC", accent: "#C7A878", background: "#FBFAF7" },
+      fontPreset: "modern",
+      buttonStyle: "rounded",
+      cardStyle: "elevated",
+      sectionStyle: "clean",
+    },
     profile: {
       companyName: { zh: "旅行服务", en: "Travel service" },
       description: { zh: "", en: "" },
@@ -54,12 +64,13 @@ function TenantHomeContent({ tenantSlug }: { tenantSlug: string }) {
   const openItineraryCustomize = (submission: ItineraryPlannerSubmission) => openCustomize({ places: submission.places, message: submission.message });
   const closeCustomize = () => { setCustomizeOpen(false); setInquiryPrefill({}); };
 
-  if (!config || !siteConfig.isConfigured) return <main className="tenant-state-page"><div className="tenant-state-card"><span className="eyebrow">{t.configuring.eyebrow}</span><h1>{t.configuring.title}</h1><p>{t.configuring.description}</p><strong>{t.configuring.label}</strong>{status === "error" ? <button type="button" className="button button-dark" onClick={retry}>{t.planner.retry}</button> : null}</div></main>;
+  const themeShellProps = { className: `tenant-theme-shell ${themeClassNames(siteConfig.theme)}`, style: themeCssVariables(siteConfig.theme) as CSSProperties };
+  if (!config || !siteConfig.isConfigured) return <div {...themeShellProps}><main className="tenant-state-page"><div className="tenant-state-card"><span className="eyebrow">{t.configuring.eyebrow}</span><h1>{t.configuring.title}</h1><p>{t.configuring.description}</p><strong>{t.configuring.label}</strong>{status === "error" ? <button type="button" className="button button-dark" onClick={retry}>{t.planner.retry}</button> : null}</div></main></div>;
 
   const isDemo = siteConfig.tenant.isDemo;
-  if (isDemo) return <><Navbar siteConfig={siteConfig} showTours={false} onBookNow={() => undefined} /><main><About siteConfig={siteConfig} /></main><Footer siteConfig={siteConfig} showTours={false} /></>;
+  if (isDemo) return <div {...themeShellProps}><Navbar siteConfig={siteConfig} showTours={false} onBookNow={() => undefined} /><main><About siteConfig={siteConfig} /></main><Footer siteConfig={siteConfig} showTours={false} /></div>;
 
-  return <PlannerOptionsProvider key={tenantSlug} tenantSlug={tenantSlug}><Navbar siteConfig={siteConfig} showTours={hasVisibleTours} onBookNow={() => openCustomize()} /><main><Hero slides={siteConfig.heroSlides} region={siteConfig.profile.primaryRegion} showTours={hasVisibleTours} onCustomize={() => openCustomize()} />{hasVisibleTours ? <Tours tours={visibleTours} region={siteConfig.profile.primaryRegion} onBook={openTourCustomize} /> : null}<Destinations onSelectDestination={openDestinationCustomize} /><ItineraryPlanner tenantId={siteConfig.tenant.id} onSendToConsultant={openItineraryCustomize} /><Services /><HowItWorks /><CustomizeForm tenantSlug={tenantSlug} siteConfig={siteConfig} open={customizeOpen} initialTourName={inquiryPrefill.tourName} initialPlaces={inquiryPrefill.places} initialMessage={inquiryPrefill.message} onOpen={() => openCustomize()} onClose={closeCustomize} /><About siteConfig={siteConfig} /><FAQ /><Contact siteConfig={siteConfig} onEnquire={() => openCustomize()} /></main><Footer siteConfig={siteConfig} showTours={hasVisibleTours} /></PlannerOptionsProvider>;
+  return <div {...themeShellProps}><PlannerOptionsProvider key={tenantSlug} tenantSlug={tenantSlug}><Navbar siteConfig={siteConfig} showTours={hasVisibleTours} onBookNow={() => openCustomize()} /><main><Hero slides={siteConfig.heroSlides} region={siteConfig.profile.primaryRegion} showTours={hasVisibleTours} onCustomize={() => openCustomize()} />{hasVisibleTours ? <Tours tours={visibleTours} region={siteConfig.profile.primaryRegion} onBook={openTourCustomize} /> : null}<Destinations onSelectDestination={openDestinationCustomize} /><ItineraryPlanner tenantId={siteConfig.tenant.id} onSendToConsultant={openItineraryCustomize} /><Services /><HowItWorks /><CustomizeForm tenantSlug={tenantSlug} siteConfig={siteConfig} open={customizeOpen} initialTourName={inquiryPrefill.tourName} initialPlaces={inquiryPrefill.places} initialMessage={inquiryPrefill.message} onOpen={() => openCustomize()} onClose={closeCustomize} /><About siteConfig={siteConfig} /><FAQ /><Contact siteConfig={siteConfig} onEnquire={() => openCustomize()} /></main><Footer siteConfig={siteConfig} showTours={hasVisibleTours} /></PlannerOptionsProvider></div>;
 }
 
 export function TenantHomeClient({ tenantSlug, initialSiteConfig }: { tenantSlug: string; initialSiteConfig: TenantSiteConfig | null }) {

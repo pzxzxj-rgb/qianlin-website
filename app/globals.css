@@ -27,6 +27,25 @@ img { display: block; max-width: 100%; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 
+.tenant-theme-shell {
+  --ink: var(--theme-primary);
+  --ink-deep: var(--theme-primary);
+  --forest: var(--theme-primary);
+  --forest-soft: var(--theme-primary);
+  --sage: var(--theme-secondary);
+  --sand: var(--theme-secondary);
+  --paper: var(--theme-background);
+  --gold: var(--theme-accent);
+  --line: var(--theme-secondary);
+  color: var(--theme-primary);
+  font-family: var(--theme-font-family);
+}
+.tenant-theme-shell .button { border-radius: var(--theme-button-radius); }
+.tenant-theme-shell .tour-card, .tenant-theme-shell .planner-panel, .tenant-theme-shell .itinerary-day { border: var(--theme-card-border); box-shadow: var(--theme-card-shadow); }
+.tenant-theme-shell .section-tours, .tenant-theme-shell .section-planner, .tenant-theme-shell .section-process { background: var(--theme-section-surface); }
+.tenant-theme-shell .section-destinations { background: var(--theme-secondary); }
+.tenant-theme-shell .section-services, .tenant-theme-shell .planner-result { background: var(--theme-primary); }
+
 .container { width: min(1180px, calc(100% - 80px)); margin: 0 auto; }
 .site-header { position: fixed; z-index: 40; top: 0; width: 100%; color: var(--white); background: linear-gradient(180deg, rgba(7, 26, 22, .56), rgba(7, 26, 22, 0)); transition: color .25s ease, background .25s ease, box-shadow .25s ease, backdrop-filter .25s ease; }
 .site-header-scrolled { color: var(--ink); background: rgba(251, 250, 247, .96); box-shadow: 0 8px 24px rgba(10, 29, 26, .08); backdrop-filter: blur(12px); }
@@ -639,6 +658,48 @@ img { display: block; max-width: 100%; }
 .admin-destination-summary-meta dd { margin: 6px 0 0; overflow-wrap: anywhere; color: var(--ink); font-size: 11px; }
 .admin-destination-edit { justify-self: end; }
 
+.admin-theme-shell { width: min(1380px, calc(100% - 48px)); }
+.admin-theme-layout { display: grid; grid-template-columns: minmax(300px, .78fr) minmax(0, 1.22fr); gap: 22px; margin-top: 44px; }
+.admin-theme-controls, .admin-theme-preview-card { min-width: 0; }
+.admin-theme-controls { display: grid; align-content: start; gap: 22px; }
+.admin-theme-status { color: var(--muted); font-size: 10px; letter-spacing: .08em; }
+.admin-theme-field { display: grid; gap: 8px; color: var(--forest-soft); font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+.admin-theme-field select { width: 100%; min-height: 44px; padding: 8px 11px; border: 1px solid var(--line); color: var(--ink); background: var(--sand); outline: 0; font-size: 12px; font-weight: 400; }
+.admin-theme-field select:focus { border-color: var(--gold); }
+.admin-theme-field select:disabled { cursor: wait; opacity: .65; }
+.admin-theme-color-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.admin-theme-color-field { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; padding: 11px; border: 1px solid var(--line); color: var(--forest-soft); font-size: 10px; font-weight: 700; letter-spacing: .06em; }
+.admin-theme-color-field input { width: 36px; height: 28px; padding: 0; border: 0; background: transparent; }
+.admin-theme-color-field code { grid-column: span 2; color: var(--muted); font-size: 10px; font-weight: 400; letter-spacing: .04em; }
+.admin-theme-select-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.admin-theme-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 18px; border-top: 1px solid var(--line); }
+.admin-theme-actions .button { min-width: 120px; }
+.admin-theme-note { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.admin-theme-preview-card { overflow: hidden; }
+.admin-theme-preview-switcher { display: flex; gap: 5px; }
+.admin-theme-preview-switcher button { padding: 7px 9px; border: 1px solid var(--line); color: var(--muted); background: var(--sand); font-size: 10px; }
+.admin-theme-preview-switcher button.active { border-color: var(--forest); color: var(--white); background: var(--forest); }
+.admin-theme-preview-frame { display: flex; justify-content: center; min-height: 650px; padding: 20px; overflow: auto; background: #e8ebe7; }
+.admin-theme-preview-site { width: 100%; min-height: 610px; overflow: hidden; background: var(--theme-background); color: var(--theme-primary); font-family: var(--theme-font-family); transition: width .2s ease; }
+.admin-theme-preview-mobile .admin-theme-preview-site { width: 390px; }
+.admin-theme-preview-nav { display: flex; align-items: center; gap: 16px; min-height: 58px; padding: 0 24px; color: var(--theme-primary); background: var(--theme-background); font-size: 9px; }
+.admin-theme-preview-nav strong { margin-right: auto; letter-spacing: .12em; }
+.admin-theme-preview-nav .button { min-height: 30px; padding: 0 12px; font-size: 8px; }
+.admin-theme-preview-hero { min-height: 270px; padding: 48px 40px; color: var(--white); background: var(--theme-primary); }
+.admin-theme-preview-hero .eyebrow { color: var(--theme-accent); }
+.admin-theme-preview-hero h3 { max-width: 470px; margin: 0; font-family: Georgia, serif; font-size: clamp(32px, 4vw, 54px); font-weight: 400; letter-spacing: -.04em; line-height: 1; }
+.admin-theme-preview-hero p { max-width: 380px; margin: 18px 0 22px; color: rgba(255,255,255,.72); font-size: 11px; line-height: 1.6; }
+.admin-theme-preview-hero .button { min-height: 38px; font-size: 9px; }
+.admin-theme-preview-section { padding: 34px 40px 45px; background: var(--theme-section-surface); }
+.admin-theme-preview-section h4 { margin: 0; font-family: Georgia, serif; font-size: 28px; font-weight: 400; }
+.admin-theme-preview-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 25px; }
+.admin-theme-preview-cards article { display: grid; gap: 8px; padding-bottom: 14px; border: var(--theme-card-border); box-shadow: var(--theme-card-shadow); background: var(--theme-background); }
+.admin-theme-preview-image { display: block; height: 105px; background: var(--theme-accent); }
+.admin-theme-preview-image-alt { background: var(--theme-primary); opacity: .8; }
+.admin-theme-preview-cards strong, .admin-theme-preview-cards small { padding: 0 12px; }
+.admin-theme-preview-cards strong { font-family: Georgia, serif; font-size: 17px; font-weight: 400; }
+.admin-theme-preview-cards small { color: var(--muted); font-size: 9px; }
+
 @media (max-width: 760px) {
   .admin-topbar { min-height: 72px; padding: 0 20px; }
   .admin-topbar-actions { gap: 10px; }
@@ -693,4 +754,10 @@ img { display: block; max-width: 100%; }
   .admin-destination-summary { padding: 16px; }
   .admin-destination-summary-heading { flex-direction: column; }
   .admin-destination-summary-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-theme-shell { width: calc(100% - 40px); }
+  .admin-theme-layout { grid-template-columns: 1fr; margin-top: 32px; }
+  .admin-theme-select-grid { grid-template-columns: 1fr; }
+  .admin-theme-preview-frame { min-height: 560px; padding: 12px; }
+  .admin-theme-preview-desktop .admin-theme-preview-site { min-width: 720px; }
+  .admin-theme-preview-mobile .admin-theme-preview-site { width: 100%; }
 }

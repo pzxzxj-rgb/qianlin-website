@@ -1,5 +1,6 @@
 import { type AdminRole } from "./auth";
 import { getAdminRouteAccess } from "./routeAccess";
+import type { AdminPermission } from "./permissions";
 import { readRequestBodyWithinLimit, verifySameOriginRequest } from "./requestSecurity";
 
 function errorResponse(errorZh: string, errorEn: string, status: number) {
@@ -9,8 +10,8 @@ function errorResponse(errorZh: string, errorEn: string, status: number) {
 export type AdminJsonRequest = { tenantId: string; tenantSlug: string; userId: string; sessionId: string; body: unknown };
 export type AdminJsonRequestError = { response: Response };
 
-export async function readAdminJsonRequest(request: Request, maxBytes: number, resourceLabel = "图片", tenantSlug?: string, minimumRole: AdminRole = "editor"): Promise<AdminJsonRequest | AdminJsonRequestError> {
-  const trusted = await getAdminRouteAccess(request, tenantSlug, minimumRole);
+export async function readAdminJsonRequest(request: Request, maxBytes: number, resourceLabel = "Admin resource", tenantSlug?: string, minimumRole: AdminRole = "editor", requiredPermission?: AdminPermission): Promise<AdminJsonRequest | AdminJsonRequestError> {
+  const trusted = await getAdminRouteAccess(request, tenantSlug, minimumRole, requiredPermission);
   if ("response" in trusted) return trusted;
   const { access } = trusted;
   if (!verifySameOriginRequest(request)) return { response: errorResponse("请求来源无效。", "Invalid request origin.", 403) };
