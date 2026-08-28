@@ -38,14 +38,12 @@ export function TenantSiteProvider({ tenantSlug, initialConfig, children }: { te
   const [state, setState] = useState<{ status: TenantSiteState["status"]; config: TenantSiteConfig | null; isRefreshing: boolean }>({ status: usableInitialConfig ? "success" : "loading", config: usableInitialConfig, isRefreshing: false });
   const requestIdRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
-  const lastRefreshAtRef = useRef(0);
 
   const loadConfig = useCallback(async () => {
     const requestId = ++requestIdRef.current;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    lastRefreshAtRef.current = Date.now();
     setState((current) => ({ status: current.config ? "success" : "loading", config: current.config, isRefreshing: Boolean(current.config) }));
 
     try {
@@ -61,7 +59,10 @@ export function TenantSiteProvider({ tenantSlug, initialConfig, children }: { te
   }, [tenantSlug]);
 
   const refreshOnFocus = useCallback(() => {
-    if (document.visibilityState !== "visible" || Date.now() - lastRefreshAtRef.current < 30_000) return;
+    if (document.visibilityState !== "visible") {
+      return;
+    }
+
     void loadConfig();
   }, [loadConfig]);
 
@@ -70,7 +71,6 @@ export function TenantSiteProvider({ tenantSlug, initialConfig, children }: { te
     if (!hasInitialConfig) {
       initialLoadTimer = window.setTimeout(() => { void loadConfig(); }, 0);
     } else {
-      lastRefreshAtRef.current = Date.now();
       window.addEventListener("focus", refreshOnFocus);
       document.addEventListener("visibilitychange", refreshOnFocus);
     }

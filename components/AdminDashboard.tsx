@@ -44,7 +44,35 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
   return <main className="admin-page">
     <header className="admin-topbar"><Link className="admin-brand" href={sitePath}><span className="brand-mark">{data.profile.logoMark || "Q"}</span><span><strong>{data.profile.companyNameEn}</strong><small>管理后台</small></span></Link><div className="admin-topbar-actions"><Link className="admin-topbar-link" href={adminBase("/inquiries")}>咨询管理</Link><span className="admin-tenant-chip">{data.tenant.slug}</span><AdminLogoutButton /></div></header>
     <div className="admin-shell">
-      <div className="admin-heading"><div><span className="eyebrow">QIANLIN TRAVEL · ADMIN</span><h1>旅行社管理后台</h1><p>查看运营概况，并管理公司资料、网站图片、联系方式和旅游线路。</p></div><Link className="button button-light admin-site-link" href={sitePath}>查看官网 <span aria-hidden="true">→</span></Link></div>
+      <div className="admin-heading">
+        <div>
+          <span className="eyebrow">QIANLIN TRAVEL · ADMIN</span>
+
+          <h1>旅行社管理后台</h1>
+
+          <p>
+            查看运营概况，并管理公司资料、网站图片、联系方式、旅游线路和网站视觉主题。
+          </p>
+        </div>
+
+        <div className="admin-heading-actions">
+          <Link
+            className="button button-dark"
+            href={adminBase("/theme")}
+          >
+            进入可视化编辑器
+            <span aria-hidden="true">→</span>
+          </Link>
+
+          <Link
+            className="button button-light admin-site-link"
+            href={sitePath}
+          >
+            查看官网
+            <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+      </div>
 
       <section className="admin-metrics" aria-label="运营概况">
         <article><span>Hero 图片</span><strong>{data.counts.heroImages}</strong></article>

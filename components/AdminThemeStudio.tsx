@@ -6,7 +6,13 @@ import type { CSSProperties } from "react";
 import { AdminLogoutButton } from "./AdminDashboard";
 import { adminApiPath, adminPagePath } from "./adminPaths";
 import type { AdminThemeState } from "../lib/admin/theme";
-import { themeCssVariables, themeDraftToConfig, themeClassNames, type ThemeDraftValues } from "../lib/theme/themeConfig";
+import {
+  themeClassNames,
+  themeConfigToDraft,
+  themeCssVariables,
+  themeDraftToConfig,
+  type ThemeDraftValues,
+} from "../lib/theme/themeConfig";
 
 type PreviewMode = "desktop" | "mobile";
 
@@ -78,7 +84,7 @@ function PreviewCanvas({
           <h3>探索一段真正属于你的旅程</h3>
 
           <p>
-            这里展示的是当前草稿效果。
+            这里展示的是当前主题草稿。
             在点击发布之前，不会影响正式网站。
           </p>
 
@@ -123,7 +129,7 @@ function SelectField({
   label: string;
   value: string;
   options: readonly string[];
-  optionLabels?: Record<string, string>;
+  optionLabels?: Readonly<Record<string, string>>;
   disabled: boolean;
   onChange: (value: string) => void;
 }) {
@@ -154,10 +160,30 @@ export function AdminThemeStudio({ initialState, tenantSlug, canEdit, canPublish
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const apiBase = adminApiPath(tenantSlug, "/theme");
+  const sitePath =
+    tenantSlug === "qianlin-travel"
+      ? "/"
+      : `/t/${encodeURIComponent(tenantSlug)}`;
 
   function updateDraft(field: keyof ThemeDraftValues, value: string) {
     setDraft((current) => ({ ...current, [field]: value }));
     setMessage("");
+    setError("");
+  }
+
+  function applyTemplatePreset(templateKey: string) {
+    const preset = state.availablePresets.find(
+      (item) => item.key === templateKey,
+    );
+
+    if (!preset) {
+      return;
+    }
+
+    setDraft(themeConfigToDraft(preset.config));
+    setMessage(
+      `已应用“${TEMPLATE_LABELS[templateKey] ?? templateKey}”模板，请确认预览后保存草稿。`,
+    );
     setError("");
   }
 
@@ -167,18 +193,26 @@ export function AdminThemeStudio({ initialState, tenantSlug, canEdit, canPublish
     setError("");
     try {
       const response = await fetch(`${apiBase}${path}`, { method, headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body), cache: "no-store" });
-      const payload = await response.json().catch(() => null) as {
-        errorZh?: string;
-        errorEn?: string;
-      } | null;
+      const payload = await response.json().catch(() => null) as
+        | {
+            errorZh?: string;
+            errorEn?: string;
+          }
+        | AdminThemeState
+        | null;
       if (!response.ok) {
+        const errorPayload = payload as {
+          errorZh?: string;
+          errorEn?: string;
+        } | null;
+
         throw new Error(
-          payload?.errorZh ||
-            payload?.errorEn ||
+          errorPayload?.errorZh ||
+            errorPayload?.errorEn ||
             "主题操作失败，请稍后重试。"
         );
       }
-      return payload as AdminThemeState;
+      return payload;
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -195,9 +229,12 @@ export function AdminThemeStudio({ initialState, tenantSlug, canEdit, canPublish
     if (!canEdit || pending) return;
     const nextState = await request("/draft", "PUT", draft);
     if (!nextState) return;
-    setState(nextState);
-    setDraft(nextState.draft.values);
-    setMessage("草稿已保存。");
+    const themeState = nextState as AdminThemeState;
+    setState(themeState);
+    setDraft(themeState.draft.values);
+    setMessage(
+      "草稿已保存。正式官网尚未改变，请确认后点击“发布到官网”。",
+    );
   }
 
   async function resetDraft() {
@@ -210,9 +247,10 @@ export function AdminThemeStudio({ initialState, tenantSlug, canEdit, canPublish
     ) return;
     const nextDraft = await request("/draft/reset", "POST", {});
     if (!nextDraft) return;
-    setState((current) => ({ ...current, draft: nextDraft as unknown as AdminThemeState["draft"] }));
-    setDraft((nextDraft as unknown as AdminThemeState["draft"]).values);
-    setMessage("草稿已恢复为当前正式网站使用的主题。");
+    const draftRecord = nextDraft as unknown as AdminThemeState["draft"];
+    setState((current) => ({ ...current, draft: draftRecord }));
+    setDraft(draftRecord.values);
+    setMessage("草稿已恢复为目前官网使用的主题。");
   }
 
   async function publish() {
@@ -220,34 +258,48 @@ export function AdminThemeStudio({ initialState, tenantSlug, canEdit, canPublish
       !canPublish ||
       pending ||
       !window.confirm(
-        "确定要将当前主题发布到正式官网吗？发布后访客将看到新的网站样式。"
+        "确定要将当前草稿发布到正式官网吗？发布后访客将看到新的主题样式。"
       )
     ) return;
-    const nextState = await request("/publish", "POST", {});
-    if (!nextState) return;
-    setState(nextState);
-    setDraft(nextState.draft.values);
-    setMessage("主题已成功发布到官网。");
+
+    const savedState = await request("/draft", "PUT", draft);
+    if (!savedState) return;
+
+    const savedThemeState = savedState as AdminThemeState;
+    setState(savedThemeState);
+    setDraft(savedThemeState.draft.values);
+
+    const publishedState = await request("/publish", "POST", {});
+    if (!publishedState) return;
+
+    const themeState = publishedState as AdminThemeState;
+    setState(themeState);
+    setDraft(themeState.draft.values);
+    setMessage(
+      "主题已成功发布到官网。切换到官网页面即可查看最新效果。",
+    );
   }
 
   const disabled = Boolean(pending) || !canEdit;
   return <main className="admin-page">
-    <header className="admin-topbar"><Link className="admin-brand" href={adminPagePath(tenantSlug, "")}><span className="brand-mark">Q</span><span><strong>QIANLIN TRAVEL</strong><small>可视化编辑器</small></span></Link><div className="admin-topbar-actions"><Link className="admin-profile-back-link" href={adminPagePath(tenantSlug, "")}>返回管理后台</Link><AdminLogoutButton /></div></header>
+    <header className="admin-topbar"><Link className="admin-brand" href={adminPagePath(tenantSlug, "")}><span className="brand-mark">Q</span><span><strong>QIANLIN TRAVEL</strong><small>网站可视化编辑器</small></span></Link><div className="admin-topbar-actions"><Link className="admin-profile-back-link" href={adminPagePath(tenantSlug, "")}>返回管理后台</Link><Link className="admin-profile-back-link" href={sitePath} target="_blank">打开官网</Link><AdminLogoutButton /></div></header>
     <div className="admin-shell admin-theme-shell">
-      <div className="admin-heading"><div><span className="eyebrow">QIANLIN TRAVEL / THEME STUDIO</span><h1>网站可视化编辑器</h1><p>调整网站的模板、颜色、字体、按钮和卡片样式。修改会先保存为草稿，只有发布后才会应用到正式网站。</p></div></div>
+      <div className="admin-heading"><div><span className="eyebrow">QIANLIN TRAVEL / THEME STUDIO</span><h1>网站可视化编辑器</h1><p>调整网站模板、颜色、字体、按钮和卡片样式。左侧修改会立即显示在右侧预览中，只有点击“发布到官网”后，正式网站才会更新。</p></div></div>
       <div className="admin-theme-layout">
         <section className="admin-card admin-theme-controls" aria-label="主题编辑">
           <div className="admin-card-heading"><div><span className="eyebrow">主题设置</span><h2>编辑网站样式</h2></div><span className="admin-theme-status">草稿版本 v{state.draft.version}</span></div>
-          <SelectField label="网站模板" value={draft.templateKey} options={state.availablePresets.map((preset) => preset.key)} optionLabels={TEMPLATE_LABELS} disabled={disabled} onChange={(value) => updateDraft("templateKey", value)} />
+          <SelectField label="网站模板" value={draft.templateKey} options={state.availablePresets.map((preset) => preset.key)} optionLabels={TEMPLATE_LABELS} disabled={disabled} onChange={applyTemplatePreset} />
           <div className="admin-theme-color-grid">{([['primaryColor', '主色'], ['secondaryColor', '辅助色'], ['accentColor', '强调色'], ['backgroundColor', '背景色']] as const).map(([field, label]) => <label className="admin-theme-color-field" key={field}><span>{label}</span><input type="color" value={draft[field]} disabled={disabled} onChange={(event) => updateDraft(field, event.target.value)} /><code>{draft[field]}</code></label>)}</div>
           <SelectField label="字体风格" value={draft.fontPreset} options={["modern", "elegant", "editorial", "friendly"]} optionLabels={FONT_LABELS} disabled={disabled} onChange={(value) => updateDraft("fontPreset", value)} />
           <div className="admin-theme-select-grid"><SelectField label="按钮样式" value={draft.buttonStyle} options={["rounded", "square", "pill"]} optionLabels={BUTTON_LABELS} disabled={disabled} onChange={(value) => updateDraft("buttonStyle", value)} /><SelectField label="卡片样式" value={draft.cardStyle} options={["flat", "bordered", "elevated"]} optionLabels={CARD_LABELS} disabled={disabled} onChange={(value) => updateDraft("cardStyle", value)} /><SelectField label="区块样式" value={draft.sectionStyle} options={["clean", "soft", "contrast"]} optionLabels={SECTION_LABELS} disabled={disabled} onChange={(value) => updateDraft("sectionStyle", value)} /></div>
-          <div className="admin-theme-actions"><button type="button" className="button button-dark" disabled={disabled} onClick={() => void saveDraft()}>{pending === "/draft" ? "保存中…" : "保存草稿"}</button><button type="button" className="button button-light" disabled={disabled} onClick={() => void resetDraft()}>恢复已发布版本</button>{canPublish ? <button type="button" className="button button-light" disabled={Boolean(pending)} onClick={() => void publish()}>{pending === "/publish" ? "发布中…" : "发布到官网"}</button> : null}</div>
-          {!canEdit ? <p className="admin-theme-note">You have read-only access to this theme.</p> : null}
+          <div className="admin-theme-actions"><button type="button" className="button button-dark" disabled={disabled} onClick={() => void saveDraft()}>{pending === "/draft" ? "保存中…" : "保存草稿"}</button><button type="button" className="button button-light" disabled={disabled} onClick={() => void resetDraft()}>恢复官网版本</button>{canPublish ? <button type="button" className="button button-light" disabled={Boolean(pending)} onClick={() => void publish()}>{pending === "/publish" ? "发布中…" : "发布到官网"}</button> : null}</div>
+          <p className="admin-theme-note">“保存草稿”不会改变正式官网。点击“发布到官网”后，访客才会看到新的主题。</p>
+          {!canEdit ? <p className="admin-theme-note">当前账号只有查看权限，无法修改主题。</p> : null}
+          {!canPublish && canEdit ? <p className="admin-theme-note">当前账号可以编辑草稿，但没有发布权限。请使用管理员或所有者账号发布到官网。</p> : null}
           {message ? <p className="admin-save-success" role="status">{message}</p> : null}
           {error ? <p className="admin-form-error" role="alert">{error}</p> : null}
         </section>
-        <section className="admin-card admin-theme-preview-card"><div className="admin-card-heading"><div><span className="eyebrow">实时预览</span><h2>网站效果预览</h2></div><div className="admin-theme-preview-switcher"><button type="button" className={mode === "desktop" ? "active" : ""} onClick={() => setMode("desktop")}>电脑端</button><button type="button" className={mode === "mobile" ? "active" : ""} onClick={() => setMode("mobile")}>手机端</button></div></div><p className="admin-theme-note">这里显示当前草稿的效果。正式网站仍然使用已发布的主题，只有点击“发布到官网”后才会更新。</p><PreviewCanvas values={draft} mode={mode} /></section>
+        <section className="admin-card admin-theme-preview-card"><div className="admin-card-heading"><div><span className="eyebrow">实时预览</span><h2>网站效果预览</h2></div><div className="admin-theme-preview-switcher"><button type="button" className={mode === "desktop" ? "active" : ""} onClick={() => setMode("desktop")}>电脑端</button><button type="button" className={mode === "mobile" ? "active" : ""} onClick={() => setMode("mobile")}>手机端</button></div></div><p className="admin-theme-note">这里显示当前草稿的效果。正式官网仍然使用已发布主题，只有点击“发布到官网”以后才会改变。</p><PreviewCanvas values={draft} mode={mode} /></section>
       </div>
     </div>
   </main>;
