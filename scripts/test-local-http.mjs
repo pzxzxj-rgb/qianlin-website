@@ -339,8 +339,8 @@ try {
   assert.deepEqual((await getTheme()).body.draft.values, (await getTheme()).body.published.values);
   const themePage = await request("/admin/theme", { headers: { cookie: sessionCookie } });
   assert.equal(themePage.response.status, 200);
-  assert.match(String(themePage.body), /Theme Studio/);
-  assert.match(String(themePage.body), /LIVE DRAFT PREVIEW/);
+  assert.match(String(themePage.body), /data-testid="admin-theme-studio"/);
+  assert.match(String(themePage.body), /data-testid="theme-preview"/);
   const saveProfile = (payload, options = {}) => request("/api/admin/profile", {
     method: "PUT",
     headers: { "content-type": "application/json", origin: baseUrl, cookie: options.cookie ?? sessionCookie, ...(options.headers ?? {}) },

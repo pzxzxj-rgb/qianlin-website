@@ -281,7 +281,7 @@ export function AdminThemeStudio({ initialState, tenantSlug, canEdit, canPublish
   }
 
   const disabled = Boolean(pending) || !canEdit;
-  return <main className="admin-page">
+  return <main className="admin-page" data-testid="admin-theme-studio">
     <header className="admin-topbar"><Link className="admin-brand" href={adminPagePath(tenantSlug, "")}><span className="brand-mark">Q</span><span><strong>QIANLIN TRAVEL</strong><small>网站可视化编辑器</small></span></Link><div className="admin-topbar-actions"><Link className="admin-profile-back-link" href={adminPagePath(tenantSlug, "")}>返回管理后台</Link><Link className="admin-profile-back-link" href={sitePath} target="_blank">打开官网</Link><AdminLogoutButton /></div></header>
     <div className="admin-shell admin-theme-shell">
       <div className="admin-heading"><div><span className="eyebrow">QIANLIN TRAVEL / THEME STUDIO</span><h1>网站可视化编辑器</h1><p>调整网站模板、颜色、字体、按钮和卡片样式。左侧修改会立即显示在右侧预览中，只有点击“发布到官网”后，正式网站才会更新。</p></div></div>
@@ -299,7 +299,7 @@ export function AdminThemeStudio({ initialState, tenantSlug, canEdit, canPublish
           {message ? <p className="admin-save-success" role="status">{message}</p> : null}
           {error ? <p className="admin-form-error" role="alert">{error}</p> : null}
         </section>
-        <section className="admin-card admin-theme-preview-card"><div className="admin-card-heading"><div><span className="eyebrow">实时预览</span><h2>网站效果预览</h2></div><div className="admin-theme-preview-switcher"><button type="button" className={mode === "desktop" ? "active" : ""} onClick={() => setMode("desktop")}>电脑端</button><button type="button" className={mode === "mobile" ? "active" : ""} onClick={() => setMode("mobile")}>手机端</button></div></div><p className="admin-theme-note">这里显示当前草稿的效果。正式官网仍然使用已发布主题，只有点击“发布到官网”以后才会改变。</p><PreviewCanvas values={draft} mode={mode} /></section>
+        <section className="admin-card admin-theme-preview-card" data-testid="theme-preview"><div className="admin-card-heading"><div><span className="eyebrow">实时预览</span><h2>网站效果预览</h2></div><div className="admin-theme-preview-switcher"><button type="button" className={mode === "desktop" ? "active" : ""} onClick={() => setMode("desktop")}>电脑端</button><button type="button" className={mode === "mobile" ? "active" : ""} onClick={() => setMode("mobile")}>手机端</button></div></div><p className="admin-theme-note">这里显示当前草稿的效果。正式官网仍然使用已发布主题，只有点击“发布到官网”以后才会改变。</p><PreviewCanvas values={draft} mode={mode} /></section>
       </div>
     </div>
   </main>;
