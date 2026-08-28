@@ -1807,3 +1807,259 @@ img { display: block; max-width: 100%; }
   .admin-theme-preview-desktop .admin-theme-preview-site { min-width: 720px; }
   .admin-theme-preview-mobile .admin-theme-preview-site { width: 100%; }
 }
+
+/* =========================================================
+   TRAVEL PREFERENCES
+   ========================================================= */
+
+.section-preferences {
+  background: var(--paper);
+}
+
+.preferences-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 62px;
+}
+
+.preference-group {
+  padding: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--template-card-radius);
+  background:
+    color-mix(
+      in srgb,
+      var(--paper) 94%,
+      var(--sage)
+    );
+}
+
+.preference-group h3 {
+  margin: 0 0 22px;
+  color: var(--ink);
+  font-family: var(--theme-heading-font);
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.preference-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.travel-preference-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 45px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--theme-button-radius);
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 11px;
+  transition:
+    border-color .2s ease,
+    background .2s ease,
+    color .2s ease,
+    transform .2s ease;
+}
+
+.travel-preference-chip:hover {
+  border-color: var(--gold);
+  transform: translateY(-1px);
+}
+
+.travel-preference-chip-selected {
+  border-color: var(--forest);
+  color: var(--white);
+  background: var(--forest);
+}
+
+.travel-preference-chip-selected
+span:last-child {
+  color: var(--gold);
+}
+
+.preferences-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+
+/* =========================================================
+   TRAVEL IDEA LABEL
+   ========================================================= */
+
+.tour-flexible-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--theme-button-radius);
+  color: var(--forest-soft);
+  background: var(--paper);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .05em;
+}
+
+
+/* =========================================================
+   ENQUIRY FORM — OPTIONAL DETAILS
+   ========================================================= */
+
+.form-more-row {
+  padding: 4px 0;
+}
+
+.form-more-toggle {
+  width: 100%;
+  min-height: 46px;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  color: var(--forest-soft);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-align: left;
+}
+
+.form-more-toggle:hover {
+  color: var(--ink);
+}
+
+
+/* =========================================================
+   MOBILE CONSULT BAR
+   ========================================================= */
+
+.mobile-consult-bar {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .preferences-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 42px;
+  }
+
+  .preference-group {
+    padding: 22px;
+  }
+
+  .preference-options {
+    display: grid;
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .travel-preference-chip {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .preferences-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .preferences-actions .button {
+    width: 100%;
+  }
+
+  .tenant-theme-shell {
+    padding-bottom: 78px;
+  }
+
+  .mobile-consult-bar {
+    position: fixed;
+    z-index: 80;
+    right: 0;
+    bottom: 0;
+    left: 0;
+
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+
+    padding:
+      10px
+      14px
+      max(
+        10px,
+        env(safe-area-inset-bottom)
+      );
+
+    border-top: 1px solid var(--line);
+
+    background:
+      color-mix(
+        in srgb,
+        var(--paper) 94%,
+        transparent
+      );
+
+    box-shadow:
+      0 -10px 30px
+      rgba(10, 29, 26, .10);
+
+    backdrop-filter: blur(16px);
+  }
+
+  .mobile-consult-bar .button {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 12px;
+  }
+}
+
+@media (max-width: 400px) {
+  .preference-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+.destination-image-fallback {
+  position: absolute;
+  inset: 0;
+
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+
+  padding: 24px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--forest) 0%,
+      var(--forest-soft) 55%,
+      var(--sage) 100%
+    );
+}
+
+.destination-image-fallback span {
+  color:
+    color-mix(
+      in srgb,
+      var(--white) 34%,
+      transparent
+    );
+
+  font-family: var(--theme-heading-font);
+  font-size: clamp(60px, 8vw, 120px);
+  line-height: 1;
+}

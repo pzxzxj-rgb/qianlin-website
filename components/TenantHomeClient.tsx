@@ -17,6 +17,8 @@ import { PlannerOptionsProvider } from "./PlannerOptionsProvider";
 import { Services } from "./Services";
 import { TenantSiteProvider, useTenantSite } from "./TenantSiteProvider";
 import { Tours } from "./Tours";
+import { TravelPreferences } from "./TravelPreferences";
+import { MobileConsultBar } from "./MobileConsultBar";
 import { getVisibleTours } from "../lib/tours";
 import type { TenantSiteConfig } from "../lib/tenancy/types";
 import { themeClassNames, themeCssVariables } from "../lib/theme/themeConfig";
@@ -70,7 +72,94 @@ function TenantHomeContent({ tenantSlug }: { tenantSlug: string }) {
   const isDemo = siteConfig.tenant.isDemo;
   if (isDemo) return <div {...themeShellProps}><Navbar siteConfig={siteConfig} showTours={false} onBookNow={() => undefined} /><main><About siteConfig={siteConfig} /></main><Footer siteConfig={siteConfig} showTours={false} /></div>;
 
-  return <div {...themeShellProps}><PlannerOptionsProvider key={tenantSlug} tenantSlug={tenantSlug}><Navbar siteConfig={siteConfig} showTours={hasVisibleTours} onBookNow={() => openCustomize()} /><main><Hero slides={siteConfig.heroSlides} region={siteConfig.profile.primaryRegion} showTours={hasVisibleTours} onCustomize={() => openCustomize()} />{hasVisibleTours ? <Tours tours={visibleTours} region={siteConfig.profile.primaryRegion} onBook={openTourCustomize} /> : null}<Destinations onSelectDestination={openDestinationCustomize} /><ItineraryPlanner tenantId={siteConfig.tenant.id} onSendToConsultant={openItineraryCustomize} /><Services /><HowItWorks /><CustomizeForm tenantSlug={tenantSlug} siteConfig={siteConfig} open={customizeOpen} initialTourName={inquiryPrefill.tourName} initialPlaces={inquiryPrefill.places} initialMessage={inquiryPrefill.message} onOpen={() => openCustomize()} onClose={closeCustomize} /><About siteConfig={siteConfig} /><FAQ /><Contact siteConfig={siteConfig} onEnquire={() => openCustomize()} /></main><Footer siteConfig={siteConfig} showTours={hasVisibleTours} /></PlannerOptionsProvider></div>;
+  return (
+    <div {...themeShellProps}>
+      <PlannerOptionsProvider
+        key={tenantSlug}
+        tenantSlug={tenantSlug}
+      >
+        <Navbar
+          siteConfig={siteConfig}
+          showTours={hasVisibleTours}
+          onBookNow={() => openCustomize()}
+        />
+
+        <main>
+          <Hero
+            slides={siteConfig.heroSlides}
+            region={siteConfig.profile.primaryRegion}
+            onCustomize={() => openCustomize()}
+          />
+
+          <TravelPreferences
+            onConsult={(message) =>
+              openCustomize({ message })
+            }
+          />
+
+          <Destinations
+            onSelectDestination={
+              openDestinationCustomize
+            }
+          />
+
+          <ItineraryPlanner
+            tenantId={siteConfig.tenant.id}
+            onSendToConsultant={
+              openItineraryCustomize
+            }
+          />
+
+          {hasVisibleTours ? (
+            <Tours
+              tours={visibleTours}
+              region={siteConfig.profile.primaryRegion}
+              onBook={openTourCustomize}
+            />
+          ) : null}
+
+          <Services />
+
+          <HowItWorks />
+
+          <CustomizeForm
+            tenantSlug={tenantSlug}
+            siteConfig={siteConfig}
+            open={customizeOpen}
+            initialTourName={
+              inquiryPrefill.tourName
+            }
+            initialPlaces={
+              inquiryPrefill.places
+            }
+            initialMessage={
+              inquiryPrefill.message
+            }
+            onOpen={() => openCustomize()}
+            onClose={closeCustomize}
+          />
+
+          <About siteConfig={siteConfig} />
+
+          <FAQ />
+
+          <Contact
+            siteConfig={siteConfig}
+            onEnquire={() => openCustomize()}
+          />
+        </main>
+
+        <Footer
+          siteConfig={siteConfig}
+          showTours={hasVisibleTours}
+        />
+
+        <MobileConsultBar
+          onEnquire={() => openCustomize()}
+        />
+      </PlannerOptionsProvider>
+    </div>
+  );
 }
 
 export function TenantHomeClient({ tenantSlug, initialSiteConfig }: { tenantSlug: string; initialSiteConfig: TenantSiteConfig | null }) {

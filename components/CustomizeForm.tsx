@@ -31,6 +31,7 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [showMoreFields, setShowMoreFields] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const { language, t } = useLanguage();
@@ -48,6 +49,17 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
     submittingRef.current = submitting;
   }, [onClose, submitting]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    if (initialTourName.trim() || initialMessage.trim()) {
+      const frame = window.requestAnimationFrame(() =>
+        setShowMoreFields(true),
+      );
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [open, initialTourName, initialMessage]);
+
   const resetTurnstile = useCallback(() => {
     setTurnstileToken("");
     setTurnstileResetKey((current) => current + 1);
@@ -57,6 +69,7 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
     if (submittingRef.current) return;
     setSubmitted(false);
     setSubmitError("");
+    setShowMoreFields(false);
     resetTurnstile();
     onCloseRef.current();
     window.requestAnimationFrame(() => previousFocusRef.current?.focus());
@@ -160,17 +173,205 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
         </div>
         {submitted ? <div className="success-state"><span className="success-mark" aria-hidden="true">✓</span><h3>{t.customize.success}</h3><p>{t.customize.successCopy}</p><button type="button" className="button button-dark" onClick={handleClose}>{t.customize.back}</button></div> : <form className="customize-form" onSubmit={handleSubmit} key={`${initialTourName}|${initialPlaces}|${initialMessage}`}>
           <div className="form-grid">
-            <label htmlFor="inquiry-name">{t.customize.fields.name}<input ref={firstInputRef} id="inquiry-name" name="name" placeholder={t.customize.placeholders.name} autoComplete="name" maxLength={80} required /></label>
-            <label htmlFor="inquiry-phone">{t.customize.fields.phone}<input id="inquiry-phone" name="phone" placeholder={t.customize.placeholders.phone} autoComplete="tel" inputMode="tel" maxLength={20} required /></label>
-            <label htmlFor="inquiry-wechat">{t.customize.fields.wechat}<input id="inquiry-wechat" name="wechat" placeholder={t.customize.placeholders.wechat} maxLength={80} /></label>
-            <label htmlFor="inquiry-email">{t.customize.fields.email}<input id="inquiry-email" type="email" name="email" placeholder={t.customize.placeholders.email} autoComplete="email" maxLength={254} /></label>
-            <label htmlFor="inquiry-location">{t.customize.fields.location}<input id="inquiry-location" name="location" placeholder={t.customize.placeholders.location} maxLength={100} /></label>
-            <label htmlFor="inquiry-date">{t.customize.fields.date}<input id="inquiry-date" type="date" name="travelDate" min={getChinaDate()} /></label>
-            <label htmlFor="inquiry-travelers">{t.customize.fields.travelers}<select id="inquiry-travelers" name="travelers" defaultValue="" required><option value="" disabled>{t.customize.placeholders.travelers}</option><option value="1">{t.customize.travelerOptions[0]}</option><option value="2">{t.customize.travelerOptions[1]}</option><option value="3-5">{t.customize.travelerOptions[2]}</option><option value="6+">{t.customize.travelerOptions[3]}</option></select></label>
-            <label htmlFor="inquiry-duration">{t.customize.fields.duration}<select id="inquiry-duration" name="duration" defaultValue=""><option value="">{t.customize.placeholders.duration}</option><option value="3-4">{t.customize.durationOptions[0]}</option><option value="5-6">{t.customize.durationOptions[1]}</option><option value="7-10">{t.customize.durationOptions[2]}</option><option value="10+">{t.customize.durationOptions[3]}</option></select></label>
-            <label className="form-full" htmlFor="inquiry-tour-name">{t.customize.fields.tourName}<input id="inquiry-tour-name" name="tourName" defaultValue={initialTourName} placeholder={t.customize.placeholders.tourName} maxLength={160} /></label>
-            <label className="form-full" htmlFor="inquiry-places">{t.customize.fields.places}<input id="inquiry-places" name="places" defaultValue={initialPlaces} placeholder={t.customize.placeholders.places} maxLength={500} /></label>
-            <label className="form-full" htmlFor="inquiry-message">{t.customize.fields.message}<textarea id="inquiry-message" name="message" defaultValue={initialMessage} rows={4} placeholder={t.customize.placeholders.message} maxLength={2000} /></label>
+            <label htmlFor="inquiry-name">
+              {t.customize.fields.name}
+
+              <input
+                ref={firstInputRef}
+                id="inquiry-name"
+                name="name"
+                placeholder={t.customize.placeholders.name}
+                autoComplete="name"
+                maxLength={80}
+                required
+              />
+            </label>
+
+            <label htmlFor="inquiry-phone">
+              {t.customize.fields.phone}
+
+              <input
+                id="inquiry-phone"
+                name="phone"
+                placeholder={t.customize.placeholders.phone}
+                autoComplete="tel"
+                inputMode="tel"
+                maxLength={20}
+                required
+              />
+            </label>
+
+            <label htmlFor="inquiry-date">
+              {t.customize.fields.date}
+
+              <input
+                id="inquiry-date"
+                type="date"
+                name="travelDate"
+                min={getChinaDate()}
+              />
+            </label>
+
+            <label htmlFor="inquiry-travelers">
+              {t.customize.fields.travelers}
+
+              <select
+                id="inquiry-travelers"
+                name="travelers"
+                defaultValue=""
+                required
+              >
+                <option value="" disabled>
+                  {t.customize.placeholders.travelers}
+                </option>
+
+                <option value="1">
+                  {t.customize.travelerOptions[0]}
+                </option>
+
+                <option value="2">
+                  {t.customize.travelerOptions[1]}
+                </option>
+
+                <option value="3-5">
+                  {t.customize.travelerOptions[2]}
+                </option>
+
+                <option value="6+">
+                  {t.customize.travelerOptions[3]}
+                </option>
+              </select>
+            </label>
+
+            <label
+              className="form-full"
+              htmlFor="inquiry-places"
+            >
+              {t.customize.fields.places}
+
+              <input
+                id="inquiry-places"
+                name="places"
+                defaultValue={initialPlaces}
+                placeholder={t.customize.placeholders.places}
+                maxLength={500}
+              />
+            </label>
+
+            <div className="form-more-row form-full">
+              <button
+                type="button"
+                className="form-more-toggle"
+                onClick={() =>
+                  setShowMoreFields((current) => !current)
+                }
+                aria-expanded={showMoreFields}
+              >
+                {showMoreFields
+                  ? t.customize.less
+                  : t.customize.more}
+              </button>
+            </div>
+
+            {showMoreFields ? (
+              <>
+                <label htmlFor="inquiry-wechat">
+                  {t.customize.fields.wechat}
+
+                  <input
+                    id="inquiry-wechat"
+                    name="wechat"
+                    placeholder={t.customize.placeholders.wechat}
+                    maxLength={80}
+                  />
+                </label>
+
+                <label htmlFor="inquiry-email">
+                  {t.customize.fields.email}
+
+                  <input
+                    id="inquiry-email"
+                    type="email"
+                    name="email"
+                    placeholder={t.customize.placeholders.email}
+                    autoComplete="email"
+                    maxLength={254}
+                  />
+                </label>
+
+                <label htmlFor="inquiry-location">
+                  {t.customize.fields.location}
+
+                  <input
+                    id="inquiry-location"
+                    name="location"
+                    placeholder={t.customize.placeholders.location}
+                    maxLength={100}
+                  />
+                </label>
+
+                <label htmlFor="inquiry-duration">
+                  {t.customize.fields.duration}
+
+                  <select
+                    id="inquiry-duration"
+                    name="duration"
+                    defaultValue=""
+                  >
+                    <option value="">
+                      {t.customize.placeholders.duration}
+                    </option>
+
+                    <option value="3-4">
+                      {t.customize.durationOptions[0]}
+                    </option>
+
+                    <option value="5-6">
+                      {t.customize.durationOptions[1]}
+                    </option>
+
+                    <option value="7-10">
+                      {t.customize.durationOptions[2]}
+                    </option>
+
+                    <option value="10+">
+                      {t.customize.durationOptions[3]}
+                    </option>
+                  </select>
+                </label>
+
+                <label
+                  className="form-full"
+                  htmlFor="inquiry-tour-name"
+                >
+                  {t.customize.fields.tourName}
+
+                  <input
+                    id="inquiry-tour-name"
+                    name="tourName"
+                    defaultValue={initialTourName}
+                    placeholder={t.customize.placeholders.tourName}
+                    maxLength={160}
+                  />
+                </label>
+
+                <label
+                  className="form-full"
+                  htmlFor="inquiry-message"
+                >
+                  {t.customize.fields.message}
+
+                  <textarea
+                    id="inquiry-message"
+                    name="message"
+                    defaultValue={initialMessage}
+                    rows={4}
+                    placeholder={t.customize.placeholders.message}
+                    maxLength={2000}
+                  />
+                </label>
+              </>
+            ) : null}
           </div>
           <div className="honeypot-field" aria-hidden="true"><label htmlFor="inquiry-website">{t.customize.honeypotLabel}<input id="inquiry-website" name="website" tabIndex={-1} autoComplete="off" /></label></div>
           <TurnstileWidget siteKey={turnstileSiteKey} onToken={handleTurnstileToken} resetKey={turnstileResetKey} />

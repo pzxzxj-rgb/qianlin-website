@@ -51,7 +51,7 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
           <h1>旅行社管理后台</h1>
 
           <p>
-            查看运营概况，并管理公司资料、网站图片、联系方式、旅游线路和网站视觉主题。
+            查看运营概况，并管理公司资料、网站图片、联系方式、参考方案、目的地和网站视觉主题。
           </p>
         </div>
 
@@ -76,7 +76,7 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
 
       <section className="admin-metrics" aria-label="运营概况">
         <article><span>Hero 图片</span><strong>{data.counts.heroImages}</strong></article>
-        <article><span>旅游线路</span><strong>{data.counts.tours}</strong></article>
+        <article><span>参考方案</span><strong>{data.counts.tours}</strong></article>
         <article><span>目的地</span><strong>{data.counts.destinations}</strong></article>
         <article><span>咨询总数</span><strong>{data.counts.inquiries}</strong></article>
         <article><span>新咨询</span><strong>{data.counts.newInquiries}</strong></article>
@@ -86,7 +86,7 @@ export function AdminDashboard({ data }: { data: AdminDashboardData }) {
 
       <div className="admin-grid">
         <section className="admin-card"><div className="admin-card-heading"><span className="eyebrow">TENANT</span><h2>当前租户</h2></div><dl className="admin-info-list"><InfoRow label="租户名称" value={`${data.tenant.nameZh} / ${data.tenant.nameEn}`} /><InfoRow label="租户 slug" value={data.tenant.slug} /><InfoRow label="站点状态" value={status} /><InfoRow label="默认语言" value={language} /></dl></section>
-        <section className="admin-card"><div className="admin-card-heading"><div><span className="eyebrow">CONTACT</span><h2>公司资料</h2></div><div className="admin-card-heading-links"><Link className="button button-light admin-edit-profile-link" href={adminBase("/images")}>管理网站图片</Link><Link className="button button-light admin-edit-profile-link" href={adminBase("/contacts")}>管理联系方式</Link><Link className="button button-light admin-edit-profile-link" href={adminBase("/tours")}>管理旅游线路</Link><Link className="button button-light admin-edit-profile-link" href={adminBase("/destinations")}>管理目的地</Link><Link className="button button-light admin-edit-profile-link" href={adminBase("/profile")}>编辑公司资料</Link></div></div><dl className="admin-info-list"><InfoRow label="中文名称" value={data.profile.companyNameZh} /><InfoRow label="English name" value={data.profile.companyNameEn} /><InfoRow label="中文地址" value={data.profile.addressZh} /><InfoRow label="English address" value={data.profile.addressEn} /><InfoRow label="Logo 标志" value={data.profile.logoMark} /></dl></section>
+        <section className="admin-card"><div className="admin-card-heading"><div><span className="eyebrow">CONTACT</span><h2>公司资料</h2></div><div className="admin-card-heading-links"><Link className="button button-light admin-edit-profile-link" href={adminBase("/images")}>管理网站图片</Link><Link className="button button-light admin-edit-profile-link" href={adminBase("/contacts")}>管理联系方式</Link><Link className="button button-light admin-edit-profile-link" href={adminBase("/tours")}>管理参考方案</Link><Link className="button button-light admin-edit-profile-link" href={adminBase("/destinations")}>管理目的地</Link><Link className="button button-light admin-edit-profile-link" href={adminBase("/profile")}>编辑公司资料</Link></div></div><dl className="admin-info-list"><InfoRow label="中文名称" value={data.profile.companyNameZh} /><InfoRow label="English name" value={data.profile.companyNameEn} /><InfoRow label="中文地址" value={data.profile.addressZh} /><InfoRow label="English address" value={data.profile.addressEn} /><InfoRow label="Logo 标志" value={data.profile.logoMark} /></dl></section>
         <section className="admin-card admin-card-wide admin-inquiry-entry-card"><div className="admin-card-heading"><div><span className="eyebrow">INQUIRIES</span><h2>咨询管理</h2></div><Link className="button button-light admin-edit-profile-link" href={adminBase("/inquiries")}>查看咨询列表</Link></div><p>列表默认只显示脱敏联系方式，完整手机号、微信、邮箱和留言仅在详情页提供。</p></section>
         <section className="admin-card admin-card-wide"><div className="admin-card-heading"><span className="eyebrow">DESCRIPTION</span><h2>公司介绍</h2></div><div className="admin-description-grid"><p>{data.profile.descriptionZh || "未填写中文介绍"}</p><p>{data.profile.descriptionEn || "No English description"}</p></div></section>
         <section className="admin-card"><div className="admin-card-heading"><span className="eyebrow">CHANNELS</span><h2>联系方式</h2></div><dl className="admin-info-list"><InfoRow label="电话" value={data.contacts.phone} /><InfoRow label="邮箱" value={data.contacts.email} /><InfoRow label="微信" value={data.contacts.wechat} /></dl></section>

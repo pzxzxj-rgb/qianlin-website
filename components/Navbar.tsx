@@ -43,7 +43,7 @@ export function Navbar({ showTours, onBookNow, siteConfig }: NavbarProps) {
         <div id="mobile-navigation" className={`nav-panel ${menuOpen ? "nav-panel-open" : ""}`}>
           <nav className="main-nav" aria-label={language === "zh" ? "主导航" : "Main navigation"}>
             <a href="#home" onClick={closeMenu}>{t.nav.home}</a>
-            {siteConfig.tenant.isDemo ? <a href="#about" onClick={closeMenu}>{t.nav.about}</a> : <><a href="#destinations" onClick={closeMenu}>{t.nav.destinations}</a>{showTours ? <a href="#tours" onClick={closeMenu}>{t.nav.tours}</a> : null}<a href="#customize" onClick={closeMenu}>{t.nav.customize}</a><a href="#about" onClick={closeMenu}>{t.nav.about}</a><a href="#contact" onClick={closeMenu}>{t.nav.contact}</a></>}
+            {siteConfig.tenant.isDemo ? <a href="#about" onClick={closeMenu}>{t.nav.about}</a> : <><a href="#destinations" onClick={closeMenu}>{t.nav.destinations}</a><a href="#planner" onClick={closeMenu}>{t.nav.planner}</a>{showTours ? <a href="#tours" onClick={closeMenu}>{t.nav.tours}</a> : null}<a href="#customize" onClick={closeMenu}>{t.nav.customize}</a><a href="#about" onClick={closeMenu}>{t.nav.about}</a><a href="#contact" onClick={closeMenu}>{t.nav.contact}</a></>}
           </nav>
           <div className="header-actions">
             <button type="button" className="language-switch" onClick={toggleLanguage} aria-label={t.nav.aria}><span>{language === "en" ? "中文" : "EN"}</span></button>

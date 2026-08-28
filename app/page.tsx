@@ -8,8 +8,8 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
-const defaultTitle = "黔林旅行社｜贵州定制旅行";
-const defaultDescription = "黔林旅行社专注贵州目的地旅行，为你规划轻松、清晰、值得回味的旅程。";
+const defaultTitle = "黔林旅行社｜贵州旅行咨询·行程规划·私人定制";
+const defaultDescription = "黔林旅行社提供贵州及周边旅行咨询、目的地信息、参考行程规划与定制服务。告诉我们出行时间、人数和旅行偏好，由旅行顾问结合实际资源进一步确认旅行方案。";
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
@@ -18,7 +18,8 @@ export async function generateMetadata(): Promise<Metadata> {
       const siteConfig = await getTenantSiteConfig(tenant);
       const isPublic = siteConfig.isConfigured && siteConfig.tenant.siteStatus === "published";
       const siteUrl = await getSiteUrl();
-      const title = siteConfig.profile.companyName.zh || defaultTitle;
+      const brandName = siteConfig.profile.companyName.zh || "黔林旅行社";
+      const title = `${brandName}｜贵州旅行咨询·行程规划·私人定制`;
       const description = siteConfig.profile.description.zh || siteConfig.profile.primaryRegion.zh || defaultDescription;
       const image = siteConfig.profile.ogImageUrl || "/og.png";
       return { title, description, alternates: { canonical: siteUrl }, robots: isPublic && !siteConfig.tenant.isDemo ? undefined : { index: false, follow: false }, openGraph: { title, description, url: siteUrl, type: "website", images: [{ url: image, width: 1792, height: 944, alt: "黔林旅行社贵州旅行视觉图" }] }, twitter: { card: "summary_large_image", title, description, images: [image] } };

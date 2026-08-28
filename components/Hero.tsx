@@ -9,7 +9,6 @@ import { useLanguage } from "./LanguageContext";
 const AUTO_ADVANCE_MS = 6000;
 
 type HeroProps = {
-  showTours: boolean;
   onCustomize: () => void;
   slides: TenantSiteConfig["heroSlides"];
   region?: { zh: string; en: string };
@@ -18,7 +17,7 @@ type HeroProps = {
   showCustomizeAction?: boolean;
 };
 
-export function Hero({ showTours, onCustomize, slides, region, demoName, demoDescription, showCustomizeAction = true }: HeroProps) {
+export function Hero({ onCustomize, slides, region, demoName, demoDescription, showCustomizeAction = true }: HeroProps) {
   const { language, t } = useLanguage();
   const [activeIndex, setActiveIndex] = useState(0);
   const [failedSlideIds, setFailedSlideIds] = useState<string[]>([]);
@@ -61,11 +60,11 @@ export function Hero({ showTours, onCustomize, slides, region, demoName, demoDes
     </div>
     <div className="hero-overlay" aria-hidden="true" />
     <div className="container hero-content">
-      <p className="hero-kicker"><span /> {region?.[language] ? `${t.hero.kicker} · ${region[language]}` : t.hero.kicker}</p>
+      <p className="hero-kicker"><span /> {region?.[language] ? `${region[language]} · ${t.hero.kicker}` : t.hero.kicker}</p>
       <h1>{isDemo ? demoName?.[language] : t.hero.title}<br />{isDemo ? null : <em>{t.hero.accent}</em>}</h1>
       <p className="hero-description">{isDemo ? demoDescription?.[language] : t.hero.description}</p>
       <p className="hero-chinese">{isDemo ? "" : t.hero.chinese}</p>
-      <div className="hero-actions">{showTours ? <a className="button button-light" href="#tours">{t.hero.explore} <span aria-hidden="true">→</span></a> : null}{showCustomizeAction ? <button type="button" className="button button-ghost" onClick={onCustomize}>{t.hero.customize} <span aria-hidden="true">→</span></button> : null}</div>
+      <div className="hero-actions"><a className="button button-light" href="#planner">{t.hero.plan} <span aria-hidden="true">→</span></a>{showCustomizeAction ? <button type="button" className="button button-ghost" onClick={onCustomize}>{t.hero.customize} <span aria-hidden="true">→</span></button> : null}</div>
     </div>
     <div className="hero-scroll-hint" aria-hidden="true"><span /> {t.hero.scroll}</div>
     {visibleSlides.length > 0 ? <div className="hero-carousel-controls" role="group" aria-label={language === "zh" ? "首页图片轮播控制" : "Hero image carousel controls"} onFocus={() => setIsControlFocused(true)} onBlur={(event) => { if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget as Node)) setIsControlFocused(false); }}>
