@@ -208,7 +208,7 @@ async function main() {
     // real scheduled() implementation.
     server = spawn(process.execPath, [wrangler, "dev", "--local", "--config", scheduledWorkerConfigPath, "--persist-to", statePath, "--port", String(port), "--test-scheduled"], {
       cwd: root,
-      env: { ...process.env, APP_ENV: "test", ERP_PROVIDER: "mock", ERP_MOCK_FAILURE: "false", CLOUDFLARE_PERSIST_STATE_PATH: statePath, WRANGLER_WRITE_LOGS: "false", WRANGLER_LOG_PATH: logsPath, MINIFLARE_REGISTRY_PATH: registryPath },
+      env: { ...process.env, APP_ENV: "test", ERP_PROVIDER: "mock", ERP_MOCK_FAILURE: "false", CLOUDFLARE_PERSIST_STATE_PATH: statePath, WRANGLER_WRITE_LOGS: "false", WRANGLER_LOG_PATH: logsPath, WRANGLER_REGISTRY_PATH: registryPath },
       stdio: ["ignore", "pipe", "pipe"],
     });
     server.stdout.on("data", (chunk) => output.push(String(chunk)));
