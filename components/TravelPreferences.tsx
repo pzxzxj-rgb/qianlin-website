@@ -56,6 +56,7 @@ export function TravelPreferences({
     <section
       id="preferences"
       className="section section-preferences"
+      data-testid="travel-preferences"
     >
       <div className="container">
         <div className="section-row section-row-start">
@@ -121,6 +122,7 @@ export function TravelPreferences({
           <button
             type="button"
             className="button button-dark"
+            data-testid="travel-preferences-consult"
             onClick={handleConsult}
           >
             {t.preferences.consult}

@@ -115,10 +115,10 @@ const validPayload = {
   email: "",
   location: "贵阳",
   travelDate: "",
-  travelers: "1",
-  duration: "",
-  tourName: "",
-  places: "黄果树瀑布",
+  travelers: "2",
+  duration: "5-6",
+  tourName: "Local reference plan",
+  places: "黄果树瀑布、荔波小七孔",
   message: "Local D1 functional test",
   website: "",
   privacyConsent: true,
@@ -1185,7 +1185,14 @@ try {
   assert.equal(accepted.body.sync.status, "not_configured");
   assert.equal(accepted.body.sync.provider, "disabled");
   assert.doesNotMatch(JSON.stringify(accepted.body), /ERP_NOT_CONFIGURED|18985127882|Local D1 functional test/);
-  const storedAccepted = query(`SELECT submission_id, privacy_policy_version FROM inquiries WHERE id = ${accepted.body.inquiry.id}`)[0];
+  const storedAccepted = query(`SELECT location, travel_date, travelers, duration, tour_name, places, message, submission_id, privacy_policy_version FROM inquiries WHERE tenant_id = 'qianlin-travel' AND id = ${accepted.body.inquiry.id}`)[0];
+  assert.equal(storedAccepted.location, validPayload.location);
+  assert.equal(storedAccepted.travel_date, validPayload.travelDate);
+  assert.equal(storedAccepted.travelers, validPayload.travelers);
+  assert.equal(storedAccepted.duration, validPayload.duration);
+  assert.equal(storedAccepted.tour_name, validPayload.tourName);
+  assert.equal(storedAccepted.places, validPayload.places);
+  assert.equal(storedAccepted.message, validPayload.message);
   assert.equal(storedAccepted.submission_id, validPayload.submissionId);
   assert.equal(storedAccepted.privacy_policy_version, "privacy-2026-08-04");
   const duplicate = await request("/api/t/qianlin-travel/inquiries", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(validPayload) });
@@ -1231,6 +1238,12 @@ try {
   const inquiryDetail = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}`, { headers: { cookie: statusSessionCookie } });
   assert.equal(inquiryDetail.response.status, 200);
   assert.equal(inquiryDetail.body.inquiry.phone, "18985127882");
+  assert.equal(inquiryDetail.body.inquiry.location, validPayload.location);
+  assert.equal(inquiryDetail.body.inquiry.travelDate, validPayload.travelDate);
+  assert.equal(inquiryDetail.body.inquiry.travelers, validPayload.travelers);
+  assert.equal(inquiryDetail.body.inquiry.duration, validPayload.duration);
+  assert.equal(inquiryDetail.body.inquiry.tourName, validPayload.tourName);
+  assert.equal(inquiryDetail.body.inquiry.places, validPayload.places);
   assert.equal(inquiryDetail.body.inquiry.message, "Local D1 functional test");
   assert.equal(inquiryDetail.body.inquiry.status, "following_up");
   assert.equal(inquiryDetail.body.inquiry.sync.status, "not_configured");
@@ -1277,6 +1290,7 @@ try {
   const editorInquiryDetail = await request(`/api/admin/t/qianlin-travel/inquiries/${qianlinInquiryId}`, { headers: { cookie: editorSessionCookie } });
   assert.equal(editorInquiryDetail.response.status, 200);
   assert.equal(editorInquiryDetail.body.inquiry.phone, "18985127882");
+  assert.equal(editorInquiryDetail.body.inquiry.places, validPayload.places);
   assert.equal(editorInquiryDetail.body.inquiry.message, "Local D1 functional test");
   // PII-03 对照：editor 列表保持姓名可见（inquiry:read_sensitive），联系方式仍按当前策略脱敏。
   const editorInquiryList = await request("/api/admin/t/qianlin-travel/inquiries", { headers: { cookie: editorSessionCookie } });
@@ -1292,6 +1306,8 @@ try {
   const inquiryDetailPage = await request(`/admin/inquiries/${qianlinInquiryId}`, { headers: { cookie: statusSessionCookie } });
   assert.equal(inquiryDetailPage.response.status, 200);
   assert.match(String(inquiryDetailPage.body), /18985127882/);
+  assert.match(String(inquiryDetailPage.body), /Local reference plan/);
+  assert.match(String(inquiryDetailPage.body), /黄果树瀑布、荔波小七孔/);
   assert.match(String(inquiryDetailPage.body), /Local D1 functional test/);
   const storedImageProfile = query("SELECT id, tenant_id, status, created_at, updated_at, about_image_url, about_image_alt_zh, about_image_alt_en, customize_image_url, customize_image_alt_zh, customize_image_alt_en FROM tenant_site_profiles WHERE tenant_id = 'qianlin-travel' AND status = 'published' LIMIT 1")[0];
   assert.equal(storedImageProfile.id, originalQianlinImageProfile.id);

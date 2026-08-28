@@ -55,7 +55,20 @@ export function AdminInquiryDetail({ initialInquiry, tenantSlug }: { initialInqu
       <section className="admin-card admin-inquiry-detail-card">
         <div className="admin-card-heading"><div><span className="eyebrow">DETAIL</span><h2>{inquiry.name || "未填写姓名"}</h2></div><div><span className={statusClass(inquiry.status)}>{STATUS_LABELS[inquiry.status]}</span><SyncStatus sync={inquiry.sync} /></div></div>
         {error ? <p className="admin-form-error" role="alert">{error}</p> : null}
-        <dl className="admin-inquiry-detail-grid"><DetailRow label="姓名" value={inquiry.name} /><DetailRow label="手机" value={inquiry.phone} /><DetailRow label="微信" value={inquiry.wechat} /><DetailRow label="邮箱" value={inquiry.email} /><DetailRow label="出发日期" value={inquiry.travelDate} /><DetailRow label="出行人数" value={inquiry.travelers} /><DetailRow label="创建时间" value={inquiry.createdAt} /><DetailRow label="留言" value={inquiry.message} preserveWhitespace /></dl>
+        <dl className="admin-inquiry-detail-grid">
+          <DetailRow label="姓名" value={inquiry.name} />
+          <DetailRow label="手机" value={inquiry.phone} />
+          <DetailRow label="微信" value={inquiry.wechat} />
+          <DetailRow label="邮箱" value={inquiry.email} />
+          <DetailRow label="所在地区" value={inquiry.location} />
+          <DetailRow label="出发日期" value={inquiry.travelDate} />
+          <DetailRow label="出行人数" value={inquiry.travelers} />
+          <DetailRow label="旅行时长" value={inquiry.duration} />
+          <DetailRow label="参考方案 / 旅行方向" value={inquiry.tourName} />
+          <DetailRow label="想去的地方" value={inquiry.places} preserveWhitespace />
+          <DetailRow label="创建时间" value={inquiry.createdAt} />
+          <DetailRow label="留言" value={inquiry.message} preserveWhitespace />
+        </dl>
         <div className="admin-inquiry-status-editor"><label htmlFor="inquiry-detail-status">当前状态<select id="inquiry-detail-status" value={inquiry.status} onChange={(event) => void updateStatus(event.target.value as AdminInquiryStatus)} disabled={pending}>{STATUS_OPTIONS.map((status) => <option value={status} key={status}>{STATUS_LABELS[status]}</option>)}</select></label><span>{pending ? "正在保存……" : "状态修改会立即生效"}</span></div>
       </section>
     </div>

@@ -111,10 +111,13 @@ export function CustomizeForm({ open, initialTourName = "", initialPlaces = "", 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submitting) return;
+
+    const form = event.currentTarget;
+    if (!form.reportValidity()) return;
+
     setSubmitting(true);
     setSubmitError("");
 
-    const form = event.currentTarget;
     const payload = Object.fromEntries(new FormData(form).entries());
     payload.submissionId = submissionIdRef.current;
     const phone = typeof payload.phone === "string" ? normalizeMainlandPhone(payload.phone) : "";

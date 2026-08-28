@@ -10,7 +10,7 @@
     "build": "vinext build",
     "start": "vinext start",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node scripts/run-runtime-security.mjs && node --test tests/rendered-html.test.mjs tests/image-management.test.mjs tests/contact-management.test.mjs tests/tour-management.test.mjs tests/destination-management.test.mjs tests/inquiry-management.test.mjs tests/planner-data.test.mjs tests/tenant-isolation.test.mjs tests/turnstile.test.mjs",
+    "test": "npm run build && node scripts/run-runtime-security.mjs && node --test tests/rendered-html.test.mjs tests/image-management.test.mjs tests/contact-management.test.mjs tests/tour-management.test.mjs tests/destination-management.test.mjs tests/inquiry-management.test.mjs tests/consultation-homepage.test.mjs tests/planner-data.test.mjs tests/tenant-isolation.test.mjs tests/turnstile.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern .wrangler",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply DB --local --config wrangler.local.jsonc --persist-to .wrangler/state",

@@ -50,8 +50,12 @@ export type AdminInquiryDetail = {
   phone: string;
   wechat: string;
   email: string;
+  location: string;
   travelDate: string;
   travelers: string;
+  duration: string;
+  tourName: string;
+  places: string;
   message: string;
   createdAt: string;
   status: AdminInquiryStatus;
@@ -153,7 +157,22 @@ export async function getAdminInquiries(tenantId: string, role: AdminRole, input
 export async function getAdminInquiryDetail(tenantId: string, inquiryId: number, role: AdminRole): Promise<AdminInquiryDetail | null> {
   assertAdminTenant(tenantId);
   const db = await getDb();
-  const rows = await db.select({ id: inquiries.id, name: inquiries.name, phone: inquiries.phone, wechat: inquiries.wechat, email: inquiries.email, travelDate: inquiries.travelDate, travelers: inquiries.travelers, message: inquiries.message, createdAt: inquiries.createdAt, status: inquiries.status }).from(inquiries).where(and(eq(inquiries.tenantId, tenantId), eq(inquiries.id, inquiryId))).limit(1);
+  const rows = await db.select({
+    id: inquiries.id,
+    name: inquiries.name,
+    phone: inquiries.phone,
+    wechat: inquiries.wechat,
+    email: inquiries.email,
+    location: inquiries.location,
+    travelDate: inquiries.travelDate,
+    travelers: inquiries.travelers,
+    duration: inquiries.duration,
+    tourName: inquiries.tourName,
+    places: inquiries.places,
+    message: inquiries.message,
+    createdAt: inquiries.createdAt,
+    status: inquiries.status,
+  }).from(inquiries).where(and(eq(inquiries.tenantId, tenantId), eq(inquiries.id, inquiryId))).limit(1);
   const row = rows[0];
   if (!row) return null;
   const piiVisibility = inquiryPiiVisibilityForRole(role);
@@ -168,8 +187,12 @@ export async function getAdminInquiryDetail(tenantId: string, inquiryId: number,
     phone: maskPhone(row.phone),
     wechat: maskText(row.wechat),
     email: maskEmail(row.email),
+    location: maskText(row.location),
     travelDate: row.travelDate,
     travelers: row.travelers,
+    duration: row.duration,
+    tourName: maskText(row.tourName),
+    places: maskText(row.places),
     message: maskText(row.message),
     createdAt: row.createdAt,
     status: row.status as AdminInquiryStatus,

@@ -48,6 +48,12 @@ test("defines provider independent inquiries and tenant scoped sync jobs", async
   assert.match(adminInquiries, /maskEmail/);
   assert.match(adminInquiries, /maskName/);
   assert.match(adminInquiries, /inquiryPiiVisibilityForRole\(role\)/);
+  const detailType = adminInquiries.slice(adminInquiries.indexOf("export type AdminInquiryDetail"), adminInquiries.indexOf("export type AdminInquiryStats"));
+  for (const field of ["location", "duration", "tourName", "places"]) assert.match(detailType, new RegExp(`${field}: string;`));
+  assert.match(adminInquiries, /location: inquiries\.location/);
+  assert.match(adminInquiries, /duration: inquiries\.duration/);
+  assert.match(adminInquiries, /tourName: inquiries\.tourName/);
+  assert.match(adminInquiries, /places: inquiries\.places/);
   assert.match(listRoute, /getAdminRouteAccess/);
   assert.match(listRoute, /getAdminInquiries\(tenantId, role,/);
   assert.match(listPage, /getAdminInquiries\(access\.tenantId, access\.role,/);
@@ -62,6 +68,10 @@ test("defines provider independent inquiries and tenant scoped sync jobs", async
   assert.match(manager, /showError && sync\.message/);
   assert.doesNotMatch(manager, /item\.phone|item\.wechat|item\.email|item\.message/);
   assert.match(detail, /inquiry\.phone/);
+  assert.match(detail, /inquiry\.location/);
+  assert.match(detail, /inquiry\.duration/);
+  assert.match(detail, /inquiry\.tourName/);
+  assert.match(detail, /inquiry\.places/);
   assert.match(detail, /inquiry\.message/);
   assert.match(detail, /showError && sync\.message/);
   assert.match(dashboard, /tenantId/);
